@@ -83,6 +83,13 @@ O "require up-to-date" também previne o merge ref defasado que causou aquele sk
 `enforce_admins` fica desligado: o dono do repositório continua podendo destravar a
 fábrica manualmente na Fase 0.
 
+**NÃO APLICADA ainda (2026-07-28):** a API devolve `403 Upgrade to GitHub Pro or make
+this repository public` tanto em `branches/main/protection` quanto em `rulesets` — em
+repositório **privado** essas features exigem GitHub Pro. A decisão fica ACEITA e o
+enforcement pendente de uma destas saídas: (a) GitHub Pro, (b) tornar o repo público,
+(c) guard-rail dentro do próprio CI enquanto isso. Até lá, o "verde sem revisão"
+permanece possível — **conferir os checks à mão antes de cada merge**.
+
 Decorrência: `claude-code-review.yml` foi desativado (renomeado para `.yml.disabled`).
 Os revisores oficiais passam a ser `review.yml` e `ai-security-review` (em `security.yml`),
 que são os checks exigidos aqui. `claude.yml` (responder a @claude) segue ativo.
