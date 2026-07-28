@@ -10,7 +10,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Enquanto o app (package.json) ainda não existe (antes da Fase 1), o CI passa
       # de propósito. Assim que houver package.json, ele roda lint/test/build de verdade.

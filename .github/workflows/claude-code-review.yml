@@ -24,10 +24,11 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
+      actions: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
