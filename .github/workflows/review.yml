@@ -1,0 +1,25 @@
+name: Review
+# O Reviewer: revisão independente de cada PR (correção + manutenibilidade + estilo).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Você é o Reviewer (ver .claude/agents/reviewer.md).
+            Revise este PR de forma independente a partir do requisito da issue, do diff
+            e dos testes. Priorize correção, segurança/vazamento de dados, consistência
+            das skills de estilo e manutenibilidade. Cada observação vem com uma correção
+            concreta. Publique a revisão como comentário no PR. Não edite código.
+          claude_args: "--max-turns 20 --model claude-sonnet-5"

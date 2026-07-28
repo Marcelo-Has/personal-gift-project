@@ -1,0 +1,27 @@
+name: Daily Report
+# Resumo diário do progresso, aberto como uma issue para você acompanhar.
+on:
+  schedule:
+    - cron: "0 11 * * *"   # 11:00 UTC = 08:00 em São Paulo (UTC-3)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Gere um resumo do progresso das últimas 24h: commits, PRs abertos/mergeados,
+            issues concluídas, itens do docs/ROADMAP.md que avançaram, decisões pendentes
+            (label decision-needed) e quaisquer bloqueios. Seja conciso.
+            Publique o resumo como uma nova issue com o título "Relatório diário — <data>"
+            e o label `report`.
+          claude_args: "--max-turns 15 --model claude-sonnet-5"

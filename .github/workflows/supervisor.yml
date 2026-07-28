@@ -1,0 +1,31 @@
+name: Supervisor
+# O coração da fábrica: agendado. Lê o Blueprint, escolhe tarefas e cria issues.
+on:
+  schedule:
+    - cron: "0 * * * *"   # a cada hora (ajuste a frequência conforme o custo)
+  workflow_dispatch: {}     # permite rodar manualmente pelo botão do GitHub
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  supervisor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Você é o Supervisor (ver .claude/agents/supervisor.md).
+            Leia docs/PRODUCT.md, docs/ARCHITECTURE.md, docs/AUTONOMY.md,
+            docs/ROADMAP.md e docs/DECISIONS.md.
+            Verifique issues abertas, dependências, PRs, resultados de CI e decisões
+            pendentes. Selecione as próximas tarefas NÃO bloqueadas necessárias para a
+            fase atual e crie issues claras com o label `status:ready`.
+            Não altere decisões de produto existentes. Se precisar de decisão humana,
+            crie uma issue com label `decision-needed` (Opções + Recomendação + o que
+            bloqueia) e continue com outras tarefas.
+          claude_args: "--max-turns 20 --model claude-sonnet-5"

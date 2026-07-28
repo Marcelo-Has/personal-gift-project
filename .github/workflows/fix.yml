@@ -1,0 +1,29 @@
+name: Fix on CI failure
+# Quando o CI falha, o Claude tenta corrigir automaticamente.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  fix:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            O CI falhou na branch ${{ github.event.workflow_run.head_branch }}.
+            Investigue a causa raiz a partir dos logs/checks, corrija o problema,
+            atualize ou adicione testes, e faça commit na mesma branch para reabrir o CI.
+            Não faça merge. Não commite segredos. Se a causa exigir uma decisão humana,
+            crie uma issue `decision-needed` (docs/AUTONOMY.md).
+          claude_args: "--max-turns 25 --model claude-sonnet-5"

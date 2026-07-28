@@ -1,0 +1,27 @@
+# Dependências
+node_modules/
+.pnpm-store/
+
+# Build
+build/
+dist/
+.svelte-kit/
+.vercel/
+.output/
+
+# Ambiente e segredos — NUNCA commitar
+.env
+.env.*
+!.env.example
+*.pem
+**/secrets*
+serviceAccount*.json
+
+# Config pessoal do Claude Code (não compartilhada)
+.claude/settings.local.json
+.claude/agent-memory-local/
+
+# Sistema / logs
+.DS_Store
+*.log
+coverage/

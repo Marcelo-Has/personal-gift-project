@@ -1,0 +1,33 @@
+name: Implement
+# O Developer: implementa issues com o label `status:ready` e abre um PR.
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  implement:
+    # Roda quando a issue recebe o label `status:ready`, ou quando alguém comenta @claude.
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'status:ready') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Você é o Developer (ver .claude/agents/developer.md).
+            Implemente a issue #${{ github.event.issue.number }} de ponta a ponta:
+            crie uma branch, escreva o código e os testes seguindo CLAUDE.md e as
+            rules aplicáveis, rode lint/test/build e abra um PR pequeno com `Closes #${{ github.event.issue.number }}`.
+            Se a tarefa cair em um Decision Gate (docs/AUTONOMY.md), NÃO adivinhe:
+            crie uma issue `decision-needed` e pare.
+          claude_args: "--max-turns 30 --model claude-sonnet-5"

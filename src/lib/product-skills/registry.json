@@ -1,0 +1,16 @@
+{
+  "_comentario": "Catálogo versionado das skills de runtime do produto. O motor de geração SÓ produz conteúdo a partir daqui. 'status: published' = disponível como opção de compra (publicar é Decision Gate). 'draft' = existe mas não é vendável ainda.",
+  "sizes": [
+    { "id": "mini-15x15", "label": "Mini 15 × 15 cm", "sku": "S150", "pages": 32, "status": "published" },
+    { "id": "medio-20x20", "label": "Médio 20 × 20 cm", "sku": "TBD", "pages": 32, "status": "draft" }
+  ],
+  "narrative-style": [
+    { "id": "romantico", "version": "1.0.0", "label": "Romântico", "path": "narrative-style/romantico", "status": "published" }
+  ],
+  "photo-style": [
+    { "id": "aquarela", "version": "1.0.0", "label": "Aquarela", "path": "photo-style/aquarela", "status": "published" }
+  ],
+  "layout-element": [
+    { "id": "polaroid-com-texto", "version": "1.0.0", "label": "Polaroid com texto", "path": "layout-element/polaroid-com-texto", "status": "published" }
+  ]
+}

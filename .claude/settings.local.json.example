@@ -1,0 +1,8 @@
+{
+  "_comentario": "Copie este arquivo para 'settings.local.json' (que é gitignored) e coloque aqui suas preferências pessoais deste projeto. Mesma sintaxe do settings.json. As listas (ex.: permissions.allow) se somam às do settings.json.",
+  "permissions": {
+    "allow": [
+      "Bash(docker *)"
+    ]
+  }
+}

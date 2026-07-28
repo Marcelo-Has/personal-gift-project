@@ -1,0 +1,45 @@
+name: Security
+# Revisão de segurança dedicada + scans (dependências e segredos) em cada PR.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scans:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Scan de segredos vazados no histórico do PR.
+      - name: Gitleaks (segredos)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Auditoria de dependências (só roda quando já existe app).
+      - name: npm audit
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm audit --audit-level=high || true
+
+  ai-security-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Faça uma revisão de SEGURANÇA deste PR seguindo o baseline em
+            docs/ARCHITECTURE.md (Parte 3) e .claude/rules/security.md.
+            Procure: injeção (SQL/XSS/comando), falhas de autenticação/autorização,
+            exposição de PII, segredos hardcoded, URLs de foto não assinadas, webhooks
+            Stripe sem verificação de assinatura, regras de acesso do Firebase frouxas.
+            Reporte com severidade e correção concreta. Marque riscos altos como bloqueantes.
+          # Tarefa de alto risco → modelo mais forte.
+          claude_args: "--max-turns 20 --model opus"
