@@ -60,6 +60,10 @@ Developer **não tem `gh pr merge`** — na Fase 0 o merge é humano. O `.claude
 permanece como **2ª camada** de defesa. Motivo: sem allow-list a Action nega `Bash` e o
 agente não consegue trabalhar; com allow-list ampla demais, um agente autônomo no CI teria
 mais poder que o necessário para o seu papel.
+Nota (2026-07-28): Reviewer e Security incluem também comandos de **leitura read-only**
+(`cat`, `ls`, `head`, `tail`, `wc`, `find`, `grep`, `git diff/log/show`) — sem eles o
+Reviewer gastava turnos batendo em ferramenta negada e estourou o `--max-turns`. Rede
+continua fora (`curl`, `wget`), assim como `Edit`/`Write` e `gh pr merge`.
 
 ## D-013 | 2026-07-28 | ACEITA
 `allowed_bots: "claude"` em todo step da `claude-code-action`, **nunca `"*"`**. Motivo: os
@@ -67,6 +71,35 @@ PRs da fábrica são abertos pelo bot, e por padrão a action recusa rodar em PR
 não-humano — sem isso, todo PR gerado nasce sem revisão. A doc do `action.yml` alerta que
 `"*"` num repositório público permite que Apps externos injetem prompts; nomear só o nosso
 bot mantém o least privilege do [D-012].
+
+## D-014 | 2026-07-28 | ACEITA
+**Branch protection na `main`**: exigir PR (sem push direto), status checks obrigatórios
+`ci`, `review` e `ai-security-review`, e branch atualizada com a base antes do merge
+("require branches to be up to date"). Motivo: eliminar o "verde sem revisão" — houve um
+caso real em que a `claude-code-action` pulou a execução por *workflow validation* e
+mesmo assim os três jobs de revisão saíram com exit 0, deixando o PR verde sem que
+ninguém tivesse revisado. Isso viola na prática a regra inviolável nº 2 do `CLAUDE.md`.
+O "require up-to-date" também previne o merge ref defasado que causou aquele skip.
+`enforce_admins` fica desligado: o dono do repositório continua podendo destravar a
+fábrica manualmente na Fase 0.
+
+**NÃO APLICADA ainda (2026-07-28):** a API devolve `403 Upgrade to GitHub Pro or make
+this repository public` tanto em `branches/main/protection` quanto em `rulesets` — em
+repositório **privado** essas features exigem GitHub Pro. A decisão fica ACEITA e o
+enforcement pendente de uma destas saídas: (a) GitHub Pro, (b) tornar o repo público,
+(c) guard-rail dentro do próprio CI enquanto isso.
+
+**Ponte implementada (c):** `review.yml` e `ai-security-review` ganharam um step final
+`Exigir veredito publicado no PR`, que falha o job se nenhum comentário de bot tiver
+aparecido no PR desde o início da revisão. Assim o skip silencioso da action vira check
+vermelho em vez de verde. Não consome tokens da Anthropic (só `gh api`) e roda dentro dos
+jobs já existentes, sem minuto extra de Actions. **Limite:** é convenção, não bloqueio —
+sem branch protection, ainda é possível mergear por cima de um check vermelho. Até o
+enforcement real existir, **conferir os checks à mão antes de cada merge**.
+
+Decorrência: `claude-code-review.yml` foi desativado (renomeado para `.yml.disabled`).
+Os revisores oficiais passam a ser `review.yml` e `ai-security-review` (em `security.yml`),
+que são os checks exigidos aqui. `claude.yml` (responder a @claude) segue ativo.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
