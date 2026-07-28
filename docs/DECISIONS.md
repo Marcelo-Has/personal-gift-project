@@ -61,6 +61,13 @@ permanece como **2ª camada** de defesa. Motivo: sem allow-list a Action nega `B
 agente não consegue trabalhar; com allow-list ampla demais, um agente autônomo no CI teria
 mais poder que o necessário para o seu papel.
 
+## D-013 | 2026-07-28 | ACEITA
+`allowed_bots: "claude"` em todo step da `claude-code-action`, **nunca `"*"`**. Motivo: os
+PRs da fábrica são abertos pelo bot, e por padrão a action recusa rodar em PR de ator
+não-humano — sem isso, todo PR gerado nasce sem revisão. A doc do `action.yml` alerta que
+`"*"` num repositório público permite que Apps externos injetem prompts; nomear só o nosso
+bot mantém o least privilege do [D-012].
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

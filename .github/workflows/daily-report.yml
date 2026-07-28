@@ -20,6 +20,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "claude"
           prompt: |
             Gere um resumo do progresso das últimas 24h: commits, PRs abertos/mergeados,
             issues concluídas, itens do docs/ROADMAP.md que avançaram, decisões pendentes
