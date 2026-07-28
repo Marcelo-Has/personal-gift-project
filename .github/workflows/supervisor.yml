@@ -30,4 +30,4 @@ jobs:
             Não altere decisões de produto existentes. Se precisar de decisão humana,
             crie uma issue com label `decision-needed` (Opções + Recomendação + o que
             bloqueia) e continue com outras tarefas.
-          claude_args: "--max-turns 20 --model claude-sonnet-5"
+          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Bash(git log:*),Bash(git status:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*)"'

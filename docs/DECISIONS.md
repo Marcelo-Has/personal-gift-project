@@ -53,6 +53,14 @@ Princípios permanentes de performance + custo: geração assíncrona, cache/pro
 modelo por tarefa, imagens otimizadas + CDN, observabilidade de custo unitário.
 Motivo: solução performática e barata de operar.
 
+## D-012 | 2026-07-28 | ACEITA
+**Allow-list de ferramentas por papel** (least privilege) nos workflows, via
+`--allowed-tools` no `claude_args`: Reviewer e Security são **read-only** (sem Edit/Write);
+Developer **não tem `gh pr merge`** — na Fase 0 o merge é humano. O `.claude/settings.json`
+permanece como **2ª camada** de defesa. Motivo: sem allow-list a Action nega `Bash` e o
+agente não consegue trabalhar; com allow-list ampla demais, um agente autônomo no CI teria
+mais poder que o necessário para o seu papel.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
