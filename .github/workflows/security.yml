@@ -7,6 +7,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: read          # ler os comentários do PR no guard-rail do D-014
   id-token: write
   actions: write
 
@@ -33,6 +34,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # Guard-rail D-014 (parte 1/2): marca o instante antes da revisão.
+      - id: inicio
+        run: echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -49,3 +55,23 @@ jobs:
             auditável.
           # Tarefa de alto risco → modelo mais forte.
           claude_args: '--max-turns 30 --model opus --allowed-tools "Read,Glob,Grep,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+
+      # Guard-rail D-014 (parte 2/2): ver a explicação em review.yml. Revisão de
+      # segurança que não deixa veredito escrito no PR não conta como revisão.
+      - name: Exigir veredito publicado no PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          DESDE: ${{ steps.inicio.outputs.ts }}
+        run: |
+          set -euo pipefail
+          novos=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+            --jq "[.[] | select(.user.type == \"Bot\")
+                       | select(.created_at >= \"${DESDE}\" or .updated_at >= \"${DESDE}\")]
+                  | length")
+          if [ "${novos}" -eq 0 ]; then
+            echo "::error::A revisão de segurança não publicou veredito no PR #${PR}. Tratar como reprovado, não como verde."
+            exit 1
+          fi
+          echo "Veredito publicado (${novos} comentário(s) de bot desde ${DESDE})."

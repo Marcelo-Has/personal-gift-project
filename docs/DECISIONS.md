@@ -87,8 +87,15 @@ fábrica manualmente na Fase 0.
 this repository public` tanto em `branches/main/protection` quanto em `rulesets` — em
 repositório **privado** essas features exigem GitHub Pro. A decisão fica ACEITA e o
 enforcement pendente de uma destas saídas: (a) GitHub Pro, (b) tornar o repo público,
-(c) guard-rail dentro do próprio CI enquanto isso. Até lá, o "verde sem revisão"
-permanece possível — **conferir os checks à mão antes de cada merge**.
+(c) guard-rail dentro do próprio CI enquanto isso.
+
+**Ponte implementada (c):** `review.yml` e `ai-security-review` ganharam um step final
+`Exigir veredito publicado no PR`, que falha o job se nenhum comentário de bot tiver
+aparecido no PR desde o início da revisão. Assim o skip silencioso da action vira check
+vermelho em vez de verde. Não consome tokens da Anthropic (só `gh api`) e roda dentro dos
+jobs já existentes, sem minuto extra de Actions. **Limite:** é convenção, não bloqueio —
+sem branch protection, ainda é possível mergear por cima de um check vermelho. Até o
+enforcement real existir, **conferir os checks à mão antes de cada merge**.
 
 Decorrência: `claude-code-review.yml` foi desativado (renomeado para `.yml.disabled`).
 Os revisores oficiais passam a ser `review.yml` e `ai-security-review` (em `security.yml`),
