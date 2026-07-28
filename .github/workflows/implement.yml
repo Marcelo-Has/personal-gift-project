@@ -34,18 +34,3 @@ jobs:
             Se a tarefa cair em um Decision Gate (docs/AUTONOMY.md), NÃO adivinhe:
             crie uma issue `decision-needed` e pare.
           claude_args: '--max-turns 30 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(gh issue view:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(npm:*)"'
-
-      # TEMPORÁRIO (debug do D-012): mostra cada ferramenta chamada e o motivo das
-      # negações. Remover assim que o smoke test passar.
-      - name: Debug — ferramentas e negações
-        if: always()
-        run: |
-          f="${{ steps.claude.outputs.execution_file }}"
-          [ -f "$f" ] || { echo "sem execution_file"; exit 0; }
-          jq -r '.[] | select(.type=="assistant") | .message.content[]?
-                 | select(.type=="tool_use")
-                 | "TOOL \(.name): \(.input.command // .input.file_path // "")"' "$f" || true
-          echo "--- resultados de ferramenta (erros/negações) ---"
-          jq -r '.[] | select(.type=="user") | .message.content[]?
-                 | select(.type=="tool_result" and .is_error==true)
-                 | "ERRO: \(.content | tostring | .[0:400])"' "$f" || true
