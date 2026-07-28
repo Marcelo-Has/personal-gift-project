@@ -20,6 +20,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "claude"
           prompt: |
             Você é o Supervisor (ver .claude/agents/supervisor.md).
             Leia docs/PRODUCT.md, docs/ARCHITECTURE.md, docs/AUTONOMY.md,

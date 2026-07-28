@@ -26,6 +26,7 @@ jobs:
         id: claude
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "claude"
           prompt: |
             Você é o Developer (ver .claude/agents/developer.md).
             Implemente a issue #${{ github.event.issue.number }} de ponta a ponta:

@@ -36,6 +36,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "claude"
           prompt: |
             Faça uma revisão de SEGURANÇA deste PR seguindo o baseline em
             docs/ARCHITECTURE.md (Parte 3) e .claude/rules/security.md.
