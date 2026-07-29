@@ -41,6 +41,8 @@ confundir com `.claude/skills/`, que é para helpers de desenvolvimento.)
 Segurança, pagamentos, consistência de estilo e testes ficam em rules com `paths:`,
 carregando só quando um arquivo relacionado é tocado.
 
+- Right-sizing / anti-over-engineering → `.claude/rules/right-sizing.md`: qualidade sem excesso; LOW/INFO e riscos hipotéticos se adiam, não viram status:ready.
+
 ## Padrões de engenharia
 SvelteKit + Firebase + Stripe + Claude API. Todo código novo vem com testes; E2E com
 Playwright. Rode e passe `lint`, `test`, `build` (e os scans) antes de abrir/mergear PR.
