@@ -26,3 +26,16 @@ autônoma por IA (Claude Code + GitHub Actions). Primeiro produto: mini livro
    o ciclo issue → PR → review → CI → merge feito por IA.
 
 Detalhes e próximas fases: `docs/ROADMAP.md`.
+
+## App (Fase 1 — scaffold)
+SvelteKit + TypeScript. Comandos:
+```
+npm ci             # instala dependências (Node >= 22.22.2)
+npm run dev        # ambiente de desenvolvimento
+npm run build      # build de produção
+npm run lint       # prettier --check + eslint
+npm test           # svelte-check + testes unitários (Vitest)
+npm run test:e2e   # testes E2E (Playwright) — na primeira vez, rode
+                    # `npm run test:e2e:install-browsers` para baixar os navegadores
+```
+A home page atual é um placeholder mínimo (sem identidade visual/naming definidos).

@@ -1,0 +1,18 @@
+# Este arquivo indica ao prettier para ignorar arquivos/pastas com output de build.
+.DS_Store
+node_modules
+build
+.svelte-kit
+dist
+package-lock.json
+playwright-report
+test-results
+
+# Documentação e specs mantêm formatação livre (não são código do app)
+docs/
+*.md
+
+# Infra da fábrica / assets de produto — fora do escopo deste scaffold (F1-01)
+.claude/
+.github/
+src/lib/product-skills/

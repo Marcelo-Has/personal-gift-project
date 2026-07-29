@@ -6,37 +6,33 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# Menor privilégio: o juiz só precisa ler o código.
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
-      # Enquanto o app (package.json) ainda não existe (antes da Fase 1), o CI passa
-      # de propósito. Assim que houver package.json, ele roda lint/test/build de verdade.
       - name: Setup Node
-        if: ${{ hashFiles('package.json') != '' }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 22: jsdom@30 exige ^22.22.2 e undici@8 usa
+          # worker_threads.markAsUncloneable, inexistente no Node 20 (que também
+          # está em fim de vida desde 2026-04-30).
+          node-version: 22
           cache: npm
 
       - name: Instalar dependências
-        if: ${{ hashFiles('package.json') != '' }}
         run: npm ci
 
       - name: Lint
-        if: ${{ hashFiles('package.json') != '' }}
-        run: npm run lint --if-present
+        run: npm run lint
 
       - name: Testes
-        if: ${{ hashFiles('package.json') != '' }}
-        run: npm test --if-present
+        run: npm test
 
       - name: Build
-        if: ${{ hashFiles('package.json') != '' }}
-        run: npm run build --if-present
-
-      - name: Sem app ainda
-        if: ${{ hashFiles('package.json') == '' }}
-        run: echo "Ainda sem package.json (pré-Fase 1). CI verde de propósito."
+        run: npm run build
