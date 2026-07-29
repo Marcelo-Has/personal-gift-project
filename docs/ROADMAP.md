@@ -40,7 +40,7 @@ seleção de estilo/tamanho e checkout Stripe em teste, com deploy de staging.
 - [ ] **F1-06** — Seleção de estilo e tamanho (lê catálogo `published`; trata vazio).
 - [ ] **F1-07** — Stripe modo teste: checkout + webhook com assinatura verificada.
       **CSP:** o Checkout exige `script-src https://js.stripe.com` e `frame-src` — ver nota abaixo.
-- [ ] **F1-08** — [gate D-104] Host/infra + deploy automático de **staging**.
+- [ ] **F1-08** — [D-018: Netlify] Host/infra + deploy automático de **staging**.
       **CSP:** rota pré-renderizada não passa pelo `handle`; fixar os headers na camada de CDN/edge.
 
 > **Nota de CSP (FU-01, PR #13).** A CSP em `svelte.config.js` é restritiva por design
