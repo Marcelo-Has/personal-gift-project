@@ -6,8 +6,9 @@ test('deve incluir os cabeçalhos de segurança quando a home responde', async (
 
 	const headers = response!.headers();
 
-	expect(headers['strict-transport-security']).toBe('max-age=63072000; includeSubDomains; preload');
+	expect(headers['strict-transport-security']).toBe('max-age=63072000; includeSubDomains');
 	expect(headers['x-content-type-options']).toBe('nosniff');
+	expect(headers['x-frame-options']).toBe('DENY');
 	expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
 });
 
