@@ -30,7 +30,7 @@ Detalhes e próximas fases: `docs/ROADMAP.md`.
 ## App (Fase 1 — scaffold)
 SvelteKit + TypeScript. Comandos:
 ```
-npm ci             # instala dependências (Node >= 20)
+npm ci             # instala dependências (Node >= 22.22.2)
 npm run dev        # ambiente de desenvolvimento
 npm run build      # build de produção
 npm run lint       # prettier --check + eslint
