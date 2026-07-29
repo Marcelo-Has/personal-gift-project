@@ -15,31 +15,32 @@ jobs:
   scans:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
 
       # Scan de segredos vazados no histórico do PR.
       - name: Gitleaks (segredos)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Auditoria de dependências (só roda quando já existe app).
+      # É um GATE: vulnerabilidade high/critical reprova o CI (sem `|| true`).
       - name: npm audit
         if: ${{ hashFiles('package-lock.json') != '' }}
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
   ai-security-review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # Guard-rail D-014 (parte 1/2): marca o instante antes da revisão.
       - id: inicio
         run: echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         with:
           # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
           # usa a API medida; FACTORY_AUTH=oauth usa a assinatura. A credencial não
