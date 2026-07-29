@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// Regras mínimas do Storage (F1-04, issue #22).
+//
+// NEGA TUDO — inclusive para o dono autenticado. Não é excesso de zelo: é o
+// desenho de acesso às fotos exigido por `.claude/rules/security.md` ("URLs de
+// foto sempre assinadas e expiráveis; nunca links públicos permanentes").
+//
+// Como o acesso acontece, então: o servidor gera uma URL assinada V4 de curta
+// duração (`src/lib/server/signed-url.ts`). Essa URL é autenticada pela
+// assinatura da service account e vai direto ao Google Cloud Storage, que NÃO
+// avalia estas regras. Ou seja: negar aqui fecha o caminho do SDK cliente
+// (`getDownloadURL()`, upload direto, listagem do bucket) sem quebrar o fluxo
+// real de upload/download de foto.
+//
+// Consequência prática: qualquer código de cliente que tente falar com o Storage
+// sem passar pelo servidor falha — que é exatamente o comportamento desejado.
+// Afrouxar isto é Decision Gate (`docs/AUTONOMY.md`, §2).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

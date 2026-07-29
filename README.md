@@ -37,5 +37,18 @@ npm run lint       # prettier --check + eslint
 npm test           # svelte-check + testes unitários (Vitest)
 npm run test:e2e   # testes E2E (Playwright) — na primeira vez, rode
                     # `npm run test:e2e:install-browsers` para baixar os navegadores
+npm run test:rules # testes das regras do Firebase no emulador (exige Java 21+)
 ```
 A home page atual é um placeholder mínimo (sem identidade visual/naming definidos).
+
+## Firebase (Fase 1 — F1-04)
+- `firestore.rules` / `storage.rules` — regras mínimas: cada usuário só acessa os
+  próprios dados e o Storage é inalcançável pelo SDK cliente. Fotos só por **URL
+  assinada e expirável** gerada em `src/lib/server/signed-url.ts`.
+- `firebase.json` — configuração das regras e dos emuladores (Auth/Firestore/Storage).
+- `npm run test:rules` sobe o emulador e prova as negações de acesso. Roda com o
+  projeto fake `demo-personal-gift`, **sem** credencial real e sem custo; precisa de
+  Java 21+ instalado (o CI instala sozinho).
+- Configuração vem só de variáveis de ambiente: copie `.env.example` para `.env` e
+  preencha com os dados do seu projeto Firebase. Criar o projeto no console do
+  Firebase e gerar a service account é passo manual.

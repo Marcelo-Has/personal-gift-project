@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Regras mínimas do Firestore (F1-04, issue #22).
+//
+// Baseline obrigatório (`.claude/rules/security.md`, `docs/ARCHITECTURE.md` Parte 3):
+// cada usuário só acessa os próprios dados; nada público. Enfraquecer isto é
+// Decision Gate (`docs/AUTONOMY.md`, §2).
+//
+// Duas escolhas registradas de propósito:
+//
+// 1. `match /{document=**} { allow read, write: if false; }` no topo é o default
+//    de negar tudo. Regras do Firestore são OU-lógico entre `match`es: um caminho
+//    só é liberado por uma regra que o cite explicitamente. Coleção nova nasce
+//    fechada.
+//
+// 2. Escrita em pedidos é NEGADA para o cliente. O Admin SDK (servidor) ignora
+//    estas regras, então o fluxo de pedido continua funcionando; o que muda é que
+//    o comprador não consegue alterar o próprio pedido (preço, tamanho, status de
+//    pagamento) direto do navegador. Perfil (`/users/{uid}`) o dono escreve, que
+//    é dado dele e não tem efeito financeiro.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Default: nada é acessível sem uma regra explícita abaixo.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Perfil do usuário: só o dono, autenticado.
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // Pedidos: o dono lê; escrita é exclusiva do servidor (Admin SDK).
+      match /orders/{orderId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+    }
+  }
+}
