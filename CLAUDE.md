@@ -23,7 +23,10 @@ e múltiplos tamanhos**.
 2. Nunca faça merge com CI vermelho (inclui scan de segurança e testes de estilo).
 3. Nunca commite segredos; nunca exponha dados de usuário (sem storage público, sem PII
    em logs, URLs de foto sempre assinadas e expiráveis).
-4. Não altere PRODUCT / AUTONOMY / DECISIONS sem Decision Gate aprovado (pode propor).
+4. Não **altere nem remova** entrada existente de PRODUCT / AUTONOMY / DECISIONS sem Decision
+   Gate aprovado (pode propor). **Acrescentar uma entrada NOVA em `docs/DECISIONS.md`**
+   registrando a decisão da própria tarefa não é alteração — é exigido por `docs/AUTONOMY.md`
+   §3 ("toda decisão relevante vira entrada em DECISIONS.md"). Ver D-019.
 5. Todo trabalho vira uma issue e um PR pequeno e revisável.
 
 ## Papéis — mesmo Claude, contextos diferentes → `.claude/agents/`
