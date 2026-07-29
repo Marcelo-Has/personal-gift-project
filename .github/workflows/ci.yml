@@ -54,6 +54,13 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # Gera .svelte-kit/tsconfig.json, de quem o tsconfig.json da raiz faz `extends`.
+      # O Playwright lê o tsconfig antes de subir o webServer, então num checkout
+      # limpo ele falha se o sync não rodar antes. No job `ci` isso vem de brinde
+      # pelo `npm test` (que chama `npm run check`); aqui precisa ser explícito.
+      - name: Sincronizar o SvelteKit
+        run: npx svelte-kit sync
+
       # A versão do Playwright entra na chave do cache: browser antigo com runner
       # novo é fonte clássica de E2E instável.
       - name: Descobrir a versão do Playwright
