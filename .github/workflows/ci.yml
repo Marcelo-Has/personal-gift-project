@@ -109,6 +109,12 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # Mesmo motivo do job `e2e`: o tsconfig.json da raiz faz `extends` de
+      # .svelte-kit/tsconfig.json, que só existe depois do sync. Sem isto o
+      # vitest falha em transformar os testes com "Tsconfig not found".
+      - name: Sincronizar o SvelteKit
+        run: npx svelte-kit sync
+
       # Os .jar dos emuladores (~60 MB) são baixados no primeiro uso. Cachear
       # tira o download do caminho crítico e reduz falha por rede.
       - name: Cache dos emuladores do Firebase
