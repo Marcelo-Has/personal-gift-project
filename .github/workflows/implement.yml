@@ -1,6 +1,12 @@
 name: Implement
 # O Developer: implementa issues com o label `status:ready` e abre um PR.
 on:
+  # Re-disparo explícito, sem ter de remover e recolocar label (D-019).
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Número da issue a implementar'
+        required: true
   issues:
     types: [labeled]
   issue_comment:
@@ -13,15 +19,59 @@ permissions:
   id-token: write
   actions: write
 
+# Um run por issue (docs/AUTONOMY.md §5). `cancel-in-progress: false` de propósito:
+# cancelar o run pendente perderia a issue em silêncio — exatamente o modo de falha
+# que o D-019 conserta. A serialização entre issues DIFERENTES é operacional (disparar
+# uma por vez): seis runs em paralelo derrubaram três sessões no 1º turno.
+concurrency:
+  group: implement-${{ github.event.inputs.issue || github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   implement:
-    # Roda quando a issue recebe o label `status:ready`, ou quando alguém comenta @claude.
+    # Roda no dispatch manual, quando a issue recebe o label `status:ready`, ou quando
+    # alguém comenta @claude numa issue. Comentário em PR fica de fora: lá quem responde
+    # é o `claude.yml`, e o guard-rail de saída daria falso-vermelho.
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' && github.event.label.name == 'status:ready') ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
+      (github.event_name == 'issue_comment' &&
+       !github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
+    env:
+      ISSUE: ${{ github.event.inputs.issue || github.event.issue.number }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # Guard-rail de saída (parte 1/2): marca o instante antes do Developer, para
+      # distinguir uma issue `decision-needed` criada por ESTE run de uma preexistente.
+      - id: inicio
+        run: echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # Dependências prontas ANTES do agente. Sem isto ele gastava turnos rodando
+      # `npm ci` por conta própria, sem cache, antes de poder tocar no código.
+      # Espelha o job `ci` de ci.yml (mesmo SHA, mesma versão de Node).
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Labels da flag de completude (D-019), criadas aqui e não pelo agente, para não
+      # gastar turno com isso. `--force` deixa o step idempotente.
+      - name: Garantir labels de entrega
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create 'entrega:incompleta' --color 'D93F0B' --force \
+            --description 'PR do Developer que ainda NÃO concluiu a entrega'
+          gh label create 'entrega:completa' --color '0E8A16' --force \
+            --description 'Developer concluiu a entrega: lint e test rodados'
+
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         id: claude
         with:
@@ -33,9 +83,110 @@ jobs:
           allowed_bots: "claude"
           prompt: |
             Você é o Developer (ver .claude/agents/developer.md).
-            Implemente a issue #${{ github.event.issue.number }} de ponta a ponta:
-            crie uma branch, escreva o código e os testes seguindo CLAUDE.md e as
-            rules aplicáveis, rode lint/test/build e abra um PR pequeno com `Closes #${{ github.event.issue.number }}`.
-            Se a tarefa cair em um Decision Gate (docs/AUTONOMY.md), NÃO adivinhe:
-            crie uma issue `decision-needed` e pare.
-          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+            Implemente de ponta a ponta a issue
+            #${{ github.event.inputs.issue || github.event.issue.number }}
+            seguindo CLAUDE.md e as rules aplicáveis de `.claude/rules/`.
+
+            As dependências JÁ estão instaladas neste runner (`npm ci` rodou antes de você):
+            não rode `npm ci` de novo. Rode `npm run lint` e `npm test`. NÃO rode
+            `npm run test:e2e` (baixa ~115 MB de browser) nem `npm run test:rules` (exige
+            JVM e emulador) — quem roda esses dois é o CI, em jobs próprios.
+
+            CONTRATO DE SAÍDA — obrigatório. O job REPROVA se não for cumprido:
+
+            1. Crie a branch e, na PRIMEIRA mudança que compile, publique-a e abra o PR
+               já, sem esperar terminar:
+                 git push -u origin <branch>
+                 gh pr create --title "[WIP] <título>" --body "... Closes #${{ github.event.inputs.issue || github.event.issue.number }}"
+                 gh pr edit --add-label 'entrega:incompleta'
+               Continue empurrando commits nesse mesmo PR. Assim, se a sessão morrer no
+               meio, o trabalho não se perde — foi o que aconteceu nos runs anteriores
+               desta fábrica.
+
+            2. Ao concluir de fato (`npm run lint` e `npm test` rodados, critérios de aceite
+               atendidos), marque a entrega como completa:
+                 gh pr edit --title "<título sem [WIP]>" \
+                   --remove-label 'entrega:incompleta' --add-label 'entrega:completa'
+               e marque a checkbox "Entrega completa" no corpo do PR.
+               NUNCA marque `entrega:completa` sem ter rodado lint e test.
+
+            3. NUNCA termine sem um destes desfechos: (a) PR aberto referenciando a issue;
+               (b) issue `decision-needed` criada, se a tarefa cair num Decision Gate de
+               docs/AUTONOMY.md — nesse caso não adivinhe, registre Opções + Recomendação +
+               o que bloqueia; (c) comentário na issue explicando o bloqueio. Terminar em
+               silêncio, sem nenhum dos três, é a falha que este contrato existe para impedir.
+
+            4. Se o orçamento de turnos estiver acabando, PARE de codar e garanta o desfecho
+               (a) com o que já existe: deixe `entrega:incompleta`, mantenha o `[WIP]` no
+               título e liste no corpo do PR exatamente o que falta.
+
+            Não faça merge: `gh pr merge` não está na allow-list e o merge é humano (D-012).
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+
+      # Observabilidade (D-019). O commit b294cc8 apagou o step que despejava cada
+      # tool_use e cada negação, e `show_full_output` não está ligado — as negações de
+      # ferramenta ficaram indiagnosticáveis nos logs. O artefato traz a transcrição
+      # completa sem imprimi-la no log do job. Custo: zero token.
+      - name: Guardar transcrição do Developer
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: implement-${{ github.event.inputs.issue || github.event.issue.number }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          retention-days: 7
+          if-no-files-found: warn
+
+      # Guard-rail de saída (parte 2/2) — o conserto central do D-019, no mesmo espírito
+      # do "Exigir veredito publicado no PR" de review.yml/security.yml (ponte (c) do
+      # D-014). Sem este step, um run que não produz NADA — sem branch, sem PR, sem
+      # comentário — sai verde: foi assim que #22, #30, #31 e #33 morreram em silêncio.
+      # Custo: nenhuma chamada à API do Claude; só `gh`.
+      - name: Exigir PR aberto pelo Developer
+        if: always() && github.event_name != 'issue_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DESDE: ${{ steps.inicio.outputs.ts }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # `([^0-9]|$)` em vez de `\b`: o `\b` não casa no jq embutido do `gh`, o que
+          # daria falso-negativo ao depurar este mesmo guard-rail à mão. Serve para o
+          # mesmo fim — impedir que `#3` case com `#30`.
+          prs=$(gh pr list --state all --limit 100 --json number,url,labels,body \
+            | jq --arg n "$ISSUE" '[.[] | select((.body // "") | test("#" + $n + "([^0-9]|$)"))]')
+
+          if [ "$(jq 'length' <<<"$prs")" -eq 0 ]; then
+            # Desfecho (b): parou num Decision Gate e registrou a issue. Válido.
+            decisoes=$(gh issue list --state all --label decision-needed --limit 50 \
+              --json number,createdAt \
+              | jq --arg t "$DESDE" '[.[] | select(.createdAt >= $t)] | length')
+            if [ "${decisoes}" -gt 0 ]; then
+              echo "Desfecho válido: o Developer abriu ${decisoes} issue(s) decision-needed em vez de PR."
+              exit 0
+            fi
+            gh issue comment "$ISSUE" --body "$(printf '%s\n' \
+              '⚠️ O Developer terminou sem produzir nada: nenhum PR referencia esta issue e nenhuma issue `decision-needed` foi criada.' \
+              '' \
+              "Run: ${RUN_URL} (a transcrição está nos artefatos do run)." \
+              '' \
+              'O guard-rail do D-019 reprovou o job. Isto NÃO é entrega parcial — é o no-op silencioso.')"
+            echo "::error::Nenhum PR referencia a issue #${ISSUE} e nenhuma decision-needed foi criada. O Developer terminou em silêncio — tratar como reprovado, não como verde."
+            exit 1
+          fi
+
+          numeros=$(jq -r '[.[] | "#\(.number)"] | join(", ")' <<<"$prs")
+          completos=$(jq '[.[] | select(.labels | any(.name == "entrega:completa"))] | length' <<<"$prs")
+
+          if [ "${completos}" -eq 0 ]; then
+            gh issue comment "$ISSUE" --body "$(printf '%s\n' \
+              "⚠️ Entrega PARCIAL: o PR ${numeros} existe, mas não está marcado com \`entrega:completa\`." \
+              '' \
+              "Run: ${RUN_URL} (transcrição nos artefatos)." \
+              '' \
+              'O que falta está listado no corpo do PR. O job fica vermelho de propósito: entrega incompleta não é entrega.')"
+            echo "::error::PR ${numeros} aberto para a issue #${ISSUE}, mas sem o label entrega:completa — entrega parcial, não pronta para revisão."
+            exit 1
+          fi
+
+          echo "PR ${numeros} referencia a issue #${ISSUE} e está marcado entrega:completa."
