@@ -101,6 +101,47 @@ Decorrência: `claude-code-review.yml` foi desativado (renomeado para `.yml.disa
 Os revisores oficiais passam a ser `review.yml` e `ai-security-review` (em `security.yml`),
 que são os checks exigidos aqui. `claude.yml` (responder a @claude) segue ativo.
 
+## D-015 | 2026-07-28 | ACEITA
+**Cadência e custo da fábrica.** O Supervisor passa a rodar **1x por dia útil**
+(`cron: "0 11 * * 1-5"` = 08:00 BRT, seg–sex) **+ on-demand** pelo `workflow_dispatch`,
+em vez de de hora em hora. Em troca do volume, o foco vai para **issues bem
+especificadas** (ver [D-017]): menos execuções, cada uma produzindo trabalho que o
+Developer consegue implementar sem adivinhar. Complementos desta decisão:
+- **Opus e revisão de segurança devem ser gateados por paths sensíveis** (pagamentos,
+  auth, regras do Firebase, tratamento de foto/PII) em vez de rodar Opus em todo PR —
+  **a implementar**, não vale como feito.
+- **Aproveitar prompt caching** nas execuções da fábrica (princípio já firmado em [D-011]).
+- A **fundação da Fase 1** é construída preferindo o **interativo** (Claude Max, custo já
+  pago em [D-004]) em vez do agendado; a automação entra depois que a base existe.
+Motivo: a cadência horária gastava API medida repetindo planejamento sobre um repositório
+que muda pouco, e a curadoria da fundação ainda é humana.
+
+## D-016 | 2026-07-28 | ACEITA
+**Toggle de autenticação por variável de repositório `FACTORY_AUTH`.** Todo step da
+`claude-code-action` nas nossas workflows (`implement`, `review`, `security`,
+`supervisor`, `fix`, `daily-report`) passa as duas credenciais em expressão condicional:
+`anthropic_api_key` quando `vars.FACTORY_AUTH != 'oauth'` e `claude_code_oauth_token`
+quando `== 'oauth'`; a não usada chega como string vazia. Default (variável ausente ou
+`api`) = **API medida** por token, mantendo [D-005]; `FACTORY_AUTH=oauth` = **assinatura**
+via `CLAUDE_CODE_OAUTH_TOKEN`. Motivo: alternar o modelo de custo passa a ser mudar uma
+variável em Settings → Variables, sem editar nem revisar workflow.
+Verificado: `base-action/src/validate-env.ts` da action valida com checagem *falsy*
+(`!anthropicApiKey && !claudeCodeOAuthToken && !hasWorkloadIdentity`) e o `action.yml`
+faz `inputs.x || env.x` — string vazia é tratada como **ausente**, e não há checagem que
+proíba passar as duas inputs. Logo o toggle funciona sem reusable workflow.
+Nota: `claude.yml` (responder a @claude) ficou fora de propósito, para não alterar o
+caminho interativo enquanto o toggle é validado.
+
+## D-017 | 2026-07-28 | ACEITA
+**Padrão de issue obrigatório** para toda issue da fábrica:
+`.github/ISSUE_TEMPLATE/factory-task.md`, com Contexto/Por quê, Objetivo, Escopo, Fora de
+escopo, Critérios de aceite (checklist verificável), Requisitos técnicos/decisões,
+Arquivos prováveis, Testes exigidos, Dependências e Definition of Done. O prompt do
+Supervisor foi atualizado para segui-lo e para criar como `decision-needed` — nunca
+`status:ready` — qualquer tarefa que toque uma decisão PENDENTE (D-100..D-106).
+Motivo: com a cadência reduzida de [D-015], o valor de cada execução está na qualidade da
+especificação; issue vaga vira PR errado e queima duas rodadas de CI e revisão.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
