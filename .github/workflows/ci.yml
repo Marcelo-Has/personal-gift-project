@@ -36,3 +36,43 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Gate de ponta a ponta: roda num job próprio (em paralelo com o `ci`) porque o
+  # webServer do Playwright já faz `npm run build && npm run preview` — juntar aos
+  # steps acima faria o build rodar duas vezes no mesmo runner.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # A versão do Playwright entra na chave do cache: browser antigo com runner
+      # novo é fonte clássica de E2E instável.
+      - name: Descobrir a versão do Playwright
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache dos browsers do Playwright
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
+      # Com o cache quente o download (~115 MB) é pulado; o passo continua rodando
+      # para garantir as dependências de sistema do Chromium, que não são cacheadas.
+      - name: Instalar browsers
+        run: npm run test:e2e:install-browsers
+
+      # Sem `|| true` nem `continue-on-error`: uma falha aqui reprova o CI.
+      # Cobre e2e/home.spec.ts e e2e/security-headers.spec.ts (CSP e cabeçalhos
+      # verificados numa resposta HTTP real, não só no unitário).
+      - name: E2E (Playwright)
+        run: npm run test:e2e
