@@ -32,10 +32,21 @@ seleção de estilo/tamanho e checkout Stripe em teste, com deploy de staging.
 - [ ] **F1-02** — Modelo de domínio do Pedido + leitura do registry (`published`/`draft`).
 - [ ] **F1-03** — Landing page "Nossa História".
 - [ ] **F1-04** — Firebase: config + regras mínimas (Auth/Firestore/Storage) + signed URLs.
+      **CSP:** liberar `connect-src` para os hosts do Firebase (Auth/Firestore) — ver nota abaixo.
 - [ ] **F1-05** — Questionário guiado (multi-step) + upload seguro de fotos.
+      **CSP:** as URLs assinadas vêm de outro domínio (`firebasestorage.googleapis.com`); sem
+      liberar `img-src`/`connect-src`, a foto simplesmente não carrega e o erro só aparece no
+      console do navegador — ver nota abaixo.
 - [ ] **F1-06** — Seleção de estilo e tamanho (lê catálogo `published`; trata vazio).
 - [ ] **F1-07** — Stripe modo teste: checkout + webhook com assinatura verificada.
+      **CSP:** o Checkout exige `script-src https://js.stripe.com` e `frame-src` — ver nota abaixo.
 - [ ] **F1-08** — [gate D-104] Host/infra + deploy automático de **staging**.
+      **CSP:** rota pré-renderizada não passa pelo `handle`; fixar os headers na camada de CDN/edge.
+
+> **Nota de CSP (FU-01, PR #13).** A CSP em `svelte.config.js` é restritiva por design
+> (`default-src 'self'`) e **vai bloquear** Firebase e Stripe até ser afrouxada nas tarefas acima.
+> Ao liberar, usar **allow-list de hosts específicos** — nunca `*` nem `'unsafe-inline'`. Afrouxar
+> além disso é **Decision Gate** (`.claude/rules/security.md`).
 
 ---
 
