@@ -10,6 +10,9 @@ test('deve incluir os cabeçalhos de segurança quando a home responde', async (
 	expect(headers['x-content-type-options']).toBe('nosniff');
 	expect(headers['x-frame-options']).toBe('DENY');
 	expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+	expect(headers['permissions-policy']).toBe('camera=(), microphone=(), geolocation=()');
+	expect(headers['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
+	expect(headers['cross-origin-resource-policy']).toBe('same-origin');
 });
 
 test('deve incluir uma Content-Security-Policy restritiva quando a home responde', async ({

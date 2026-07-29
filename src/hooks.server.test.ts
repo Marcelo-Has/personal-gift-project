@@ -34,6 +34,35 @@ describe('handle', () => {
 		expect(response.headers.get('Strict-Transport-Security')).not.toContain('preload');
 	});
 
+	it('deve negar câmera, microfone e geolocalização via Permissions-Policy', async () => {
+		const event = {} as RequestEvent;
+		const resolve = async () => new Response('ok');
+
+		const response = await handle({ event, resolve } as Parameters<typeof handle>[0]);
+
+		expect(response.headers.get('Permissions-Policy')).toBe(
+			'camera=(), microphone=(), geolocation=()'
+		);
+	});
+
+	it('deve enviar COOP same-origin-allow-popups para não quebrar signInWithPopup/Stripe', async () => {
+		const event = {} as RequestEvent;
+		const resolve = async () => new Response('ok');
+
+		const response = await handle({ event, resolve } as Parameters<typeof handle>[0]);
+
+		expect(response.headers.get('Cross-Origin-Opener-Policy')).toBe('same-origin-allow-popups');
+	});
+
+	it('deve enviar CORP same-origin', async () => {
+		const event = {} as RequestEvent;
+		const resolve = async () => new Response('ok');
+
+		const response = await handle({ event, resolve } as Parameters<typeof handle>[0]);
+
+		expect(response.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
+	});
+
 	it('deve preservar os demais cabeçalhos e o corpo da resposta original', async () => {
 		const event = {} as RequestEvent;
 		const resolve = async () =>
