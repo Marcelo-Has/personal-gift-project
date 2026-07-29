@@ -64,6 +64,12 @@ Nota (2026-07-28): Reviewer e Security incluem também comandos de **leitura rea
 (`cat`, `ls`, `head`, `tail`, `wc`, `find`, `grep`, `git diff/log/show`) — sem eles o
 Reviewer gastava turnos batendo em ferramenta negada e estourou o `--max-turns`. Rede
 continua fora (`curl`, `wget`), assim como `Edit`/`Write` e `gh pr merge`.
+Emenda (2026-07-29): o **Developer** (`implement.yml`) recebe a mesma ampliação — allow-list
+de leitura/utilitários (`gh issue:*`, `gh pr view:*`, `gh api:*`, `gh run:*`, `npx`, `node`,
+`cat`, `ls`, `find`, `grep`, `sed`, `mkdir`, `mv`, `cp`) e `--max-turns 40`. Motivo: mesmo
+sintoma do Reviewer — o agente queimava turnos em ferramenta negada e terminava em
+`error_max_turns` sem abrir PR. **`gh pr merge` continua fora**: o merge segue humano na
+Fase 0, assim como `curl`/`wget`.
 
 ## D-013 | 2026-07-28 | ACEITA
 `allowed_bots: "claude"` em todo step da `claude-code-action`, **nunca `"*"`**. Motivo: os

@@ -38,4 +38,4 @@ jobs:
             rules aplicáveis, rode lint/test/build e abra um PR pequeno com `Closes #${{ github.event.issue.number }}`.
             Se a tarefa cair em um Decision Gate (docs/AUTONOMY.md), NÃO adivinhe:
             crie uma issue `decision-needed` e pare.
-          claude_args: '--max-turns 30 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(gh issue view:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(npm:*)"'
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
