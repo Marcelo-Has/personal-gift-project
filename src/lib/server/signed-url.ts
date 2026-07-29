@@ -24,6 +24,13 @@ export const DEFAULT_DOWNLOAD_TTL_SECONDS = 10 * 60;
 /** Formatos aceitos no upload. Assinar `contentType` prende a URL a um tipo só. */
 export const ALLOWED_PHOTO_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
+/**
+ * Teto de tamanho do upload (`.claude/rules/security.md`: "limites de upload").
+ * 10 MB cobre com folga foto de celular. Sem isto, quem tem a URL pode dar PUT
+ * de um arquivo de qualquer tamanho enquanto ela vale — custo de Storage aberto.
+ */
+export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
 export type PhotoContentType = (typeof ALLOWED_PHOTO_CONTENT_TYPES)[number];
 
 /**
@@ -45,6 +52,7 @@ export interface SignableBucket {
 			action: 'read' | 'write';
 			expires: number;
 			contentType?: string;
+			extensionHeaders?: Record<string, string>;
 		}): Promise<[string]>;
 	};
 }
@@ -106,7 +114,11 @@ export async function createPhotoUploadUrl(
 		version: 'v4',
 		action: 'write',
 		expires: expiresAt,
-		contentType
+		contentType,
+		// Entra na assinatura: o cliente é obrigado a mandar o header, e o Google
+		// Cloud Storage recusa qualquer corpo acima do teto. Um limite checado só
+		// no navegador não limitaria nada — quem tem a URL fala direto com o GCS.
+		extensionHeaders: { 'x-goog-content-length-range': `0,${MAX_PHOTO_BYTES}` }
 	});
 
 	return { url, path, expiresAt };

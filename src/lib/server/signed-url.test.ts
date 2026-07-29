@@ -3,6 +3,7 @@ import {
 	ALLOWED_PHOTO_CONTENT_TYPES,
 	DEFAULT_DOWNLOAD_TTL_SECONDS,
 	DEFAULT_UPLOAD_TTL_SECONDS,
+	MAX_PHOTO_BYTES,
 	MAX_TTL_SECONDS,
 	createPhotoDownloadUrl,
 	createPhotoUploadUrl,
@@ -92,6 +93,16 @@ describe('createPhotoUploadUrl', () => {
 		await createPhotoUploadUrl({ ...entrada, contentType: 'image/webp' }, bucket);
 
 		expect(calls[0].options.contentType).toBe('image/webp');
+	});
+
+	it('deve assinar o teto de tamanho para o GCS recusar upload acima do limite', async () => {
+		const { bucket, calls } = fakeBucket();
+
+		await createPhotoUploadUrl(entrada, bucket);
+
+		expect(calls[0].options.extensionHeaders).toEqual({
+			'x-goog-content-length-range': `0,${MAX_PHOTO_BYTES}`
+		});
 	});
 
 	it('deve expirar em 5 minutos quando nenhuma validade é informada', async () => {
