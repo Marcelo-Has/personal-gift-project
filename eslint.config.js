@@ -30,6 +30,14 @@ export default ts.config(
 		}
 	},
 	{
+		// Testes de regras do Firebase: rodam em Node contra o emulador, fora do
+		// bundle do app (leem os arquivos .rules do disco).
+		files: ['tests/**/*.{js,ts}'],
+		languageOptions: {
+			globals: globals.node
+		}
+	},
+	{
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
 		languageOptions: {
 			parserOptions: {

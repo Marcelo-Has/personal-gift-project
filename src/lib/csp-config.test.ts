@@ -23,4 +23,26 @@ describe('CSP configurada em svelte.config.js', () => {
 	it('deve restringir scripts à própria origem, sem CDNs externos', () => {
 		expect(csp?.directives?.['script-src']).toEqual(['self']);
 	});
+
+	describe('connect-src liberado para o Firebase (F1-04)', () => {
+		const connectSrc = csp?.directives?.['connect-src'] ?? [];
+
+		it('deve liberar os hosts de Auth, Firestore e Storage quando o app usa o Firebase', () => {
+			expect(connectSrc).toEqual(
+				expect.arrayContaining([
+					'self',
+					'https://identitytoolkit.googleapis.com',
+					'https://securetoken.googleapis.com',
+					'https://firestore.googleapis.com',
+					'https://storage.googleapis.com'
+				])
+			);
+		});
+
+		it('deve usar allow-list de hosts específicos, sem curinga, ao liberar terceiros', () => {
+			for (const origem of connectSrc) {
+				expect(origem).not.toContain('*');
+			}
+		});
+	});
 });

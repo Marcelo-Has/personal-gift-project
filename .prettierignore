@@ -16,3 +16,6 @@ docs/
 .claude/
 .github/
 src/lib/product-skills/
+
+# Regras do Firebase: linguagem própria (CEL), sem parser no prettier
+*.rules

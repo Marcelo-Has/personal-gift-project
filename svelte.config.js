@@ -21,6 +21,13 @@ const config = {
 		//    (F1-04, F1-05, F1-07), usar allow-list de HOSTS específicos — nunca `*`
 		//    nem `'unsafe-inline'`. Afrouxar além disso é Decision Gate
 		//    (`.claude/rules/security.md`). Ver `docs/ROADMAP.md`, Fase 1.
+		//
+		// 3. `connect-src` (F1-04): liberados só os hosts que o Firebase realmente
+		//    usa — Auth (`identitytoolkit`/`securetoken`), Firestore e o Google Cloud
+		//    Storage, destino das URLs assinadas de foto. `script-src` continua em
+		//    `self`: o SDK do Firebase vem do bundle, não de CDN. `img-src` ainda NÃO
+		//    foi liberado porque nenhuma tela exibe foto; isso entra em F1-05, junto
+		//    com a tela que precisa.
 		csp: {
 			mode: 'auto',
 			directives: {
@@ -31,7 +38,13 @@ const config = {
 				'frame-ancestors': ['none'],
 				'script-src': ['self'],
 				'img-src': ['self', 'data:'],
-				'connect-src': ['self']
+				'connect-src': [
+					'self',
+					'https://identitytoolkit.googleapis.com',
+					'https://securetoken.googleapis.com',
+					'https://firestore.googleapis.com',
+					'https://storage.googleapis.com'
+				]
 			}
 		}
 	}

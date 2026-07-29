@@ -83,3 +83,51 @@ jobs:
       # verificados numa resposta HTTP real, não só no unitário).
       - name: E2E (Playwright)
         run: npm run test:e2e
+
+  # Gate das regras de acesso do Firebase (F1-04): prova, contra o emulador, que
+  # um usuário não alcança dado de outro e que o Storage não é público. Job
+  # próprio porque é o único que precisa de JVM.
+  regras-firebase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      # Os emuladores de Firestore e Storage rodam na JVM. Sem isto o
+      # `emulators:exec` falha com "java: command not found".
+      - name: Setup Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Mesmo motivo do job `e2e`: o tsconfig.json da raiz faz `extends` de
+      # .svelte-kit/tsconfig.json, que só existe depois do sync. Sem isto o
+      # vitest falha em transformar os testes com "Tsconfig not found".
+      - name: Sincronizar o SvelteKit
+        run: npx svelte-kit sync
+
+      # Os .jar dos emuladores (~60 MB) são baixados no primeiro uso. Cachear
+      # tira o download do caminho crítico e reduz falha por rede.
+      - name: Cache dos emuladores do Firebase
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/firebase/emulators
+          key: ${{ runner.os }}-firebase-emulators-15.24.0
+
+      # `firebase-tools` NÃO é devDependency de propósito: ele depende de
+      # minimatch@3, cuja cadeia (brace-expansion <=5.0.7, GHSA-mh99-v99m-4gvg)
+      # não tem correção publicada e deixaria o gate `npm audit --audit-level=high`
+      # de security.yml permanentemente vermelho. É uma CLI de desenvolvimento, não
+      # uma dependência do app: roda por `npx` com versão fixa. Rever quando o
+      # upstream atualizar.
+      - name: Testes de regras (Firebase Emulator)
+        run: npm run test:rules
