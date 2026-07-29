@@ -101,11 +101,16 @@ aparecido no PR desde o início da revisão. Assim o skip silencioso da action v
 vermelho em vez de verde. Não consome tokens da Anthropic (só `gh api`) e roda dentro dos
 jobs já existentes, sem minuto extra de Actions. **Limite:** é convenção, não bloqueio —
 sem branch protection, ainda é possível mergear por cima de um check vermelho. Até o
-enforcement real existir, **conferir os checks à mão antes de cada merge**.
+enforcement real existir, **conferir os checks à mão antes de cada merge**. Será mantido como está até o repositório amadurecer mais, aceitando o risco descrito de merge manual sobre CI vermelho.
 
 Decorrência: `claude-code-review.yml` foi desativado (renomeado para `.yml.disabled`).
 Os revisores oficiais passam a ser `review.yml` e `ai-security-review` (em `security.yml`),
 que são os checks exigidos aqui. `claude.yml` (responder a @claude) segue ativo.
+
+**Exceção (2026-07-29):** PRs cujo diff se limita a `review.yml`/`security.yml` são isentos do
+guard-rail de veredito (que não consegue rodar neles por "workflow validation") e exigem
+revisão humana + merge manual. Vale só quando o diff se restringe a arquivos de workflow;
+se houver código de produto junto, separar em dois PRs.
 
 ## D-015 | 2026-07-28 | ACEITA
 **Cadência e custo da fábrica.** O Supervisor passa a rodar **1x por dia útil**
