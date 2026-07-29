@@ -18,7 +18,10 @@ jobs:
         if: ${{ hashFiles('package.json') != '' }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 22: jsdom@30 exige ^22.22.2 e undici@8 usa
+          # worker_threads.markAsUncloneable, inexistente no Node 20 (que também
+          # está em fim de vida desde 2026-04-30).
+          node-version: 22
           cache: npm
 
       - name: Instalar dependências
