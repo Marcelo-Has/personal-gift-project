@@ -153,12 +153,22 @@ Supervisor foi atualizado para segui-lo e para criar como `decision-needed` — 
 Motivo: com a cadência reduzida de [D-015], o valor de cada execução está na qualidade da
 especificação; issue vaga vira PR errado e queima duas rodadas de CI e revisão.
 
+## D-018 | 2026-07-29 | ACEITA
+**Hospedagem do app SvelteKit = Netlify** (opção B da issue #28), com `adapter-netlify`,
+deploy automático por push e deploy preview por PR. Motivo: o usuário já usa Netlify há
+tempo em outros projetos — padroniza a operação e evita mais um provedor para manter.
+Escopo: só a hospedagem do app (desbloqueia F1-08). Onde roda a fila+worker de geração
+pesada (F2-07) e o provedor de print-on-demand (F3-01) seguem PENDENTES em [D-104],
+a decidir quando essas fases chegarem.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 por estilo e tamanho (depende do custo real por SKU).
 - **D-102** | Provedor de geração de imagem (qual, custo por livro, qualidade).
 - **D-103** | Prévia antes ou depois do pagamento?
-- **D-104** | Onde roda a geração pesada de PDF/arte e provedor de print-on-demand definitivo.
+- **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
+  print-on-demand definitivo (F3-01). A hospedagem do app SvelteKit **saiu deste gate** e
+  foi decidida em [D-018] (Netlify); o restante continua PENDENTE.
 - **D-105** | Quais estilos entram no catálogo público da V1 (sugestão: 2–3 consistentes).
 - **D-106** | Quais tamanhos entram na V1 e a spec exata de cada SKU.
