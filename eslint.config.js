@@ -12,8 +12,21 @@ export default ts.config(
 	prettier,
 	...svelte.configs.prettier,
 	{
+		// Código de cliente (SvelteKit routes/components/lib) roda no browser: só
+		// globals.browser. Isso faz `process.env` gerar erro de lint fora de
+		// contexto de servidor, evitando vazamento de segredo para o bundle do
+		// cliente.
+		files: ['src/**/*.{js,ts,svelte}'],
+		ignores: ['**/*.server.{js,ts}', 'src/hooks.server.ts'],
 		languageOptions: {
-			globals: { ...globals.browser, ...globals.node }
+			globals: globals.browser
+		}
+	},
+	{
+		// Config na raiz e módulos server-only do SvelteKit rodam em Node.
+		files: ['*.config.{js,ts}', '**/*.server.{js,ts}', 'src/hooks.server.ts'],
+		languageOptions: {
+			globals: globals.node
 		}
 	},
 	{
