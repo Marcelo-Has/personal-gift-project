@@ -402,18 +402,30 @@ existiam.** Ambas descobertas ao tentar concluir o PR #41 (issue #30):
    URL with authentication token" — indício de que ela só reconfigura o git com o token da App
    quando acredita ter permissão de escrita.
 
-   **Correção:** `persist-credentials: false` no checkout do `claude.yml`. Assim um push que
-   dependa do `GITHUB_TOKEN` **falha alto** em vez de virar no-op silencioso. As `permissions`
-   ficam em `read`: elevá-las daria `contents: write` ao `GITHUB_TOKEN` no único workflow cujo
-   agente não tinha `--allowed-tools` e, sem branch protection na `main` ([D-014]), isso é push
-   direto na `main` — custo de segurança real por um benefício não comprovado. Foi o que a
-   revisão de segurança do PR #45 apontou como bloqueante, com razão: a justificativa original
-   ("o token vem da App, então declare write") se anulava.
+   **Tentativa de correção, e o resultado dela — REVERTIDA.** Apliquei `persist-credentials:
+   false` no checkout do `claude.yml`, para que um push dependente do `GITHUB_TOKEN` falhasse
+   alto em vez de virar no-op silencioso, mantendo `permissions` em `read`. O run
+   `30512293142` mostrou que isso **quebra o workflow inteiro**, e antes de qualquer trabalho:
 
-   **Validação pendente:** empurrar um commit de teste por este caminho e confirmar que o CI
-   dispara *naquele SHA*. Enquanto isso não for feito, o item fica registrado como hipótese.
-   O loop autônomo não depende dele: quem empurra correção de CI é o `fix.yml`, que declara
-   `contents: write` e recebe auth por token da App como o `implement.yml`.
+   ```
+   ##[error]Action failed with error: Command failed:
+   git fetch origin --depth=20 feat/f1-05a-questionario-esqueleto
+   ```
+
+   A `claude-code-action` usa as credenciais persistidas para as **suas próprias** operações de
+   git (o `fetch` da branch), não só para o push do agente. Sem elas nem chega a começar.
+   Revertido: o checkout volta ao default.
+
+   **O que fica de pé do PR #45**, e é o que valia: o **gate de autor** (`OWNER`) e a
+   **allow-list** do `claude.yml` — as duas aplicações de baseline. As `permissions` seguem em
+   `read`, como a revisão de segurança do PR #45 exigiu com razão: a justificativa original
+   ("o token vem da App, então declare `write`") se anulava.
+
+   **Estado honesto: causa não identificada.** O item segue como hipótese, agora com uma
+   tentativa de correção refutada. O loop autônomo **não depende** deste caminho: quem empurra
+   correção de CI é o `fix.yml`, que declara `contents: write` e recebe auth por token da App
+   como o `implement.yml`. Enquanto isso, re-disparar CI numa branch tocada pelo `claude.yml`
+   exige um push humano — foi o que fiz duas vezes no PR #41, integrando a `main`.
 2. **O `fix.yml` não conseguia marcar a entrega como completa.** A allow-list dele não tinha
    `gh pr edit`, então mesmo deixando o CI verde ele não trocava `entrega:incompleta` por
    `entrega:completa` — e, pelo gate de custo do [D-019], `review` e `ai-security-review`
