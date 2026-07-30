@@ -914,6 +914,65 @@ sob correção controla o `CLAUDE.md`/`.claude/settings.json` do agente que roda
 `hooks.PreToolUse` do tipo `command` é execução arbitrária num runner privilegiado. Superfície
 atual, não hipotética: virou issue `status:ready` (não backlog da Fase 5), conforme o item 1 do
 filtro de `.claude/rules/right-sizing.md`.
+## D-032 | 2026-07-31 | ACEITA
+**[FU-10] Continuação do [D-030] e do [D-031].** (O número 031 foi deixado para a FU-08 de
+propósito, quando o PR #57 ainda estava aberto; os dois foram aplicados na mesma sessão manual,
+nesta ordem.)
+
+**O achado é real e já estava confirmado, sem precisar de novo run descartável.** A 3ª rodada de
+revisão do [D-030] tratou só o `http.https://github.com/.extraheader` que `actions/checkout`
+persiste (`persist-credentials: true` por padrão). A revisão de segurança do PR #57 (job
+`ai-security-review` de `security.yml`, execução real, sem nenhuma mudança de workflow em voo —
+`security.yml` não fazia parte daquele diff) leu ao vivo `.git/config` deste runner e encontrou:
+
+```
+[remote "origin"] url = https://x-access-token:ghs_<REDIGIDO>@github.com/...
+```
+
+Chave diferente do extraheader, intocada pelo `unset-all` existente. O `[user] name =
+claude[bot]` no mesmo arquivo aponta a própria `claude-code-action` como autora — ela reconfigura
+o remote na sua própria bootstrap, **depois** de qualquer limpeza que rode antes do step da
+action (é exatamente por isso que o `unset-all` do `verdict.yml`, posicionado antes do agente,
+não resolve: limpa uma chave que a action reescreve em seguida).
+
+**Limite reconhecido, não contornável pelos arquivos desta issue.** A action escreve a credencial
+DENTRO do seu próprio step opaco, antes do primeiro turno do agente — não há como intercalar um
+`run:` nosso *entre* a bootstrap da action e a conversa do agente; um workflow só corre bash
+*antes* ou *depois* do step inteiro. Por isso:
+- **`persist-credentials: false`** (alternativa 2 da issue) foi descartado: o vazamento
+  observado é da URL do remote que a action escreve por conta própria, não do extraheader do
+  `actions/checkout` — desligar o `persist-credentials` não impede a action de reescrever o
+  remote de novo.
+- A correção aplicada é a alternativa 1: um step **depois** do `claude-code-action`, em
+  `review.yml`, `security.yml` (job `ai-security-review`) e `verdict.yml` (que já tinha um
+  descarte, mas cedo demais — mantido, e somado a este novo, depois do agente), fazendo
+  `git config --unset-all http.https://github.com/.extraheader || true` +
+  `git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"`. Fecha a janela para
+  os steps seguintes do mesmo job (redação da transcrição, upload do artefato, guard-rail de
+  veredito) — **não fecha** a leitura que o próprio agente poderia fazer enquanto o step da
+  action ainda está rodando, porque a credencial já existe nesse ponto e nenhum step nosso entra
+  no meio. Esse resíduo é o mesmo de sempre (`Bash(cat:*)`/`Bash(grep:*)`/`Bash(git:*)` nas
+  allow-lists), e fechar esse canal é redesenho do canal de publicação — issue #58 (FU-09),
+  fora do escopo dos arquivos aqui.
+- **`fix.yml` é o caso mais restrito**: o agente empurra commit (`git push`) DURANTE o próprio
+  step, usando a credencial que está sendo descartada nos outros três — remover cedo quebraria o
+  push, que é o motivo do workflow existir. A limpeza ali só roda **depois** do step da action
+  (push já aconteceu ou não), reduzindo a janela só para os steps seguintes; a exposição durante
+  o próprio step do agente é aceita como resíduo inevitável enquanto o push depender dessa forma
+  de autenticação.
+
+**Bloqueio de entrega — mesma classe do [D-030]/D-031 (PR #57).** `git push` desta sessão foi
+recusado pelo GitHub: `refusing to allow a GitHub App to create or update workflow
+.github/workflows/{review,security,verdict,fix}.yml without 'workflows' permission`. A
+credencial do runner não tem escopo `workflows`; só a credencial pessoal do dono do repositório
+tem (mesmo caminho dos commits `1406043`/`4b50749` dos D-030/D-031). O diff pronto dos quatro
+arquivos foi deixado como comentário no PR #61 para aplicação manual. PR permanece
+`entrega:incompleta` até isso acontecer.
+
+**Dependência declarada na própria issue #59:** o merge deste PR pode colidir com o PR #57 (FU-08,
+também `entrega:incompleta`/merge manual) na mesma linha do `claude_args` de `verdict.yml` e
+`fix.yml` (um remove `Bash(cat:*)`, o outro soma um step novo depois) — resolução de conflito é
+trabalho de quem aplicar os dois manualmente, em qualquer ordem.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
