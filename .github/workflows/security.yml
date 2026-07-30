@@ -85,12 +85,16 @@ jobs:
           DESDE: ${{ steps.inicio.outputs.ts }}
         run: |
           set -euo pipefail
+          # Filtra por `claude[bot]`, NÃO por `.user.type == "Bot"` — mesmo motivo do `review.yml`:
+          # o `netlify[bot]` comenta em todo PR e edita o comentário fixo a cada deploy, batendo
+          # no `updated_at >= DESDE`. Com o filtro genérico, um skip por *workflow validation*
+          # sairia VERDE sem revisão de segurança nenhuma.
           novos=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
-            --jq "[.[] | select(.user.type == \"Bot\")
+            --jq "[.[] | select(.user.login == \"claude[bot]\")
                        | select(.created_at >= \"${DESDE}\" or .updated_at >= \"${DESDE}\")]
                   | length")
           if [ "${novos}" -eq 0 ]; then
             echo "::error::A revisão de segurança não publicou veredito no PR #${PR}. Tratar como reprovado, não como verde."
             exit 1
           fi
-          echo "Veredito publicado (${novos} comentário(s) de bot desde ${DESDE})."
+          echo "Veredito publicado (${novos} comentário(s) do claude[bot] desde ${DESDE})."

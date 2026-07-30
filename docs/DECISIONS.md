@@ -510,6 +510,16 @@ continuam sem causa identificada, agora por um bug de nome de artefato em cima d
 sem observabilidade. Segue valendo a regra do [D-024]: **nenhuma emenda de allow-list por
 palpite** — a próxima só depois de ler a transcrição de fato.
 
+**Correção que vale para os três guard-rails, achada pela revisão do PR #48.** O filtro de
+"alguém publicou algo" era `.user.type == "Bot"`. Mas o `netlify[bot]` comenta em **todo** PR
+deste repositório e **edita** o mesmo comentário fixo a cada deploy, o que satisfaz
+`updated_at >= DESDE`. Ou seja, qualquer bot servia — e no `review.yml`/`security.yml` isso é
+grave: um skip da action por *workflow validation* poderia sair **VERDE** por causa do
+comentário do Netlify, que é precisamente o "verde sem revisão" que a ponte (c) do [D-014]
+existe para impedir. Os três passam a filtrar por `claude[bot]` explicitamente. A revisão
+classificou como MÉDIO no `fix.yml`; no `review`/`security` a consequência é maior, e o mesmo
+padrão estava lá desde a implementação da ponte.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

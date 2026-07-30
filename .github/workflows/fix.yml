@@ -136,8 +136,13 @@ jobs:
           fi
 
           # Desfecho alternativo aceitável: não soube corrigir, mas EXPLICOU no PR.
+          # Filtra por `claude[bot]`, NÃO por `.user.type == "Bot"`: o `netlify[bot]` comenta em
+          # todo PR deste repo (deploy preview), então qualquer bot satisfaria este ramo e o
+          # guard-rail viraria decoração. Achado da revisão de segurança do PR #48 — classificado
+          # como MÉDIO, mas na prática desligaria o controle, porque o comentário do Netlify é
+          # quase garantido dentro da janela.
           explicou=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr}/comments" --paginate \
-            --jq "[.[] | select(.user.type == \"Bot\") | select(.created_at >= \"${DESDE}\")] | length")
+            --jq "[.[] | select(.user.login == \"claude[bot]\") | select(.created_at >= \"${DESDE}\")] | length")
           if [ "${explicou}" -gt 0 ]; then
             echo "Sem commit, mas o Fix explicou no PR #${pr} (${explicou} comentário(s))."
             exit 0
