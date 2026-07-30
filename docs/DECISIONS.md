@@ -368,13 +368,31 @@ Não é Decision Gate: não toca preço, catálogo, dado pessoal nem baseline de
 **O loop autônomo "corrige → CI confirma → entrega completa" dependia de duas peças que não
 existiam.** Ambas descobertas ao tentar concluir o PR #41 (issue #30):
 
-1. **Commit empurrado pelo `claude.yml` NÃO disparava o CI.** O commit `0908f5a3` do PR #41
-   veio de lá e o PR seguiu exibindo os checks do commit anterior; `gh pr close`/`reopen`
-   também não recuperou (a API devolvia 3 check-runs, só do Netlify). Causa: o workflow
-   declarava `permissions: contents: read` embora empurrasse de fato — o token vem da App, não
-   do bloco `permissions:`. O `implement.yml`, que declara `contents: write`, sempre disparou
-   CI nos seus pushes. A declaração passa a ser honesta (`contents`, `pull-requests` e
-   `issues` em `write`). Sem isto o loop nunca fecha: o agente corrige e ninguém confere.
+1. **Commit empurrado pelo `claude.yml` NÃO disparava o CI.** Fato observado: o commit
+   `0908f5a3` do PR #41 veio de lá, o PR seguiu exibindo os checks do commit anterior, e a API
+   devolvia 3 check-runs naquele SHA — só do Netlify. `gh pr close`/`reopen` também não
+   recuperou. Foi preciso integrar a `main` na branch à mão só para provocar um CI.
+
+   **Mecanismo provável — hipótese, não causa estabelecida:** `actions/checkout` grava o
+   `GITHUB_TOKEN` no `.git/config` (`persist-credentials: true` é o default), e **push feito
+   com `GITHUB_TOKEN` não cria workflow run** (comportamento documentado, anti-recursão). O
+   push do agente teria saído por essa credencial. O `implement.yml`, cujos pushes sempre
+   disparam CI, declara `contents: write`, e a `claude-code-action` loga ali "Updated remote
+   URL with authentication token" — indício de que ela só reconfigura o git com o token da App
+   quando acredita ter permissão de escrita.
+
+   **Correção:** `persist-credentials: false` no checkout do `claude.yml`. Assim um push que
+   dependa do `GITHUB_TOKEN` **falha alto** em vez de virar no-op silencioso. As `permissions`
+   ficam em `read`: elevá-las daria `contents: write` ao `GITHUB_TOKEN` no único workflow cujo
+   agente não tinha `--allowed-tools` e, sem branch protection na `main` ([D-014]), isso é push
+   direto na `main` — custo de segurança real por um benefício não comprovado. Foi o que a
+   revisão de segurança do PR #45 apontou como bloqueante, com razão: a justificativa original
+   ("o token vem da App, então declare write") se anulava.
+
+   **Validação pendente:** empurrar um commit de teste por este caminho e confirmar que o CI
+   dispara *naquele SHA*. Enquanto isso não for feito, o item fica registrado como hipótese.
+   O loop autônomo não depende dele: quem empurra correção de CI é o `fix.yml`, que declara
+   `contents: write` e recebe auth por token da App como o `implement.yml`.
 2. **O `fix.yml` não conseguia marcar a entrega como completa.** A allow-list dele não tinha
    `gh pr edit`, então mesmo deixando o CI verde ele não trocava `entrega:incompleta` por
    `entrega:completa` — e, pelo gate de custo do [D-019], `review` e `ai-security-review`
@@ -383,13 +401,24 @@ existiam.** Ambas descobertas ao tentar concluir o PR #41 (issue #30):
    `gh issue view:*` e `gh run view:*`, mais a instrução de fechar o ciclo — com a ressalva
    explícita de **não** marcar em caso de dúvida sobre os critérios de aceite.
 
-Junto vem o **gate de autor no `claude.yml`** (`author_association == 'OWNER'`), que aplica o
-baseline: é o **único** workflow de IA sem `--allowed-tools`, logo o agente ali tem o conjunto
-cheio de ferramentas e o corpo do comentário entra direto no contexto dele. Sem gate, qualquer
-pessoa que consiga comentar dispararia um agente irrestrito com token de escrita — a mesma
-escalada read → write fechada no `implement.yml`, e aqui mais grave justamente por não haver
-allow-list. Só `OWNER`, pelo motivo já registrado: `COLLABORATOR` sai para colaborador
-somente-leitura.
+Junto vêm duas aplicações de baseline no `claude.yml`, ambas apontadas pela revisão do PR #45:
+
+- **Gate de autor** (`author_association == 'OWNER'`). Sem ele, qualquer pessoa que conseguisse
+  comentar dispararia um agente com token de escrita. Só `OWNER`, pelo motivo já registrado:
+  `COLLABORATOR` sai para colaborador somente-leitura.
+- **Allow-list** (`--allowed-tools`), que faltava — era o único workflow de IA sem uma, contra
+  o [D-012]. A observação decisiva da revisão: **o gate protege o gatilho, não o contexto.** O
+  agente segue lendo a thread inteira (comentários de terceiros, de bot, arquivos, URLs), então
+  basta o dono escrever "@claude resolve isso" num PR com texto plantado para instrução de
+  terceiro chegar a um agente irrestrito. Lista generosa para não estorvar o uso interativo,
+  sem a cauda pior: rede fora, `gh pr merge` fora.
+
+Trade-off aceito e registrado: dar `gh pr edit:*` ao `fix.yml` permite que ele **adicione**
+`entrega:incompleta`, e não só remova — o que desligaria as duas revisões de IA daquele PR pelo
+gate de custo do [D-019]. É evasão de revisão pelo mecanismo que o próprio D-019 criou. Fica
+aceito como MÉDIO porque o `scans` (gitleaks + `npm audit`) não é gateado e continua rodando, o
+merge é humano e a label fica visível no PR — mas é o primeiro lugar a olhar se um PR passar
+sem revisão. A alternativa (não dar `gh pr edit`) recria o deadlock do item 2.
 
 Efeito colateral aceito: **encadeamento bot→bot deixa de acontecer por `claude.yml`**. Antes,
 um comentário de revisão do claude[bot] disparava correção automática — foi assim que o commit
