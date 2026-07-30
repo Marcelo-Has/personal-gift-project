@@ -311,6 +311,15 @@ caminho da transcrição ser o default da action, que um bump de SHA pode mudar 
 Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
 
+## D-020 | 2026-07-30 | ACEITA
+**Configuração versionada do deploy Netlify (issue #35, implementa [D-018]).** `svelte.config.js`
+passa a usar `@sveltejs/adapter-netlify` (`publish` default do adapter é `build`, confirmado em
+`node_modules/@sveltejs/adapter-netlify/index.js`) e `netlify.toml` na raiz espelha
+`NODE_VERSION` de `.github/workflows/ci.yml`. `SECRETS_SCAN_OMIT_KEYS` lista só as 6 variáveis
+`PUBLIC_FIREBASE_*` — públicas por design (SDK cliente), nunca chave de servidor. Não é Decision
+Gate: nenhum gasto recorrente, preço ou dado pessoal envolvido; a criação do site na Netlify e o
+cadastro de variáveis seguem passo manual do dono do projeto.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

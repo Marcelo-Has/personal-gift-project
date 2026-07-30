@@ -52,3 +52,22 @@ A home page atual é um placeholder mínimo (sem identidade visual/naming defini
 - Configuração vem só de variáveis de ambiente: copie `.env.example` para `.env` e
   preencha com os dados do seu projeto Firebase. Criar o projeto no console do
   Firebase e gerar a service account é passo manual.
+
+## Deploy (Fase 1 — F1-08)
+Hospedagem do app na **Netlify** ([D-018](docs/DECISIONS.md)), via `@sveltejs/adapter-netlify`.
+O que já está versionado no repositório:
+- `svelte.config.js` usa `adapter-netlify` (saída compatível com o build da Netlify).
+- `netlify.toml` na raiz define o comando de build (`npm run build`), o diretório de
+  publicação (`build`) e a versão do Node (`NODE_VERSION`, espelhando
+  `.github/workflows/ci.yml`).
+
+Passo manual do dono do projeto (depois do merge, fora do escopo desta issue):
+1. Criar o site na Netlify e conectar este repositório — isso já habilita deploy
+   automático por push na `main` e deploy preview por PR.
+2. Cadastrar no painel da Netlify as variáveis de ambiente que o app precisa (ver
+   `.env.example`): `PUBLIC_FIREBASE_*` (6, expostas ao cliente por design — por isso
+   estão em `SECRETS_SCAN_OMIT_KEYS` no `netlify.toml`) e, para as rotas de servidor,
+   `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`,
+   `FIREBASE_STORAGE_BUCKET`.
+3. Depois do primeiro deploy, conferir os headers de resposta (`curl -I <url>`) e abrir
+   issue de acompanhamento se algum faltar.
