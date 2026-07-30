@@ -77,8 +77,12 @@ terceira vez — os runs
 `30486974039`, `30487192243` e `30478412140` acumularam 1, 5 e **8** negações de ferramenta
 (no último, 41 turnos em 244 s: puro thrash até estourar o teto). `head`/`tail`/`wc` já
 estavam liberados para o Reviewer desde a nota de 2026-07-28; a emenda anterior esqueceu de
-dar os mesmos ao Developer. **`gh pr merge` continua fora**, e `--max-turns` fica em 40 —
-nenhum dos runs de #30–#35 bateu no teto, então subir seria tratar sintoma inexistente.
+dar os mesmos ao Developer. **`gh pr merge` continua fora**, e `--max-turns` ficou em 40 —
+nenhum dos runs de #30–#35 havia batido no teto, então subir seria tratar sintoma inexistente.
+3ª emenda (2026-07-30): **`--max-turns` 40 → 60.** Agora o teto **é** o gargalo, comprovado
+pela transcrição do run `30503680892`: 41 turnos, zero negações, a issue #31 inteiramente
+implementada com `lint`/`test`/`build` verdes, e nenhum turno sobrando para commit/push/PR —
+tudo perdido com o runner. Ver [D-019], 4ª rodada.
 
 ## D-013 | 2026-07-28 | ACEITA
 `allowed_bots: "claude"` em todo step da `claude-code-action`, **nunca `"*"`**. Motivo: os
@@ -269,6 +273,34 @@ nenhuma revisão de leitura pegaria:
   ponta a ponta **depois** do merge humano; e `steps.claude.outcome` **não** detecta esse skip
   (ele é bem-sucedido aos olhos do Actions), então quem o pega é o guard-rail — que é
   precisamente a ponte (c) do D-014 agora estendida ao `implement.yml`.
+
+4ª rodada — o primeiro run em que o Developer **de fato executou** (run `30503680892`, issue
+#31, 41 turnos, US$ 1,90, **zero negações de ferramenta**) mostrou que o contrato ainda estava
+ambíguo no ponto que mais importa. A transcrição (agora existe, é o ponto 7 acima) mostra a
+sequência exata: chamadas 1–27 só leitura; branch criada na chamada **28**; chamadas 29–53
+implementaram tudo e `lint`, `test` e `build` passaram; última mensagem *"Now let's re-run
+lint, then verify no PII/secrets leak and check final diff"* — e o teto de turnos chegou.
+**Nunca houve commit.** O runner foi destruído e a issue inteira, já implementada e verde, foi
+perdida. "Na PRIMEIRA mudança que compile, publique" foi lido como "publique no fim", porque
+publicar aparecia como consequência de o código estar pronto.
+
+O que muda:
+- **Abrir o PR é o PRIMEIRO passo, não o último**, com `git commit --allow-empty` se preciso —
+  o objetivo é o PR existir, não estar bom. Prazo explícito: **antes do 10º turno**.
+- **Empurrar aos poucos**, a cada arquivo ou etapa, nunca só no fim. Commit empurrado é o
+  único estado que sobrevive ao runner.
+- **`--max-turns` 40 → 60.** Agora o teto **é** o gargalo, comprovadamente: o agente gastou 41
+  turnos só no trabalho, sem sobra para a cerimônia de commit/push/PR. É a primeira vez que
+  subir o teto trata a causa e não o sintoma — nos runs de #30–#35 nenhum tinha batido nele.
+- **Menos arqueologia:** proibido ler dentro de `node_modules/` (o agente entrou duas vezes na
+  fonte do SvelteKit, ~4 turnos), a issue já traz "Arquivos exatos"/"Ler antes", e leituras
+  curtas devem ser agrupadas numa chamada.
+- Confirmado de passagem: o agente **não leu** `.claude/agents/developer.md` — quem carrega o
+  contrato de fato é o prompt do workflow. O arquivo do agente é espelho, não fonte.
+- Confirmado de passagem: a redação de segredo do artefato não gerou falso-positivo. Os
+  prefixos `sk-ant-`/`github_pat_` aparecem na transcrição só como **strings literais de
+  padrão** (o hook de `.claude/settings.json` e este próprio texto), e não foram redigidos
+  porque a regex exige 10+ caracteres de token depois do prefixo.
 
 Adiado para o backlog de endurecimento da Fase 5 (`.claude/rules/right-sizing.md`):
 `actions: write` acima do necessário no `implement.yml`; `Bash(gh api:*)` e `Bash(git:*)` permitirem

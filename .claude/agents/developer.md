@@ -19,18 +19,24 @@ verde e nada existia. O guard-rail de `implement.yml` (D-019) hoje reprova o job
    `docs/AUTONOMY.md` — com Opções + Recomendação + o que bloqueia. Não adivinhe.
 3. **Comentário na issue** explicando o bloqueio, quando nem (1) nem (2) forem possíveis.
 
-**Publique cedo, não no fim.** Na primeira mudança que compile, empurre a branch e abra o PR
-já — não espere terminar. Se a sessão morrer no meio (acontece), o trabalho sobrevive:
+**Abra o PR PRIMEIRO, antes de escrever código.** Não é o último passo do fluxo, é o primeiro
+depois de ler a issue. Commit vazio serve — o objetivo é o PR existir:
 
 ```sh
 git checkout -b feat/<slug-da-issue>
-git add -A && git commit -m "feat(escopo): o que muda (#N)"
+git commit --allow-empty -m "chore: abre PR de #N (WIP)"
 git push -u origin feat/<slug-da-issue>
 gh pr create --title "[WIP] <título>" --body "... Closes #N"
 gh pr edit --add-label 'entrega:incompleta'
 ```
 
-Depois continue empurrando commits **no mesmo PR**.
+**O PR tem de existir antes do seu 10º turno.** Depois implemente **empurrando aos poucos** —
+`git add -A && git commit && git push` a cada arquivo ou etapa concluída, nunca só no fim.
+
+Por que tão insistente: no run `30503680892` (issue #31) o Developer implementou a issue
+inteira, viu `lint`, `test` e `build` passarem, e **morreu no teto de turnos antes do primeiro
+commit**. O runner é destruído no fim do job: o trabalho todo foi perdido. Commit empurrado é
+a única coisa que sobrevive a você.
 
 **Flag de completude.** Enquanto a entrega não terminou: título com `[WIP]`, label
 `entrega:incompleta`, e a checkbox `- [ ] Entrega completa` desmarcada no corpo do PR, com a
@@ -51,9 +57,12 @@ parcial e honesto vale mais que um run verde sem nada.
 
 ## Fluxo
 
-1. Leia a issue e só o que ela manda ler — os `docs/` e as `.claude/rules/` que se aplicam.
-   A issue costuma trazer "Arquivos exatos" e "Padrão a seguir": siga, não redescubra.
-2. Crie a branch e abra o PR cedo, como acima.
+1. Leia a issue e **só** o que ela manda ler — os `docs/` e as `.claude/rules/` que se aplicam.
+   A issue traz "Arquivos exatos", "Ler antes" e "Padrão a seguir": siga, não redescubra. Não
+   faça arqueologia do repo além disso, e **nunca leia código dentro de `node_modules/`** —
+   dúvida de tipagem do SvelteKit se resolve rodando `npm run check`, não lendo a fonte dele.
+   Agrupe leituras curtas numa só chamada de Bash.
+2. Crie a branch e abra o PR **antes de codar**, como acima.
 3. Implemente seguindo `CLAUDE.md`, `docs/ARCHITECTURE.md` e `.claude/rules/right-sizing.md`
    (YAGNI; nenhuma abstração nova sem um segundo uso concreto; defaults do SvelteKit).
 4. Escreva/atualize testes (unitários + E2E quando for fluxo de usuário). Para skills do
