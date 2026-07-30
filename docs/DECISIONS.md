@@ -975,6 +975,72 @@ este PR foi rebaseado sobre o #57, e o diff do comentário **não** foi aplicado
 contexto dele era a `main` anterior ao #57, então `git apply` teria reintroduzido as allow-lists
 largas que o FU-08 acabara de apertar). Só os steps novos foram portados, sobre o estado atual
 dos arquivos.
+## D-033 | 2026-07-31 | ACEITA
+**`fix.yml`, `review.yml` e `security.yml` restauram a config de agente da base, mesmo desenho
+do `verdict.yml` (issue #62, achado ALTO da 2ª rodada da revisão de segurança do PR #57).** Os
+três rodavam a `claude-code-action` sobre um checkout da branch SOB análise, sem o restore que
+o `verdict.yml` já tinha ([D-030]): `CLAUDE.md`/`AGENTS.md`/`.mcp.json`/`.claude/` — em qualquer
+diretório — vinham da própria branch, e `hooks.PreToolUse` do tipo `command` em
+`.claude/settings.json` é execução de comando arbitrário num runner com
+`ANTHROPIC_API_KEY`/`GITHUB_TOKEN`. Um PR malicioso reescreveria as instruções (ou o hook) do
+agente que o revisa, corrige ou julga.
+
+**Item 1 — `review.yml` e `security.yml`.** Step idêntico ao do `verdict.yml`, comentários
+incluídos, aplicado no job `ai-security-review` (não no `scans`, que não roda IA). Nenhuma
+adaptação: nenhum dos dois faz `git push`, então apagar e restaurar os arquivos no disco basta.
+
+**Item 1 — `fix.yml`, com adaptação exigida por correção, não por pedido explícito da issue.**
+Ao contrário dos outros três, o `fix.yml` termina cada correção com `git add -A && git commit
+&& git push` (instrução do próprio prompt). Portar o step literal (`git checkout <tree> --
+<path>`, que sobrescreve o ÍNDICE) deixaria esses caminhos "sujos" assim que a base divergisse
+da branch — e o primeiro commit do agente reverteria de vez qualquer mudança de config de
+agente que a PRÓPRIA branch tivesse feito (por exemplo, um PR que edite
+`.claude/settings.json`, como aconteceu nas issues #56/#58). Isso é apagamento silencioso de
+trabalho legítimo, não hardening cosmético — cai no item 1 do filtro de
+`.claude/rules/right-sizing.md` (afeta correção real do que está sendo entregue agora).
+Corrigido escrevendo o conteúdo da base só no ARQUIVO em disco (`git show`, sem tocar no
+índice) e marcando os caminhos que a branch já rastreia com `git update-index
+--skip-worktree`: o git passa a ignorar a divergência disco×índice nesses caminhos, e o `add
+-A`/`commit -a` do agente não os vê nem os recomita — o commit dele preserva o que a branch já
+tinha ali. ADIAR (sem superfície hoje, mesmo padrão do `right-sizing.md`): caminho que existe
+só na BASE e nenhuma branch ativa chegou a rastrear ficaria sem `skip-worktree` e um `add -A` o
+adicionaria como novo; nenhuma branch ativa está nesse caso hoje.
+
+**Item 2 — `fix.yml` ganhou o `git config --unset-all http.https://github.com/.extraheader`
+do [D-030].** Verificado que isso não impede o push seguinte do agente: a issue #59 (PR #61,
+ainda aberto) já confirmou em execução real que a própria `claude-code-action` reescreve a URL
+do remote `origin` com um token embutido quando inicializa — DEPOIS deste `unset-all` — então
+o commit/push do Fix não depende da credencial descartada aqui. O resíduo que isso deixa
+(token de volta, agora na URL do remote, legível pelo mesmo `Bash(cat:*)`/`Bash(git:*)` que o
+`fix.yml` já tem, mais `gh pr comment` para publicá-lo) é o MESMO achado que a #59 está
+fechando (não o extraheader do `actions/checkout`, que é esta issue) — fica com ela,
+explicitamente fora do escopo de #62.
+
+**Item 3 — allow-list do `fix.yml`: `Bash(node:*)`/`Bash(npx:*)` não foram removidos, por
+decisão, não por descuido.** São necessários — o papel roda `npm test`/`npx` como parte do seu
+próprio DoD antes de cada push. O ganho de segurança real desta issue vem dos itens 1 e 2
+(fechar o canal de execução via hook/config restaurando a base), não de podar utilitário de
+leitura (`cat`/`head`/`tail`/`sed`/`grep`): o `fix.yml` já tem `Edit`/`Write`/`git push` por
+desenho (é o papel dele), então remover utilitário de leitura não fecha superfície nenhuma ali
+— diferente do `verdict.yml`, que é read-only e onde `Bash(find:*)` foi removido no [D-030] 2ª
+rodada por ser, de fato, execução. `Bash(find:*)` segue no `fix.yml`/`review.yml`/`security.yml`
+pelo mesmo motivo já registrado no D-030 2ª rodada (inócuo onde já há `Edit`/`Write`/push por
+desenho; limpar em `review.yml`/`security.yml` é issue separada).
+
+**Nota de execução — mesmo bloqueio de plataforma do [D-030], resolvido do mesmo jeito.**
+`git push` do runner foi recusado: `refusing to allow a GitHub App to create or update workflow
+.github/workflows/<arquivo> without 'workflows' permission`. A entrada em `docs/DECISIONS.md`
+foi empurrada normalmente (não é arquivo de workflow) e o conteúdo pronto de `fix.yml`,
+`review.yml` e `security.yml` ficou como comentário no PR #63; **a aplicação foi feita numa
+sessão local com a credencial pessoal do dono do repositório**, como nos commits `1406043`
+(D-030), `4b50749` (D-031) e no [D-032]. PR segue `merge-manual` — não pelo bloqueio de push,
+mas porque toca `review.yml`/`security.yml`, exceção do [D-014].
+
+**Empilhamento.** Este PR foi rebaseado sobre o [D-032] (PR #61), que por sua vez está sobre o
+[D-031] (PR #57): os três mexem nos mesmos quatro workflows, e empilhar foi mais barato do que
+resolver o mesmo conflito três vezes. Ordem de merge: #57 → #61 → #63. O diff do comentário do
+PR não foi aplicado literalmente — o contexto dele era a `main` anterior ao #57 e teria
+revertido as allow-lists apertadas lá; só os steps novos foram portados.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
