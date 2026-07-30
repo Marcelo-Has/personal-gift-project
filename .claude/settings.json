@@ -30,11 +30,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "printf '%s' \"$CLAUDE_TOOL_INPUT\" | grep -qiE 'sk-ant-|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|STRIPE_SECRET|AKIA[0-9A-Z]{16}' && { echo 'Bloqueado: possível segredo no comando' >&2; exit 2; }; exit 0"
+            "command": "grep -qiE 'sk-ant-|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|STRIPE_SECRET|AKIA[0-9A-Z]{16}' && { echo 'Bloqueado: possível segredo no comando' >&2; exit 2; }; exit 0"
           },
           {
             "type": "command",
-            "command": "printf '%s' \"$CLAUDE_TOOL_INPUT\" | grep -qiE '\\bgh\\b.*--body-file|--body-file.*\\bgh\\b' && { echo 'Bloqueado: --body-file em comando gh nao passa pelo filtro de segredo do comando; publique com --body com o texto revisado' >&2; exit 2; }; exit 0"
+            "command": "grep -qiE '\\bgh[[:space:]]+(pr|issue|api|release|gist)[[:space:]][^|;&]*(--body-file|--input|[[:space:]]-F([[:space:]]|=))' && { echo 'Bloqueado: --body-file/-F/--input em comando gh publica conteudo de arquivo sem passar pelo filtro de segredo do comando; publique com --body com o texto revisado' >&2; exit 2; }; exit 0"
           }
         ]
       }
