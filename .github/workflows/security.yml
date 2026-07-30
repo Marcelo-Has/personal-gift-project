@@ -2,7 +2,17 @@ name: Security
 # Revisão de segurança dedicada + scans (dependências e segredos) em cada PR.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `labeled`/`unlabeled` entram porque a revisão de IA passa a ser gateada pela label de
+    # completude (D-019): trocar `entrega:incompleta` por `entrega:completa` NÃO emite
+    # `synchronize`, então sem esses dois eventos um PR que termina no swap de label — sem
+    # push depois — nunca seria revisado.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+# O Developer empurra commit a cada etapa (D-019, 4ª rodada). Sem isto, cada push paga uma
+# rodada de Opus por um estado que ele vai reescrever no push seguinte.
+concurrency:
+  group: security-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -32,6 +42,10 @@ jobs:
         run: npm audit --audit-level=high
 
   ai-security-review:
+    # Não revisa PR marcado `entrega:incompleta` (D-019). Aqui o gate pesa mais que no
+    # `review`: este job roda Opus. O job `scans` acima (gitleaks + npm audit) segue sem
+    # gate — não é IA, custa ~10 s, e segredo commitado deve gritar no primeiro push.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'entrega:incompleta') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
