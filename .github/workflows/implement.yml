@@ -231,11 +231,18 @@ jobs:
             causa='O Developer rodou e terminou sem produzir nada — é o no-op silencioso que o D-019 existe para pegar.'
           fi
 
-          # `([^0-9]|$)` em vez de `\b`: o `\b` não casa no jq embutido do `gh`, o que
-          # daria falso-negativo ao depurar este mesmo guard-rail à mão. Serve para o
-          # mesmo fim — impedir que `#3` case com `#30`.
+          # Casa a PALAVRA DE FECHAMENTO + `#N`, não `#N` solto. Menção solta é
+          # falso-positivo com dente: o run 30502654283 (issue #31) casou com o PR #36, que
+          # é infra da fábrica e só dizia `Refs #31` — se aquele PR tivesse
+          # `entrega:completa`, o guard-rail sairia VERDE sem entrega nenhuma, justamente o
+          # falso-sucesso que ele existe para impedir. `Closes #N` é o que o contrato do
+          # Developer manda escrever, então é por ele que se mede.
+          # `([^0-9]|$)` em vez de `\b`: o `\b` não casa no jq embutido do `gh`, o que daria
+          # falso-negativo ao depurar este mesmo guard-rail à mão. Mesmo fim — impedir que
+          # `#3` case com `#30`.
           prs=$(gh pr list --state all --limit 100 --json number,url,labels,body \
-            | jq --arg n "$ISSUE" '[.[] | select((.body // "") | test("#" + $n + "([^0-9]|$)"))]')
+            | jq --arg n "$ISSUE" '[.[] | select((.body // "")
+                | test("(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]+#" + $n + "([^0-9]|$)"; "i"))]')
 
           if [ "$(jq 'length' <<<"$prs")" -eq 0 ]; then
             # Desfecho (b): parou num Decision Gate e registrou a issue. Válido — mas a

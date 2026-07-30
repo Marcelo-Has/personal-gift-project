@@ -251,9 +251,27 @@ Endurecimento vindo da revisão do PR #36 (aplica o baseline, não o afrouxa):
   nem rodou porque um step anterior quebrou), a mensagem diz isso em vez de acusar o Developer.
   Diagnóstico errado é o que fez esta falha durar quatro issues.
 
+3ª rodada — o primeiro disparo real (run `30502654283`, issue #31) achou dois fatos que
+nenhuma revisão de leitura pegaria:
+- **O match por `#N` solto era falso-positivo com dente, não nitpick.** O guard-rail atribuiu
+  à issue #31 o **PR #36**, que é infra da fábrica e só dizia `Refs #31`. Se aquele PR tivesse
+  `entrega:completa`, o job sairia **verde sem entrega nenhuma** — o exato falso-sucesso que o
+  D-019 existe para impedir. As duas revisões classificaram isso como LOW/ADIAR; o run
+  provou que é correção, não robustez (filtro nº 1 de `.claude/rules/right-sizing.md`).
+  Passa a exigir **palavra de fechamento** (`Closes`/`Fixes`/`Resolves` + `#N`), que é o que o
+  contrato do Developer manda escrever. Verificado contra os PRs reais do repo: `#31` deixa de
+  casar com o #36, e `#22`→#25, `#15`→#16, `#10`→#18 continuam certos.
+- **Não é possível testar o `implement.yml` antes do merge.** Disparar contra a branch faz a
+  `claude-code-action` responder `Skipping action due to workflow validation: the workflow file
+  must ... have identical content to the version on the default branch` — a mesma mecânica que
+  o [D-014] registra — e **sair com exit 0**. Ou seja: o Developer nem roda, e sem o guard-rail
+  o run sairia verde. Consequência prática: mudança em `implement.yml` só pode ser validada de
+  ponta a ponta **depois** do merge humano; e `steps.claude.outcome` **não** detecta esse skip
+  (ele é bem-sucedido aos olhos do Actions), então quem o pega é o guard-rail — que é
+  precisamente a ponte (c) do D-014 agora estendida ao `implement.yml`.
+
 Adiado para o backlog de endurecimento da Fase 5 (`.claude/rules/right-sizing.md`):
-`actions: write` acima do necessário no `implement.yml`; o match do guard-rail por menção
-solta a `#N` em vez de `Closes #N`/`headRefName`; `Bash(gh api:*)` e `Bash(git:*)` permitirem
+`actions: write` acima do necessário no `implement.yml`; `Bash(gh api:*)` e `Bash(git:*)` permitirem
 contornar o "merge é humano" por `gh api` ou `git push origin HEAD:main` — risco residual da
 mesma limitação de plano do [D-014] (sem branch protection em repo privado no Free); e o
 caminho da transcrição ser o default da action, que um bump de SHA pode mudar em silêncio.
