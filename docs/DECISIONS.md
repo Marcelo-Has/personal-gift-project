@@ -579,6 +579,23 @@ passa a usar `@sveltejs/adapter-netlify` (`publish` default do adapter é `build
 Gate: nenhum gasto recorrente, preço ou dado pessoal envolvido; a criação do site na Netlify e o
 cadastro de variáveis seguem passo manual do dono do projeto.
 
+## D-028 | 2026-07-30 | ACEITA
+**Causa raiz do primeiro deploy vermelho na Netlify (issue #51): o secrets scanning acusou
+`FIREBASE_PROJECT_ID` porque o valor da variável (`personal-gift-project`) é o **nome do
+repositório**, presente em `package.json`/`package-lock.json` (campo `name`) e em
+`REPO-STRUCTURE.md`. Nenhuma credencial vazou.** O [D-027] (issue #35) isentou da varredura só
+as 6 `PUBLIC_FIREBASE_*`; `FIREBASE_PROJECT_ID` e `FIREBASE_STORAGE_BUCKET`, embora sejam
+variáveis de servidor, têm valor idêntico às `PUBLIC_` correspondentes — são identificadores do
+projeto, não segredo. Ambas entram em `SECRETS_SCAN_OMIT_KEYS` no `netlify.toml`.
+
+Alternativas rejeitadas: `SECRETS_SCAN_OMIT_PATHS` e `SECRETS_SCAN_ENABLED=false` (as duas
+saídas que o próprio log da Netlify sugere) cegariam a varredura para *todas* as chaves,
+inclusive `FIREBASE_PRIVATE_KEY` — enfraquecer esse baseline é Decision Gate e não foi o que
+aconteceu aqui; renomear o projeto Firebase ou o pacote npm para "esconder" o id (não há o que
+esconder, é identificador público); rotacionar credencial (nada vazou). Não é Decision Gate:
+segue o mesmo raciocínio do [D-027], sem gasto recorrente, preço ou dado pessoal envolvido.
+`FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` continuam fora de `OMIT_KEYS`, sob varredura.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
