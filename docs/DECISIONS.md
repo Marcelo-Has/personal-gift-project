@@ -579,6 +579,30 @@ passa a usar `@sveltejs/adapter-netlify` (`publish` default do adapter é `build
 Gate: nenhum gasto recorrente, preço ou dado pessoal envolvido; a criação do site na Netlify e o
 cadastro de variáveis seguem passo manual do dono do projeto.
 
+## D-028 | 2026-07-30 | ACEITA
+**`FIREBASE_PROJECT_ID` e `FIREBASE_STORAGE_BUCKET` entram em `SECRETS_SCAN_OMIT_KEYS`;
+`FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` continuam sob varredura (issue #51).** O primeiro deploy
+real reprovou (exit code 2) com "Secret env var `FIREBASE_PROJECT_ID`'s value detected" em
+`package.json:2`, `package-lock.json:2,8` e `REPO-STRUCTURE.md:24`.
+
+Causa: o valor de `FIREBASE_PROJECT_ID` é `personal-gift-project` — o **nome do repositório**,
+que por isso está no campo `name` do `package.json`/`package-lock.json` e na árvore do
+`REPO-STRUCTURE.md`. Não houve vazamento: nenhuma credencial saiu do cofre. Project id e bucket
+são **identificadores**, idênticos aos valores de `PUBLIC_FIREBASE_PROJECT_ID` e
+`PUBLIC_FIREBASE_STORAGE_BUCKET`, que o SDK cliente já expõe e que o [D-027] havia omitido da
+varredura. Quem protege os dados são `firestore.rules`/`storage.rules`, não o sigilo do id.
+`FIREBASE_STORAGE_BUCKET` entra junto porque tem exatamente o mesmo valor da sua gêmea pública:
+deixá-la fora só adiaria a mesma reprovação.
+
+As duas alternativas que a Netlify oferece foram **rejeitadas** por enfraquecerem o baseline de
+`.claude/rules/security.md`: `SECRETS_SCAN_OMIT_PATHS` cegaria a varredura nesses arquivos para
+**todas** as chaves (inclusive a privada) e `SECRETS_SCAN_ENABLED=false` desligaria tudo.
+`OMIT_KEYS` é a única opção que dispensa exatamente os dois identificadores e mantém a rede de
+proteção onde ela importa: se um dia `FIREBASE_PRIVATE_KEY` ou `FIREBASE_CLIENT_EMAIL` aparecer
+no output, o build reprova. A chave privada continua fora do bundle por construção
+(`src/lib/server/firebase-admin.ts` + `$env/dynamic/private`, lido em runtime), e
+`serviceAccount*.json` segue no `.gitignore`, nunca versionado (confirmado no histórico).
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

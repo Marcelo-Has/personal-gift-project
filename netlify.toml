@@ -8,4 +8,14 @@
   # de ambiente no output. As PUBLIC_FIREBASE_* são públicas por design (o SDK
   # cliente as expõe no bundle; quem protege os dados são firestore.rules/storage.rules,
   # ver src/lib/firebase/client.ts) — por isso são omitidas da varredura.
-  SECRETS_SCAN_OMIT_KEYS = "PUBLIC_FIREBASE_API_KEY,PUBLIC_FIREBASE_AUTH_DOMAIN,PUBLIC_FIREBASE_PROJECT_ID,PUBLIC_FIREBASE_STORAGE_BUCKET,PUBLIC_FIREBASE_MESSAGING_SENDER_ID,PUBLIC_FIREBASE_APP_ID"
+  #
+  # FIREBASE_PROJECT_ID e FIREBASE_STORAGE_BUCKET são variáveis de SERVIDOR, mas o
+  # valor delas é idêntico ao das PUBLIC_ correspondentes: são IDENTIFICADORES do
+  # projeto, não credencial. O project id é o próprio nome do repositório, então
+  # aparece em package.json, package-lock.json e REPO-STRUCTURE.md — a varredura
+  # reprovava o build por isso (ver D-028).
+  # As credenciais de verdade — FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY —
+  # CONTINUAM sob varredura, e é isso que protege a service account. Não usar
+  # SECRETS_SCAN_OMIT_PATHS nem SECRETS_SCAN_ENABLED aqui: os dois cegariam a
+  # varredura para TODAS as chaves, inclusive a privada.
+  SECRETS_SCAN_OMIT_KEYS = "PUBLIC_FIREBASE_API_KEY,PUBLIC_FIREBASE_AUTH_DOMAIN,PUBLIC_FIREBASE_PROJECT_ID,PUBLIC_FIREBASE_STORAGE_BUCKET,PUBLIC_FIREBASE_MESSAGING_SENDER_ID,PUBLIC_FIREBASE_APP_ID,FIREBASE_PROJECT_ID,FIREBASE_STORAGE_BUCKET"
