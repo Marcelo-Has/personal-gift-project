@@ -50,10 +50,7 @@ export function catalogoIncompleto(opcoes: OpcoesEstiloETamanho): boolean {
  * Valida uma escolha contra os ids `published` do registry: um id `draft` ou inexistente
  * é recusado (única defesa hoje contra o comentário de `order.ts` sobre ids `published`).
  */
-export function validarEscolha(
-	choice: StyleAndSizeChoice,
-	registry?: ProductRegistry
-): boolean {
+export function validarEscolha(choice: StyleAndSizeChoice, registry?: ProductRegistry): boolean {
 	const opcoes = montarOpcoes(registry);
 
 	return (

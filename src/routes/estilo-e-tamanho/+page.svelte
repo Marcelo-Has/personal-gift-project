@@ -8,14 +8,15 @@
 	let photoStyleId = $state('');
 	let sizeId = $state('');
 
-	const avancoDesabilitado = $derived(
-		incompleto || !narrativeStyleId || !photoStyleId || !sizeId
-	);
+	const avancoDesabilitado = $derived(incompleto || !narrativeStyleId || !photoStyleId || !sizeId);
 </script>
 
 <svelte:head>
 	<title>Escolha estilo e tamanho — Nossa História</title>
-	<meta name="description" content="Escolha o estilo de narrativa, o estilo de foto e o tamanho do seu mini livro." />
+	<meta
+		name="description"
+		content="Escolha o estilo de narrativa, o estilo de foto e o tamanho do seu mini livro."
+	/>
 </svelte:head>
 
 <main>
@@ -46,12 +47,7 @@
 				<legend>Estilo de foto</legend>
 				{#each opcoes.photoStyles as opcao (opcao.id)}
 					<label>
-						<input
-							type="radio"
-							name="photo-style"
-							value={opcao.id}
-							bind:group={photoStyleId}
-						/>
+						<input type="radio" name="photo-style" value={opcao.id} bind:group={photoStyleId} />
 						{opcao.label}
 					</label>
 				{/each}

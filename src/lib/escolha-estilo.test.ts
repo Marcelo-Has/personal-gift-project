@@ -87,21 +87,21 @@ describe('catalogoIncompleto — combinações parciais', () => {
 	const opcao = { id: 'x', label: 'X' };
 
 	it('deve ser incompleto quando só faltam estilos de narrativa', () => {
-		expect(
-			catalogoIncompleto({ narrativeStyles: [], photoStyles: [opcao], sizes: [opcao] })
-		).toBe(true);
+		expect(catalogoIncompleto({ narrativeStyles: [], photoStyles: [opcao], sizes: [opcao] })).toBe(
+			true
+		);
 	});
 
 	it('deve ser incompleto quando só faltam estilos de foto', () => {
-		expect(
-			catalogoIncompleto({ narrativeStyles: [opcao], photoStyles: [], sizes: [opcao] })
-		).toBe(true);
+		expect(catalogoIncompleto({ narrativeStyles: [opcao], photoStyles: [], sizes: [opcao] })).toBe(
+			true
+		);
 	});
 
 	it('deve ser incompleto quando só faltam tamanhos', () => {
-		expect(
-			catalogoIncompleto({ narrativeStyles: [opcao], photoStyles: [opcao], sizes: [] })
-		).toBe(true);
+		expect(catalogoIncompleto({ narrativeStyles: [opcao], photoStyles: [opcao], sizes: [] })).toBe(
+			true
+		);
 	});
 
 	it('deve ser completo quando as três listas têm ao menos um item', () => {
