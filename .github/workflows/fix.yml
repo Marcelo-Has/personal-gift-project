@@ -35,11 +35,29 @@ jobs:
           anthropic_api_key: ${{ vars.FACTORY_AUTH != 'oauth' && secrets.ANTHROPIC_API_KEY || '' }}
           claude_code_oauth_token: ${{ vars.FACTORY_AUTH == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           allowed_bots: "claude"
+          # A PEÇA QUE FALTAVA, e a causa raiz das cinco falhas seguidas deste workflow.
+          # Sem `actions: read`, o `gh` do agente não tem escopo de Actions e
+          # `gh run view --log-failed` simplesmente não funciona. A transcrição do run
+          # `30514339714` mostra o agente queimando **21 dos 41 turnos** só nisso: tentou
+          # `gh run view` três vezes, `gh auth status`, `gh api .../actions/runs/<id>`,
+          # `printenv GITHUB_TOKEN`, `ls ~/.config/gh/`, e até extrair o token da URL do
+          # remote para chamar a API com curl. Depois desistiu, rodou `lint`/`test`/`build`/
+          # `audit` — todos passaram, porque a falha estava no job `e2e`, que ele não pode
+          # rodar — e morreu no teto sem nunca ver a mensagem de erro.
+          # O `claude.yml` já tinha isto, com o comentário "Ler resultados de CI nos PRs".
+          # O `fix.yml`, cuja razão de existir é ler CI vermelho, nunca recebeu. Ver [D-026].
+          additional_permissions: |
+            actions: read
           prompt: |
             O CI falhou na branch ${{ github.event.workflow_run.head_branch }}.
 
             COMECE LENDO O LOG DA FALHA, no seu primeiro ou segundo turno:
               gh run view ${{ github.event.workflow_run.id }} --log-failed
+
+            Se esse comando falhar, NÃO insista e NÃO tente contornar (procurar token no
+            ambiente, chamar a API por curl, extrair credencial do remote): é falha de
+            configuração do workflow, não sua. Comente no PR dizendo que não conseguiu ler o
+            log e pare. Insistir custou 21 dos 41 turnos no run 30514339714.
             Não tente deduzir a causa do código, e NÃO tente reproduzir localmente o que este
             runner não roda: `test:e2e` exige baixar ~115 MB de browser e `test:rules` exige
             JVM + emulador — nenhum dos dois está disponível aqui. A mensagem exata do job é a
