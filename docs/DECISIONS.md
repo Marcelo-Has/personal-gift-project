@@ -83,6 +83,27 @@ nenhum dos runs de #30–#35 havia batido no teto, então subir seria tratar sin
 pela transcrição do run `30503680892`: 41 turnos, zero negações, a issue #31 inteiramente
 implementada com `lint`/`test`/`build` verdes, e nenhum turno sobrando para commit/push/PR —
 tudo perdido com o runner. Ver [D-019], 4ª rodada.
+4ª emenda (2026-07-30): o **`fix.yml`** recebe finalmente a mesma ampliação de leitura e
+utilitários — `TodoWrite`, `gh issue:*`, `npx`, `node`, `cat`, `ls`, `head`, `tail`, `wc`,
+`echo`, `find`, `grep`, `sed`, `mkdir`, `mv`, `cp`. Motivo: **quarta ocorrência do mesmo
+sintoma, e a mais teimosa.** A allow-list do `fix.yml` era a original do primeiro dia — as três
+emendas anteriores contemplaram Reviewer e Developer e passaram por cima dele. Resultado: quatro
+runs seguidos estourando o teto sem produzir um único commit (`30506482646`, `30509108285`,
+`30511102142`), o último com **`permission_denials_count: 14`** em 41 turnos, ou seja **um terço
+do orçamento gasto batendo em ferramenta negada**. Foi o mesmo diagnóstico das emendas de 07-28
+e 07-29, repetido porque a correção nunca foi aplicada a todos os papéis de uma vez.
+Ficam **fora** de propósito, por menor privilégio: `gh pr create` (ele age em PR existente),
+`gh api` e `gh run` amplos — `gh run view` basta para ler log de CI. `gh pr merge` continua fora
+de todas as allow-lists.
+Lição aplicada na hora, e não só registrada: **os seis workflows de IA foram auditados de uma
+vez**, em vez de contemplar só o que doeu — que é o erro que fez este sintoma voltar quatro
+vezes. `review` e `security` ganham `TodoWrite`; `supervisor` e `daily-report` ganham
+`TodoWrite` + os utilitários de leitura (`cat`, `ls`, `head`, `tail`, `wc`, `find`, `grep`).
+Nenhum dos dois últimos havia estourado teto ainda — é justamente o ponto de fazer agora.
+
+Menor privilégio conferido depois da mudança, papel por papel: `gh pr merge` **fora dos seis**;
+`Edit`/`Write` só em `implement` e `fix`, os dois que de fato alteram código; `review`,
+`security`, `supervisor` e `daily-report` seguem read-only; rede (`curl`/`wget`) fora de todos.
 
 ## D-013 | 2026-07-28 | ACEITA
 `allowed_bots: "claude"` em todo step da `claude-code-action`, **nunca `"*"`**. Motivo: os
