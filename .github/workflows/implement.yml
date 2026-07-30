@@ -31,18 +31,43 @@ jobs:
   implement:
     # Roda no dispatch manual, quando a issue recebe o label `status:ready`, ou quando
     # alguém comenta @claude numa issue. Comentário em PR fica de fora: lá quem responde
-    # é o `claude.yml`, e o guard-rail de saída daria falso-vermelho.
+    # é o `claude.yml`.
+    # O gate de `author_association` no caminho de comentário fecha uma escalada
+    # read → write: sem ele, qualquer pessoa com acesso somente-leitura comentaria
+    # "@claude" e dispararia um job com `contents: write` e um agente que roda
+    # `npm`/`node`/`git` — execução arbitrária com token de escrita, e o corpo do
+    # comentário entrando direto no contexto do agente. O caminho `issues`/`labeled` não
+    # precisa do gate: aplicar label já exige write/triage (é por ele que o Supervisor,
+    # rodando como claude[bot], continua abrindo trabalho).
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' && github.event.label.name == 'status:ready') ||
       (github.event_name == 'issue_comment' &&
        !github.event.issue.pull_request &&
-       contains(github.event.comment.body, '@claude'))
+       contains(github.event.comment.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                github.event.comment.author_association))
     runs-on: ubuntu-latest
     env:
       ISSUE: ${{ github.event.inputs.issue || github.event.issue.number }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # O input do `workflow_dispatch` é string livre e termina DENTRO de um regex no
+      # guard-rail (`test("#" + $n + ...)`). O `--arg` do jq evita injeção de sintaxe jq,
+      # mas não de regex: disparar com `issue: .*` faria o filtro casar com qualquer PR
+      # que mencione `#`, e o guard-rail sairia verde sem entrega — o falso-sucesso que
+      # este workflow existe para eliminar. Só dígitos também mata o argument injection
+      # em `gh issue comment "$ISSUE"` com valor começando em `-`.
+      - name: Validar ISSUE
+        run: |
+          case "$ISSUE" in
+            '' | *[!0-9]*)
+              echo "::error::ISSUE inválido: '${ISSUE}'. Esperado só dígitos."
+              exit 1
+              ;;
+          esac
+          echo "Issue alvo: #${ISSUE}"
 
       # Guard-rail de saída (parte 1/2): marca o instante antes do Developer, para
       # distinguir uma issue `decision-needed` criada por ESTE run de uma preexistente.
@@ -113,8 +138,10 @@ jobs:
             3. NUNCA termine sem um destes desfechos: (a) PR aberto referenciando a issue;
                (b) issue `decision-needed` criada, se a tarefa cair num Decision Gate de
                docs/AUTONOMY.md — nesse caso não adivinhe, registre Opções + Recomendação +
-               o que bloqueia; (c) comentário na issue explicando o bloqueio. Terminar em
-               silêncio, sem nenhum dos três, é a falha que este contrato existe para impedir.
+               o que bloqueia, e **cite `#N` no corpo dela** (o guard-rail só aceita como
+               desfecho válido a decision-needed que referencia esta issue); (c) comentário
+               na issue explicando o bloqueio. Terminar em silêncio, sem nenhum dos três, é
+               a falha que este contrato existe para impedir.
 
             4. Se o orçamento de turnos estiver acabando, PARE de codar e garanta o desfecho
                (a) com o que já existe: deixe `entrega:incompleta`, mantenha o `[WIP]` no
@@ -123,10 +150,31 @@ jobs:
             Não faça merge: `gh pr merge` não está na allow-list e o merge é humano (D-012).
           claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 
+      # Artefato NÃO passa pelo masking de segredo do Actions (só o log do job passa), e a
+      # transcrição registra a saída de cada comando do agente. Basta ele depurar `git` uma
+      # vez — `cat .git/config` traz o extraheader com o GITHUB_TOKEN — ou ecoar uma variável
+      # de ambiente para o CLAUDE_CODE_OAUTH_TOKEN (que, ao contrário do GITHUB_TOKEN, não
+      # expira no fim do job) cair num arquivo baixável. Redigir antes de subir.
+      - name: Redigir segredos da transcrição
+        if: always()
+        env:
+          T: ${{ runner.temp }}/claude-execution-output.json
+        run: |
+          [ -f "$T" ] || exit 0
+          # O casamento do base64 é por classe de caractere, não `\S+`: `\S+` engoliria o
+          # `"}` do JSON e deixaria o artefato não-parseável pelo jq, que é justamente como
+          # a transcrição vai ser lida na hora de depurar.
+          perl -i -pe 's/(gh[pousr]_|sk-ant-)[A-Za-z0-9_\-]{10,}/[REDIGIDO]/g;
+                       s{AUTHORIZATION:\s*basic\s+[A-Za-z0-9+/=_-]+}{AUTHORIZATION: [REDIGIDO]}gi' "$T"
+          echo "Transcrição redigida antes do upload."
+
       # Observabilidade (D-019). O commit b294cc8 apagou o step que despejava cada
       # tool_use e cada negação, e `show_full_output` não está ligado — as negações de
       # ferramenta ficaram indiagnosticáveis nos logs. O artefato traz a transcrição
       # completa sem imprimi-la no log do job. Custo: zero token.
+      # `always()` e não `failure()`: o guard-rail vem DEPOIS deste step, então na hora do
+      # upload um run que só vai reprovar no guard-rail ainda não falhou — e é justamente
+      # dele que a transcrição interessa.
       - name: Guardar transcrição do Developer
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -141,8 +189,12 @@ jobs:
       # D-014). Sem este step, um run que não produz NADA — sem branch, sem PR, sem
       # comentário — sai verde: foi assim que #22, #30, #31 e #33 morreram em silêncio.
       # Custo: nenhuma chamada à API do Claude; só `gh`.
+      # `always()` sem exceção de gatilho: o `if:` do job já descarta comentário em PR, então
+      # o único `issue_comment` que chega aqui é um "@claude" numa ISSUE — ou seja, um pedido
+      # de implementação, que deve produzir PR como qualquer outro. Excluir esse gatilho
+      # reabriria o no-op silencioso justamente por ele.
       - name: Exigir PR aberto pelo Developer
-        if: always() && github.event_name != 'issue_comment'
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DESDE: ${{ steps.inicio.outputs.ts }}
@@ -157,10 +209,16 @@ jobs:
             | jq --arg n "$ISSUE" '[.[] | select((.body // "") | test("#" + $n + "([^0-9]|$)"))]')
 
           if [ "$(jq 'length' <<<"$prs")" -eq 0 ]; then
-            # Desfecho (b): parou num Decision Gate e registrou a issue. Válido.
+            # Desfecho (b): parou num Decision Gate e registrou a issue. Válido — mas a
+            # decision-needed tem de referenciar ESTA issue. Sem esse filtro, com dois runs
+            # em paralelo, o run da issue A passaria de graça porque o run da issue B abriu
+            # uma decision-needed no mesmo instante.
             decisoes=$(gh issue list --state all --label decision-needed --limit 50 \
-              --json number,createdAt \
-              | jq --arg t "$DESDE" '[.[] | select(.createdAt >= $t)] | length')
+              --json number,createdAt,title,body \
+              | jq --arg t "$DESDE" --arg n "$ISSUE" \
+                  '[.[] | select(.createdAt >= $t)
+                        | select(((.title // "") + " " + (.body // ""))
+                                 | test("#" + $n + "([^0-9]|$)"))] | length')
             if [ "${decisoes}" -gt 0 ]; then
               echo "Desfecho válido: o Developer abriu ${decisoes} issue(s) decision-needed em vez de PR."
               exit 0

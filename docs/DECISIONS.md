@@ -71,7 +71,9 @@ sintoma do Reviewer — o agente queimava turnos em ferramenta negada e terminav
 `error_max_turns` sem abrir PR. **`gh pr merge` continua fora**: o merge segue humano na
 Fase 0, assim como `curl`/`wget`.
 2ª emenda (2026-07-29): o Developer ganha ainda `TodoWrite`, `head`, `tail`, `wc`, `echo` e
-`gh pr list:*`. Motivo: mesmo sintoma pela terceira vez — os runs
+`gh pr list:*` (`gh pr ready` **não**: draft PR não existe em repo privado no plano Free, então
+a flag de completude do [D-019] é por label, não por draft). Motivo: mesmo sintoma pela
+terceira vez — os runs
 `30486974039`, `30487192243` e `30478412140` acumularam 1, 5 e **8** negações de ferramenta
 (no último, 41 turnos em 244 s: puro thrash até estourar o teto). `head`/`tail`/`wc` já
 estavam liberados para o Reviewer desde a nota de 2026-07-28; a emenda anterior esqueceu de
@@ -213,6 +215,31 @@ O que passa a valer:
 8. **`workflow_dispatch` com input `issue`**: re-disparar deixa de exigir remover e recolocar
    label. E o caminho `issue_comment` passa a ignorar comentário em PR (lá quem responde é o
    `claude.yml`), que daria falso-vermelho no guard-rail.
+
+Endurecimento vindo da revisão do PR #36 (aplica o baseline, não o afrouxa):
+- **Gate de autor no gatilho `issue_comment`** (`author_association` em
+  OWNER/MEMBER/COLLABORATOR). Sem ele, qualquer pessoa com acesso **somente-leitura**
+  comentava "@claude" numa issue e disparava um job com `contents: write` conduzido por um
+  agente que roda `npm`/`node`/`git` — escalada read → write, com o corpo do comentário
+  entrando direto no contexto do agente. O caminho `issues`/`labeled` não precisa do gate:
+  aplicar label já exige write/triage, e é por ele que o Supervisor (claude[bot]) abre trabalho.
+- **`ISSUE` validado como só-dígitos.** O input do `workflow_dispatch` terminava dentro de um
+  regex do guard-rail; `--arg` do jq barra injeção de sintaxe jq, não de regex. Disparar com
+  `issue: .*` faria o guard-rail achar qualquer PR e sair **verde sem entrega** — o próprio
+  falso-sucesso que o D-019 elimina.
+- **Transcrição redigida antes do upload.** Artefato do Actions **não** passa pelo masking de
+  segredo (só o log do job passa). Bastava o agente rodar `cat .git/config` (extraheader com o
+  GITHUB_TOKEN) ou ecoar variável de ambiente para o `CLAUDE_CODE_OAUTH_TOKEN` — que não
+  expira no fim do job — cair num arquivo baixável por 7 dias.
+- **Guard-rail sem exceção de gatilho.** A primeira versão pulava o guard-rail em
+  `issue_comment`, reabrindo o no-op silencioso exatamente por aquele caminho.
+- **A `decision-needed` do desfecho (b) tem de citar `#N`.** Sem esse filtro, com dois runs em
+  paralelo, o run da issue A passava de graça porque o run da issue B abriu uma
+  decision-needed no mesmo instante.
+
+Adiado para o backlog de endurecimento da Fase 5 (`.claude/rules/right-sizing.md`):
+`actions: write` acima do necessário no `implement.yml`, e o match do guard-rail por menção
+solta a `#N` em vez de `Closes #N`/`headRefName`.
 
 Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
