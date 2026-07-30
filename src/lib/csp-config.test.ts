@@ -1,3 +1,10 @@
+// @vitest-environment node
+//
+// Este teste só lê o objeto `csp` de svelte.config.js, que importa
+// @sveltejs/adapter-netlify (e, por consequência, esbuild). O ambiente jsdom
+// (padrão do projeto) substitui o TextEncoder global por um de outro realm,
+// o que quebra o invariante `instanceof Uint8Array` que o esbuild checa ao
+// carregar — daí a necessidade do ambiente node aqui.
 import { describe, expect, it } from 'vitest';
 import svelteConfig from '../../svelte.config.js';
 
