@@ -520,6 +520,39 @@ existe para impedir. Os três passam a filtrar por `claude[bot]` explicitamente.
 classificou como MÉDIO no `fix.yml`; no `review`/`security` a consequência é maior, e o mesmo
 padrão estava lá desde a implementação da ponte.
 
+## D-026 | 2026-07-30 | ACEITA
+**A causa raiz das cinco falhas seguidas do `fix.yml`: faltava `additional_permissions:
+actions: read`.** Sem isso o `gh` do agente não tem escopo de Actions, e
+`gh run view --log-failed` — o primeiro comando que o próprio prompt manda rodar — não funciona.
+
+Isto foi **lido na transcrição**, não deduzido. O run `30514339714` (41 turnos, US$ 0,94, **zero
+negações de ferramenta**) gastou **21 dos 41 turnos** tentando ler o log:
+
+| Chamadas | Tentativa |
+|---|---|
+| 1, 4, 21 | `gh run view --log-failed`, inclusive com `--repo` explícito |
+| 2, 3 | `gh auth status` |
+| 6–9 | `gh api .../actions/runs/<id>`, `gh run list` |
+| 13–17 | caçar `GITHUB_TOKEN` no ambiente, até `printenv GITHUB_TOKEN` |
+| 18–20 | `ls ~/.config/gh/`, extrair o token da URL do remote, tentar `curl` na API |
+| 22–34 | desistiu e rodou `lint`/`test`/`build`/`audit` — **todos passaram**, porque a falha estava no job `e2e`, que ele não pode rodar |
+
+O `claude.yml` já tinha `additional_permissions: actions: read`, com o comentário "Ler
+resultados de CI nos PRs". O `fix.yml`, **cuja razão de existir é ler CI vermelho**, nunca
+recebeu — mesma classe de omissão da 4ª emenda do [D-012]: a configuração certa existia num
+workflow e não foi propagada aos outros.
+
+Junto vai uma instrução de parada: se o comando falhar, o agente deve **comentar no PR e parar**,
+não contornar (procurar token no ambiente, chamar a API por `curl`, extrair credencial do
+remote). Insistir custou 21 turnos, e a tentativa de contorno é comportamento que não se quer
+num agente com token de escrita.
+
+**Correção do registro anterior:** as `permission_denials_count` de 14, 17 e 6 que eu havia
+tratado como causa **não eram a causa** — variavam por ruído e este run teve **zero**. As três
+hipóteses que levantei antes de ter transcrição (allow-list estreita, `persist-credentials`,
+nome do artefato) foram todas refutadas. O que resolveu foi instrumentar e ler, exatamente como
+no [D-019]. Fica a regra: **em falha de agente, instrumentar antes de teorizar.**
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
