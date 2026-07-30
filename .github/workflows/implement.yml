@@ -32,21 +32,25 @@ jobs:
     # Roda no dispatch manual, quando a issue recebe o label `status:ready`, ou quando
     # alguém comenta @claude numa issue. Comentário em PR fica de fora: lá quem responde
     # é o `claude.yml`.
-    # O gate de `author_association` no caminho de comentário fecha uma escalada
-    # read → write: sem ele, qualquer pessoa com acesso somente-leitura comentaria
-    # "@claude" e dispararia um job com `contents: write` e um agente que roda
-    # `npm`/`node`/`git` — execução arbitrária com token de escrita, e o corpo do
-    # comentário entrando direto no contexto do agente. O caminho `issues`/`labeled` não
-    # precisa do gate: aplicar label já exige write/triage (é por ele que o Supervisor,
-    # rodando como claude[bot], continua abrindo trabalho).
+    # O gate de autor no caminho de comentário fecha uma escalada read → write: sem ele,
+    # qualquer pessoa com acesso somente-leitura comentaria "@claude" e dispararia um job
+    # com `contents: write` e um agente que roda `npm`/`node`/`git` — execução arbitrária
+    # com token de escrita, e o corpo do comentário entrando direto no contexto do agente.
+    # **Só `OWNER`**, de propósito: `author_association` reflete associação, não permissão.
+    # O GitHub devolve `COLLABORATOR` para qualquer colaborador convidado, inclusive com
+    # permissão só de leitura, e `MEMBER` para membro de org independente da permissão no
+    # repo — aceitá-los deixaria a escalada aberta. Este repo é de um dono só; se algum dia
+    # entrar colaborador, ampliar aqui é decisão consciente (ou checar a permissão efetiva
+    # via `gh api repos/.../collaborators/<login>/permission`).
+    # O caminho `issues`/`labeled` não precisa de gate: aplicar label já exige write/triage
+    # (é por ele que o Supervisor, rodando como claude[bot], continua abrindo trabalho).
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' && github.event.label.name == 'status:ready') ||
       (github.event_name == 'issue_comment' &&
        !github.event.issue.pull_request &&
        contains(github.event.comment.body, '@claude') &&
-       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
-                github.event.comment.author_association))
+       github.event.comment.author_association == 'OWNER')
     runs-on: ubuntu-latest
     env:
       ISSUE: ${{ github.event.inputs.issue || github.event.issue.number }}
@@ -155,7 +159,11 @@ jobs:
       # vez — `cat .git/config` traz o extraheader com o GITHUB_TOKEN — ou ecoar uma variável
       # de ambiente para o CLAUDE_CODE_OAUTH_TOKEN (que, ao contrário do GITHUB_TOKEN, não
       # expira no fim do job) cair num arquivo baixável. Redigir antes de subir.
+      # Falha FECHADA: se a redação não completar, o arquivo é apagado em vez de subir cru.
+      # Sem isso o controle falharia na direção insegura — o upload tem `if: always()` e
+      # subiria a transcrição não redigida do mesmo jeito.
       - name: Redigir segredos da transcrição
+        id: redigir
         if: always()
         env:
           T: ${{ runner.temp }}/claude-execution-output.json
@@ -164,8 +172,14 @@ jobs:
           # O casamento do base64 é por classe de caractere, não `\S+`: `\S+` engoliria o
           # `"}` do JSON e deixaria o artefato não-parseável pelo jq, que é justamente como
           # a transcrição vai ser lida na hora de depurar.
-          perl -i -pe 's/(gh[pousr]_|sk-ant-)[A-Za-z0-9_\-]{10,}/[REDIGIDO]/g;
-                       s{AUTHORIZATION:\s*basic\s+[A-Za-z0-9+/=_-]+}{AUTHORIZATION: [REDIGIDO]}gi' "$T"
+          # `github_pat_` está na lista porque PAT fine-grained é uma das saídas cogitadas
+          # para o impasse do D-014 — se um dia entrar num secret, não pode vazar aqui.
+          if ! perl -i -pe 's/(gh[pousr]_|github_pat_|sk-ant-)[A-Za-z0-9_\-]{10,}/[REDIGIDO]/g;
+                            s{AUTHORIZATION:\s*(basic|bearer)\s+[A-Za-z0-9+/=_.-]+}{AUTHORIZATION: [REDIGIDO]}gi' "$T"; then
+            rm -f "$T"
+            echo "::error::Redação falhou — transcrição descartada em vez de subir crua."
+            exit 1
+          fi
           echo "Transcrição redigida antes do upload."
 
       # Observabilidade (D-019). O commit b294cc8 apagou o step que despejava cada
@@ -174,9 +188,13 @@ jobs:
       # completa sem imprimi-la no log do job. Custo: zero token.
       # `always()` e não `failure()`: o guard-rail vem DEPOIS deste step, então na hora do
       # upload um run que só vai reprovar no guard-rail ainda não falhou — e é justamente
-      # dele que a transcrição interessa.
+      # dele que a transcrição interessa. Condicionado à redação ter dado certo.
+      # Manutenção: o caminho do arquivo é o default da action. Se um bump do SHA mudar o
+      # nome, a captura para de funcionar em silêncio (`if-no-files-found: warn` não
+      # reprova) — conferir a doc da action, ou trocar por `steps.claude.outputs.execution_file`
+      # se a versão pinada passar a expor esse output.
       - name: Guardar transcrição do Developer
-        if: always()
+        if: always() && steps.redigir.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: implement-${{ github.event.inputs.issue || github.event.issue.number }}-${{ github.run_id }}
@@ -199,8 +217,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DESDE: ${{ steps.inicio.outputs.ts }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # 'skipped' = um step anterior quebrou e o agente nem rodou (p. ex. `npm ci` com
+          # lockfile fora de sincronia). Sem isto o guard-rail acusaria "no-op silencioso"
+          # quando a causa é infra — diagnóstico errado é o que fez esta falha durar quatro
+          # issues, então a mensagem precisa distinguir os dois casos.
+          DEV_OUTCOME: ${{ steps.claude.outcome }}
         run: |
           set -euo pipefail
+
+          if [ "$DEV_OUTCOME" = 'skipped' ]; then
+            causa='O Developer **nem chegou a rodar**: um step anterior do workflow falhou (infra, não o agente).'
+          else
+            causa='O Developer rodou e terminou sem produzir nada — é o no-op silencioso que o D-019 existe para pegar.'
+          fi
 
           # `([^0-9]|$)` em vez de `\b`: o `\b` não casa no jq embutido do `gh`, o que
           # daria falso-negativo ao depurar este mesmo guard-rail à mão. Serve para o
@@ -224,12 +253,14 @@ jobs:
               exit 0
             fi
             gh issue comment "$ISSUE" --body "$(printf '%s\n' \
-              '⚠️ O Developer terminou sem produzir nada: nenhum PR referencia esta issue e nenhuma issue `decision-needed` foi criada.' \
+              '⚠️ Nada foi produzido: nenhum PR referencia esta issue e nenhuma issue `decision-needed` foi criada.' \
+              '' \
+              "${causa}" \
               '' \
               "Run: ${RUN_URL} (a transcrição está nos artefatos do run)." \
               '' \
-              'O guard-rail do D-019 reprovou o job. Isto NÃO é entrega parcial — é o no-op silencioso.')"
-            echo "::error::Nenhum PR referencia a issue #${ISSUE} e nenhuma decision-needed foi criada. O Developer terminou em silêncio — tratar como reprovado, não como verde."
+              'O guard-rail do D-019 reprovou o job. Isto NÃO é entrega parcial.')"
+            echo "::error::Nenhum PR referencia a issue #${ISSUE} e nenhuma decision-needed foi criada (step do Developer: ${DEV_OUTCOME}) — tratar como reprovado, não como verde."
             exit 1
           fi
 

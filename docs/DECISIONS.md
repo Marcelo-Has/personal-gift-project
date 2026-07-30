@@ -237,9 +237,26 @@ Endurecimento vindo da revisão do PR #36 (aplica o baseline, não o afrouxa):
   paralelo, o run da issue A passava de graça porque o run da issue B abriu uma
   decision-needed no mesmo instante.
 
+2ª rodada de revisão do PR #36 (os controles acima tinham furos próprios):
+- **Só `OWNER` no gate de autor.** `author_association` reflete **associação, não permissão**:
+  o GitHub devolve `COLLABORATOR` para qualquer colaborador convidado, inclusive somente-leitura,
+  e `MEMBER` para membro de org independente da permissão no repo. Aceitar os três deixava a
+  escalada read → write aberta. Repo de um dono só; ampliar depois é decisão consciente.
+- **Redação falha FECHADA.** Se o `perl` não completar, o arquivo é apagado em vez de subir cru:
+  o upload tem `if: always()` e subiria a transcrição não redigida do mesmo jeito. O upload
+  passa a depender de `steps.redigir.outcome == 'success'`.
+- **`github_pat_` e `AUTHORIZATION: Bearer` na redação.** PAT fine-grained é uma das saídas
+  cogitadas para o impasse do [D-014]; se um dia entrar num secret, não pode vazar no artefato.
+- **O guard-rail distingue infra de no-op.** Com `steps.claude.outcome == 'skipped'` (o agente
+  nem rodou porque um step anterior quebrou), a mensagem diz isso em vez de acusar o Developer.
+  Diagnóstico errado é o que fez esta falha durar quatro issues.
+
 Adiado para o backlog de endurecimento da Fase 5 (`.claude/rules/right-sizing.md`):
-`actions: write` acima do necessário no `implement.yml`, e o match do guard-rail por menção
-solta a `#N` em vez de `Closes #N`/`headRefName`.
+`actions: write` acima do necessário no `implement.yml`; o match do guard-rail por menção
+solta a `#N` em vez de `Closes #N`/`headRefName`; `Bash(gh api:*)` e `Bash(git:*)` permitirem
+contornar o "merge é humano" por `gh api` ou `git push origin HEAD:main` — risco residual da
+mesma limitação de plano do [D-014] (sem branch protection em repo privado no Free); e o
+caminho da transcrição ser o default da action, que um bump de SHA pode mudar em silêncio.
 
 Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
