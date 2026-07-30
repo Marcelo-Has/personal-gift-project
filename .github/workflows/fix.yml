@@ -92,10 +92,22 @@ jobs:
 
             Não faça merge. Não commite segredos. Se a causa exigir uma decisão humana,
             crie uma issue `decision-needed` (docs/AUTONOMY.md).
-          # `Bash(cat:*)` SAIU da allow-list (issue #56): era redundante com `Read`, que já está
-          # aqui, e mais largo — a `deny` do `.claude/settings.json` vale para o tool `Read`, não
-          # para `Bash`, então `cat` contornava a lista inteira.
-          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+          # `Bash(cat:*)`, `Bash(grep:*)`, `Bash(head:*)`, `Bash(tail:*)`, `Bash(wc:*)`,
+          # `Bash(sed:*)` e `Bash(find:*)` SAÍRAM da allow-list (issue #56). Todos eram
+          # redundantes com os tools `Read`/`Grep`/`Edit`, que já estão aqui, e mais largos: a
+          # `deny` do `.claude/settings.json` vale para o tool `Read`, não para `Bash`, então
+          # qualquer um deles a contornava por inteiro. (`find` ainda executa comando arbitrário
+          # via `-exec`, pelo mesmo motivo que já o tirou do `verdict.yml`.)
+          #
+          # LEIA ISTO ANTES DE CONCLUIR QUE A CLASSE FOI FECHADA AQUI — ela NÃO foi. Este job
+          # precisa rodar teste, commitar e empurrar, então `Bash(git:*)`, `Bash(node:*)` e
+          # `Bash(npx:*)` TÊM de ficar — e os três leem qualquer byte do runner (`node -e` é
+          # execução arbitrária; `git diff --no-index a b` imprime arquivo arbitrário). Some-se
+          # a isso que este workflow, ao contrário do `verdict.yml`, não descarta a credencial
+          # do `actions/checkout` nem restaura a config de agente da branch base, e roda com
+          # `contents: write`. Ou seja: a contenção por allow-list aqui é PARCIAL POR
+          # CONSTRUÇÃO. O corte acima reduz superfície; quem fecha de verdade é a issue #62.
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(echo:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 
       # Mesma observabilidade que o `implement.yml` ganhou no [D-019]: sem ela este workflow é
       # indiagnosticável. Quatro runs seguidos estouraram o teto sem produzir commit e, no

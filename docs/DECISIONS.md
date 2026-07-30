@@ -802,10 +802,16 @@ honesto quanto a isso — ver "limite reconhecido" no fim. Frentes:
    A 3ª rodada de revisão do PR #57 apontou, com razão, que o argumento vale igual para
    `grep`/`head`/`tail`/`wc` — nenhum deles é o tool `Read`, então nenhum é coberto pela `deny`,
    e `grep -m1 . .git/config` lê exatamente o que `Read(./.git/**)` passou a negar. Tirar só o
-   `cat` deixaria a `deny` contornável do mesmo jeito. **Os quatro saíram também**, do
-   `verdict.yml`. No `fix.yml` não adianta podar utilitário de leitura (ver limite reconhecido
-   abaixo): lá sobram `Bash(node:*)`/`Bash(npx:*)`, que são execução arbitrária, e o ganho real
-   vem do restore de config de agente e do `unset-all` — foi para issue própria. Ficou
+   `cat` deixaria a `deny` contornável do mesmo jeito. **Os quatro saíram também.** A 4ª rodada
+   somou `Bash(git diff:*)` à mesma lista: `git diff --no-index <a> <b>` imprime arquivo
+   arbitrário (verificado neste repo com `.git/config`), então era mais um caminho por fora da
+   `deny` — e o juiz não perde nada, porque o prompt já manda usar `gh pr diff` e `git show`.
+   No `fix.yml` os mesmos utilitários saíram (mais `sed` e `find`), **mas ali isso reduz
+   superfície sem fechar a classe**: o job precisa rodar teste, commitar e empurrar, então
+   `Bash(git:*)`/`Bash(node:*)`/`Bash(npx:*)` têm de ficar, e os três leem qualquer byte do
+   runner. A contenção por allow-list no `fix.yml` é **parcial por construção** — está escrito
+   no próprio arquivo, para nenhum auditor futuro concluir o contrário, e o que fecha de fato
+   foi para issue própria. Ficou
    de fora `review.yml`/`security.yml` — mesmo achado, mesma correção, mas aqueles dois caem no
    impasse do [D-014] (branch protection não aplicável em repo privado no plano Free; PR que os
    altera exige merge manual à parte) e viram issue de endurecimento separada em vez de inflar

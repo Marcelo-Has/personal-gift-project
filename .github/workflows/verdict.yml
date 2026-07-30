@@ -101,7 +101,7 @@ jobs:
           # segunda camada: a issue #56 fechou a classe (tirou `Bash(cat:*)` daqui e somou
           # `Read(./.git/**)`/`Read(/proc/**)` à `deny`), mas apagar a credencial na origem custa
           # uma linha e não depende de nenhuma allow-list continuar certa no futuro. O `git fetch`
-          # acima é o único uso de rede do git neste job: o agente só faz `git diff/log/show`
+          # acima é o único uso de rede do git neste job: o agente só faz `git log/show`
           # local, e o `gh` usa `GH_TOKEN`.
           git config --unset-all http.https://github.com/.extraheader || true
 
@@ -197,9 +197,16 @@ jobs:
           # deles contornava a lista inteira — `grep -m1 . .git/config` e `head /proc/self/environ`
           # leem exatamente o que `Read(./.git/**)`/`Read(/proc/**)` passaram a negar. O argumento
           # é o mesmo que tirou o `cat`; aplicá-lo só ao `cat` deixaria a `deny` contornável do
-          # mesmo jeito. O julgamento continua possível: `Read`/`Grep`/`Glob` leem arquivo (e
-          # respeitam a `deny`), e `gh pr diff`/`git show` leem o que o prompt manda conferir.
-          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(ls:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr edit:*)"'
+          # mesmo jeito. `Bash(git diff:*)` saiu pelo mesmo argumento, uma rodada depois:
+          # `git diff --no-index <a> <b>` imprime arquivo arbitrário (verificado), então ele era
+          # mais um caminho por fora da `deny`. O julgamento continua possível: `Read`/`Grep`/
+          # `Glob` leem arquivo (e respeitam a `deny`), e `gh pr diff`/`git show` — que é o que o
+          # prompt manda usar — cobrem o diff e o conteúdo versionado.
+          #
+          # Isso ESTREITA a classe, não a fecha: a `deny` vale para o tool `Read`, e o controle
+          # que de fato segura a credencial aqui é o `unset-all` acima, que a apaga na origem. A
+          # `deny` é defesa em profundidade.
+          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr edit:*)"'
 
       - name: Redigir segredos da transcrição
         id: redigir
