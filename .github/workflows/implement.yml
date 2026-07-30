@@ -259,21 +259,28 @@ jobs:
             | jq --arg n "$ISSUE" '[.[] | select((.body // "")
                 | test("(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]+#" + $n + "([^0-9]|$)"; "i"))]')
 
+          # Desfecho (b): parou num Decision Gate e registrou a issue. A decision-needed tem
+          # de referenciar ESTA issue — sem esse filtro, com dois runs em paralelo, o run da
+          # issue A passaria de graça porque o run da issue B abriu uma decision-needed no
+          # mesmo instante.
+          # Avaliado SEMPRE, não só quando não há PR: como o contrato agora manda abrir o PR
+          # ANTES de codar, um Gate descoberto durante a implementação deixa para trás um PR
+          # WIP com `Closes #N`. Num `if/else` o guard-rail entraria no ramo "existe PR" e
+          # reprovaria como entrega parcial sem nunca olhar a decision-needed — punindo
+          # exatamente o comportamento que a regra nº 1 do CLAUDE.md exige.
+          decisoes=$(gh issue list --state all --label decision-needed --limit 50 \
+            --json number,createdAt,title,body \
+            | jq --arg t "$DESDE" --arg n "$ISSUE" \
+                '[.[] | select(.createdAt >= $t)
+                      | select(((.title // "") + " " + (.body // ""))
+                               | test("#" + $n + "([^0-9]|$)"))] | length')
+
+          if [ "${decisoes}" -gt 0 ]; then
+            echo "Desfecho válido (b): o Developer abriu ${decisoes} issue(s) decision-needed referenciando #${ISSUE}."
+            exit 0
+          fi
+
           if [ "$(jq 'length' <<<"$prs")" -eq 0 ]; then
-            # Desfecho (b): parou num Decision Gate e registrou a issue. Válido — mas a
-            # decision-needed tem de referenciar ESTA issue. Sem esse filtro, com dois runs
-            # em paralelo, o run da issue A passaria de graça porque o run da issue B abriu
-            # uma decision-needed no mesmo instante.
-            decisoes=$(gh issue list --state all --label decision-needed --limit 50 \
-              --json number,createdAt,title,body \
-              | jq --arg t "$DESDE" --arg n "$ISSUE" \
-                  '[.[] | select(.createdAt >= $t)
-                        | select(((.title // "") + " " + (.body // ""))
-                                 | test("#" + $n + "([^0-9]|$)"))] | length')
-            if [ "${decisoes}" -gt 0 ]; then
-              echo "Desfecho válido: o Developer abriu ${decisoes} issue(s) decision-needed em vez de PR."
-              exit 0
-            fi
             gh issue comment "$ISSUE" --body "$(printf '%s\n' \
               '⚠️ Nada foi produzido: nenhum PR referencia esta issue e nenhuma issue `decision-needed` foi criada.' \
               '' \
