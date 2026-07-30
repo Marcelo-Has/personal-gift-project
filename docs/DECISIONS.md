@@ -603,6 +603,48 @@ no output, o build reprova. A chave privada continua fora do bundle por constru�
 (`src/lib/server/firebase-admin.ts` + `$env/dynamic/private`, lido em runtime), e
 `serviceAccount*.json` segue no `.gitignore`, nunca versionado (confirmado no histórico).
 
+## D-029 | 2026-07-30 | ACEITA
+**`overrides` fixa `jose@^5.10.0` sob o `jwks-rsa` para a função da Netlify voltar a subir.**
+O site publicado não carregava: a função serverless morria no *load* com
+`require() of ES Module /var/task/node_modules/jose/dist/webapi/index.js from
+/var/task/node_modules/jwks-rsa/src/utils.js not supported`.
+
+Causa: cadeia `firebase-admin@14.2.0 → jwks-rsa@4.1.0 → jose@6.2.4`. O `jwks-rsa` é CommonJS e
+faz `require('jose')` (`src/utils.js:1`); o `jose@6` é ESM puro — seu `exports` não tem condição
+`require`. O `firebase-admin` carrega o `jwks-rsa` no topo de `lib/utils/jwt.js`, então quebra ao
+**importar** o Admin SDK, não numa rota — e `src/hooks.server.ts` importa essa cadeia em toda
+requisição SSR. Reproduzido localmente: no Node 22.16 o require passa (`require(esm)` é padrão
+desde 22.12), e com `node --no-experimental-require-module` sai a mensagem idêntica à do deploy.
+Ou seja, o Lambda da Netlify roda um Node **sem** `require(esm)`, e o `@sveltejs/adapter-netlify`
+emite `.mjs` sem bundlar (daí os caminhos crus em `/var/task/node_modules`). Não há correção
+upstream: `jwks-rsa` latest é 4.1.0 (jose `^6.1.3`) e `firebase-admin` latest é 14.2.0.
+
+`jose@5.10.0` — última da linha 5.x — publica build CommonJS
+(`exports['.'].require → ./dist/node/cjs/index.js`), então o `require('jose')` do `jwks-rsa`
+resolve em **qualquer** runtime, com ou sem bundler. O override é aninhado sob `jwks-rsa`
+(único consumidor de `jose` na árvore) e trava no `package-lock.json`.
+
+**Nada muda na verificação de token.** `verifyIdToken` continua no Admin SDK, com assinatura e
+claims; `src/lib/server/auth.ts` não foi tocado. O `jwks-rsa` só é usado no caminho de JWKS
+(`importJWK` + `exportSPKI`, presentes e com a mesma assinatura em jose 5) — a verificação de ID
+token do Firebase usa o caminho x509 + `jsonwebtoken`. Conserto de empacotamento que **preserva**
+a verificação não é Decision Gate (`docs/AUTONOMY.md` §2).
+
+Alternativas **rejeitadas**: emitir a função como ESM não resolve — o `require` quebrado é interno
+a um pacote CJS de terceiro, o formato do topo é irrelevante (provado no repro); `[functions]
+node_bundler = "esbuild"` passaria `firebase-admin`, `google-auth-library` e
+`@firebase/database-compat` inteiros por um bundler que tropeça em `require` dinâmico e protos —
+blast radius enorme para um problema de uma dependência, e só testável no deploy;
+`AWS_LAMBDA_JS_RUNTIME=nodejs22.x` a Netlify exige cadastrar no dashboard, **não** no
+`netlify.toml` — ficaria fora do repo, invisível ao CI, e um `nodejs22.x` com minor < 22.12 ainda
+quebraria. Guard de regressão no `ci.yml` (`node --no-experimental-require-module -e
+"require('firebase-admin/auth')"`) reprova o CI se a cadeia voltar a exigir `require(esm)`.
+
+**Nota de longo prazo:** o override é remendo de compatibilidade, não destino. Revisar — e
+remover, voltando ao `jose` da própria cadeia — quando o `jwks-rsa`/`firebase-admin` passarem a
+funcionar sob `require(esm)` (ou o `jose` voltar a publicar entrada CJS), ou quando a função da
+Netlify passar a embutir o `jose` no bundle. Enquanto isso, o guard do `ci.yml` é o sinal.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

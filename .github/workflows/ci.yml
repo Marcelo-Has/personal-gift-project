@@ -28,6 +28,14 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # Guard do D-029: o `jwks-rsa` (CommonJS) faz `require('jose')` e o
+      # firebase-admin o carrega no topo, então um `jose` sem build CJS derruba a
+      # função da Netlify no load. O runtime do Lambda não tem `require(esm)`; a
+      # flag abaixo reproduz esse modo aqui (o Node 22 do runner o habilita por
+      # padrão e mascararia a regressão). Vermelho aqui = deploy quebrado.
+      - name: Guard — firebase-admin carrega sem require(esm)
+        run: node --no-experimental-require-module -e "require('firebase-admin/auth')"
+
       - name: Lint
         run: npm run lint
 
