@@ -29,8 +29,18 @@ jobs:
           allowed_bots: "claude"
           prompt: |
             O CI falhou na branch ${{ github.event.workflow_run.head_branch }}.
-            Investigue a causa raiz a partir dos logs/checks, corrija o problema,
-            atualize ou adicione testes, e faça commit na mesma branch para reabrir o CI.
+
+            COMECE LENDO O LOG DA FALHA, no seu primeiro ou segundo turno:
+              gh run view ${{ github.event.workflow_run.id }} --log-failed
+            Não tente deduzir a causa do código, e NÃO tente reproduzir localmente o que este
+            runner não roda: `test:e2e` exige baixar ~115 MB de browser e `test:rules` exige
+            JVM + emulador — nenhum dos dois está disponível aqui. A mensagem exata do job é a
+            informação mais barata que existe, e sem ela você queima o orçamento adivinhando:
+            nos runs 30506482646, 30509108285 e anteriores este workflow gastou os turnos todos
+            e terminou sem um único commit.
+
+            Depois corrija o problema, atualize ou adicione testes, e faça commit na mesma
+            branch para reabrir o CI.
 
             EMPURRE A CADA CORREÇÃO, não só no fim: `git add -A && git commit && git push`
             assim que um problema estiver resolvido. O runner é destruído no fim do job e
@@ -39,6 +49,16 @@ jobs:
             perdido. Se o orçamento de turnos estiver acabando, pare de investigar e
             empurre o que já corrigiu.
 
+            FECHE O CICLO DA ENTREGA. Se o PR desta branch estiver com a label
+            `entrega:incompleta` (D-019) e, depois da sua correção, o CI estiver verde E os
+            critérios de aceite da issue que ele fecha estiverem atendidos (leia a issue com
+            `gh issue view`), então marque a entrega como completa:
+              gh pr edit --title "<título sem [WIP]>" \
+                --remove-label 'entrega:incompleta' --add-label 'entrega:completa'
+            Sem isso o `review` e o `ai-security-review` continuam **pulados** — é o gate de
+            custo do D-019 — e a entrega nunca chega a ser revisada. Na dúvida sobre os
+            critérios, NÃO marque: deixe `entrega:incompleta` e diga no PR o que falta.
+
             Não faça merge. Não commite segredos. Se a causa exigir uma decisão humana,
             crie uma issue `decision-needed` (docs/AUTONOMY.md).
-          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(npm:*)"'
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh run view:*),Bash(npm:*)"'
