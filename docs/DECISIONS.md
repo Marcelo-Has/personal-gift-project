@@ -385,6 +385,23 @@ no-op silencioso a fechar; se aparecer o caso "verde sem commit", aí vale esten
 Não é Decision Gate: não toca preço, catálogo, dado pessoal nem baseline de segurança. Exige
 **merge manual** pela exceção do [D-014], porque o diff inclui `review.yml`/`security.yml`.
 
+## D-022 | 2026-07-30 | ACEITA
+**Adoção de `zod` para validação de entrada do questionário** (issue #30, F1-05a).
+`src/lib/order.ts` modela `CoupleQuestionnaire` como interface TypeScript pura — sem
+validação em runtime — e o único precedente do repo (`parseRegistry` em
+`src/lib/registry.ts`) é um validador artesanal que não escala para 9 blocos com tupla e
+arrays de objeto (`people: [Person, Person]`, `milestones: Milestone[]`, `trips: Trip[]`).
+
+Um schema por etapa em `src/lib/order-schema.ts`, reusado tal e qual no cliente (validação
+por passo desta issue) e, na revalidação de servidor de #33, sem cópia divergente — é
+exatamente o que `.claude/rules/security.md` exige (revalidar no servidor o que o cliente já
+validou). Mensagens de erro em português direto no schema (`z.string().min(1, 'Informe o
+nome.')`), para não duplicar texto entre schema e UI.
+
+Escopo: só validação de entrada do questionário. Não é Decision Gate — nada de preço,
+catálogo ou dado pessoal de usuário real; `.claude/rules/right-sizing.md` cobre o resto
+(nenhum componente genérico tipo "Input"/"Wizard" sem um segundo uso concreto).
+
 ## D-023 | 2026-07-30 | ACEITA
 **O loop autônomo "corrige → CI confirma → entrega completa" dependia de duas peças que não
 existiam.** Ambas descobertas ao tentar concluir o PR #41 (issue #30):
