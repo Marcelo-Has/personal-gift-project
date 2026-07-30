@@ -12,12 +12,35 @@ on:
 
 jobs:
   claude:
+    # Canal INTERATIVO do dono, e só dele (`author_association == 'OWNER'`). Este é o único
+    # workflow de IA sem `--allowed-tools`, ou seja, o agente aqui tem o conjunto de
+    # ferramentas cheio — e o corpo do comentário entra direto no contexto dele. Sem gate de
+    # autor, qualquer pessoa que consiga comentar dispararia um agente irrestrito com token
+    # de escrita: é a mesma escalada read → write fechada no `implement.yml` pelo [D-019],
+    # e aqui vale mais porque lá existe allow-list e aqui não.
+    # `author_association` reflete associação, não permissão: `COLLABORATOR` sai para
+    # qualquer colaborador convidado, inclusive somente-leitura. Por isso só `OWNER`.
+    # Encadeamento bot→bot deixa de acontecer por este caminho, de propósito: o respondedor
+    # autônomo a CI vermelho é o `fix.yml`, e a implementação de issue é o `implement.yml`.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       github.event.comment.author_association == 'OWNER') ||
+      (github.event_name == 'pull_request_review_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       github.event.comment.author_association == 'OWNER') ||
+      (github.event_name == 'pull_request_review' &&
+       contains(github.event.review.body, '@claude') &&
+       github.event.review.author_association == 'OWNER') ||
+      (github.event_name == 'issues' &&
+       (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
+       github.event.issue.author_association == 'OWNER')
     runs-on: ubuntu-latest
+    # Segue em `read`, de propósito. Este workflow empurra commit, mas quem empurra é o token
+    # da App — e dar `contents: write` aqui elevaria o **GITHUB_TOKEN** justamente no único
+    # workflow cujo agente não tem `--allowed-tools`: Bash arbitrário + token de escrita e,
+    # sem branch protection na `main` ([D-014], travada por exigir GitHub Pro), isso é push
+    # direto na `main`. Custo de segurança real sem benefício comprovado. Ver [D-023].
     permissions:
       contents: read
       pull-requests: read
@@ -44,8 +67,11 @@ jobs:
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
+          # Allow-list, exigida pelo [D-012]. Este era o ÚNICO workflow de IA sem uma. O gate
+          # `OWNER` do `if:` protege o **gatilho**, não o **contexto**: o agente segue lendo a
+          # thread inteira — comentários de terceiros, de bot, arquivos, URLs — então basta o
+          # dono escrever "@claude resolve isso" num PR com texto plantado para instrução de
+          # terceiro chegar até aqui. Lista generosa, para não estorvar o uso interativo, mas
+          # sem a cauda pior: rede fora (`curl`/`wget`) e `gh pr merge` fora (merge é humano).
+          claude_args: '--allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(gh api:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 

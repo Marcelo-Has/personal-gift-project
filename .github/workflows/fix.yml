@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: read          # ler os comentários do PR no guard-rail do D-025
   id-token: write
   actions: write
 
@@ -19,7 +20,14 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
+
+      # Guard-rail de saída (parte 1/2): SHA da branch e instante, antes do agente.
+      - id: antes
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+        id: claude
         with:
           # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
           # usa a API medida; FACTORY_AUTH=oauth usa a assinatura. A credencial não
@@ -27,10 +35,142 @@ jobs:
           anthropic_api_key: ${{ vars.FACTORY_AUTH != 'oauth' && secrets.ANTHROPIC_API_KEY || '' }}
           claude_code_oauth_token: ${{ vars.FACTORY_AUTH == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           allowed_bots: "claude"
+          # A PEÇA QUE FALTAVA, e a causa raiz das cinco falhas seguidas deste workflow.
+          # Sem `actions: read`, o `gh` do agente não tem escopo de Actions e
+          # `gh run view --log-failed` simplesmente não funciona. A transcrição do run
+          # `30514339714` mostra o agente queimando **21 dos 41 turnos** só nisso: tentou
+          # `gh run view` três vezes, `gh auth status`, `gh api .../actions/runs/<id>`,
+          # `printenv GITHUB_TOKEN`, `ls ~/.config/gh/`, e até extrair o token da URL do
+          # remote para chamar a API com curl. Depois desistiu, rodou `lint`/`test`/`build`/
+          # `audit` — todos passaram, porque a falha estava no job `e2e`, que ele não pode
+          # rodar — e morreu no teto sem nunca ver a mensagem de erro.
+          # O `claude.yml` já tinha isto, com o comentário "Ler resultados de CI nos PRs".
+          # O `fix.yml`, cuja razão de existir é ler CI vermelho, nunca recebeu. Ver [D-026].
+          additional_permissions: |
+            actions: read
           prompt: |
             O CI falhou na branch ${{ github.event.workflow_run.head_branch }}.
-            Investigue a causa raiz a partir dos logs/checks, corrija o problema,
-            atualize ou adicione testes, e faça commit na mesma branch para reabrir o CI.
+
+            COMECE LENDO O LOG DA FALHA, no seu primeiro ou segundo turno:
+              gh run view ${{ github.event.workflow_run.id }} --log-failed
+
+            Se esse comando falhar, NÃO insista e NÃO tente contornar (procurar token no
+            ambiente, chamar a API por curl, extrair credencial do remote): é falha de
+            configuração do workflow, não sua. Comente no PR dizendo que não conseguiu ler o
+            log e pare. Insistir custou 21 dos 41 turnos no run 30514339714.
+            Não tente deduzir a causa do código, e NÃO tente reproduzir localmente o que este
+            runner não roda: `test:e2e` exige baixar ~115 MB de browser e `test:rules` exige
+            JVM + emulador — nenhum dos dois está disponível aqui. A mensagem exata do job é a
+            informação mais barata que existe, e sem ela você queima o orçamento adivinhando:
+            nos runs 30506482646, 30509108285 e anteriores este workflow gastou os turnos todos
+            e terminou sem um único commit.
+
+            Depois corrija o problema, atualize ou adicione testes, e faça commit na mesma
+            branch para reabrir o CI.
+
+            EMPURRE A CADA CORREÇÃO, não só no fim: `git add -A && git commit && git push`
+            assim que um problema estiver resolvido. O runner é destruído no fim do job e
+            nada que não esteja empurrado sobrevive — no run 30506482646 este workflow
+            queimou 25 turnos e terminou sem um único commit, então o trabalho foi todo
+            perdido. Se o orçamento de turnos estiver acabando, pare de investigar e
+            empurre o que já corrigiu.
+
+            FECHE O CICLO DA ENTREGA. Se o PR desta branch estiver com a label
+            `entrega:incompleta` (D-019) e, depois da sua correção, o CI estiver verde E os
+            critérios de aceite da issue que ele fecha estiverem atendidos (leia a issue com
+            `gh issue view`), então marque a entrega como completa:
+              gh pr edit --title "<título sem [WIP]>" \
+                --remove-label 'entrega:incompleta' --add-label 'entrega:completa'
+            Sem isso o `review` e o `ai-security-review` continuam **pulados** — é o gate de
+            custo do D-019 — e a entrega nunca chega a ser revisada. Na dúvida sobre os
+            critérios, NÃO marque: deixe `entrega:incompleta` e diga no PR o que falta.
+
             Não faça merge. Não commite segredos. Se a causa exigir uma decisão humana,
             crie uma issue `decision-needed` (docs/AUTONOMY.md).
-          claude_args: '--max-turns 25 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,Bash(git:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(npm:*)"'
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+
+      # Mesma observabilidade que o `implement.yml` ganhou no [D-019]: sem ela este workflow é
+      # indiagnosticável. Quatro runs seguidos estouraram o teto sem produzir commit e, no
+      # último, `permission_denials_count: 17` — MAIS que os 14 do run anterior, apesar de a
+      # allow-list ter ido de 13 para 28 entradas na 4ª emenda do [D-012]. Ou seja: a hipótese
+      # "faltavam os utilitários de leitura" foi refutada pelos dados, e sem a transcrição não
+      # há como saber o que está sendo negado de fato. Ver [D-024].
+      # Falha FECHADA: se a redação não completar, o arquivo é apagado em vez de subir cru —
+      # artefato do Actions não passa pelo masking de segredo, só o log do job passa.
+      - name: Redigir segredos da transcrição
+        id: redigir
+        if: always()
+        env:
+          T: ${{ runner.temp }}/claude-execution-output.json
+        run: |
+          [ -f "$T" ] || exit 0
+          if ! perl -i -pe 's/(gh[pousr]_|github_pat_|sk-ant-)[A-Za-z0-9_\-]{10,}/[REDIGIDO]/g;
+                            s{AUTHORIZATION:\s*(basic|bearer)\s+[A-Za-z0-9+/=_.-]+}{AUTHORIZATION: [REDIGIDO]}gi' "$T"; then
+            rm -f "$T"
+            echo "::error::Redação falhou — transcrição descartada em vez de subir crua."
+            exit 1
+          fi
+          echo "Transcrição redigida antes do upload."
+
+      - name: Guardar transcrição do Fix
+        if: always() && steps.redigir.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          # Sem o nome da branch: ela contém `/` (`feat/...`), proibido em nome de artefato,
+          # e o upload falhava — foi assim que a primeira transcrição do fix se perdeu.
+          name: fix-${{ github.run_id }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          retention-days: 7
+          if-no-files-found: warn
+
+      # Guard-rail de saída (parte 2/2). O [D-020] adiou este step com uma condição explícita:
+      # "já reprova por max_turns quando morre, então não há no-op silencioso a fechar; se
+      # aparecer o caso 'verde sem commit', aí vale estender." O caso apareceu — run
+      # `30513015702`: `subtype: success`, `is_error: false`, 10 turnos, US$ 0,22, e **nenhum
+      # commit e nenhum comentário no PR**. É o mesmo no-op silencioso que o [D-019] fechou no
+      # `implement.yml`, e que aqui saía verde. Custo: zero token, só `gh`/`git`.
+      - name: Exigir correção empurrada ou explicação no PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          ANTES: ${{ steps.antes.outputs.sha }}
+          DESDE: ${{ steps.antes.outputs.ts }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AGENTE: ${{ steps.claude.outcome }}
+        run: |
+          set -euo pipefail
+
+          agora=$(gh api "repos/${GITHUB_REPOSITORY}/branches/${BRANCH}" --jq .commit.sha 2>/dev/null || echo '')
+          if [ -n "${agora}" ] && [ "${agora}" != "${ANTES}" ]; then
+            echo "Correção empurrada: ${ANTES:0:8} -> ${agora:0:8}."
+            exit 0
+          fi
+
+          pr=$(gh pr list --head "${BRANCH}" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -z "${pr}" ]; then
+            echo "::error::Nenhum commit novo em ${BRANCH} e nenhum PR aberto para ela (step do agente: ${AGENTE}) — o Fix não produziu nada."
+            exit 1
+          fi
+
+          # Desfecho alternativo aceitável: não soube corrigir, mas EXPLICOU no PR.
+          # Filtra por `claude[bot]`, NÃO por `.user.type == "Bot"`: o `netlify[bot]` comenta em
+          # todo PR deste repo (deploy preview), então qualquer bot satisfaria este ramo e o
+          # guard-rail viraria decoração. Achado da revisão de segurança do PR #48 — classificado
+          # como MÉDIO, mas na prática desligaria o controle, porque o comentário do Netlify é
+          # quase garantido dentro da janela.
+          explicou=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr}/comments" --paginate \
+            --jq "[.[] | select(.user.login == \"claude[bot]\") | select(.created_at >= \"${DESDE}\")] | length")
+          if [ "${explicou}" -gt 0 ]; then
+            echo "Sem commit, mas o Fix explicou no PR #${pr} (${explicou} comentário(s))."
+            exit 0
+          fi
+
+          gh pr comment "${pr}" --body "$(printf '%s\n' \
+            '⚠️ O Fix rodou e não produziu nada: nenhum commit novo nesta branch e nenhuma explicação aqui.' \
+            '' \
+            "Run: ${RUN_URL} (transcrição nos artefatos). Step do agente: \`${AGENTE}\`." \
+            '' \
+            'O CI segue vermelho e precisa de correção humana, ou de outro disparo. Guard-rail do D-025.')"
+          echo "::error::O Fix não empurrou commit nem explicou no PR #${pr} (step do agente: ${AGENTE}) — tratar como reprovado, não como verde."
+          exit 1

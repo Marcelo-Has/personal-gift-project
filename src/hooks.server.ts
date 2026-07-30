@@ -1,4 +1,21 @@
 import type { Handle } from '@sveltejs/kit';
+import { verificarIdToken } from '$lib/server/auth';
+
+const BEARER_PREFIX = 'Bearer ';
+
+/**
+ * Extrai o `uid` do header `Authorization: Bearer <idToken>`, se houver (F1-05a2, issue #31).
+ * `verificar` é injetável para o teste não precisar de credencial nem emulador — mesmo
+ * padrão de dependência por último parâmetro usado em `signed-url.ts`/`auth.ts`.
+ */
+export async function resolveUid(
+	request: Request,
+	verificar: typeof verificarIdToken = verificarIdToken
+): Promise<string | null> {
+	const cabecalho = request.headers.get('Authorization');
+	if (!cabecalho?.startsWith(BEARER_PREFIX)) return null;
+	return verificar(cabecalho.slice(BEARER_PREFIX.length));
+}
 
 /**
  * Cabeçalhos de segurança aplicados a todas as respostas.
@@ -33,6 +50,8 @@ import type { Handle } from '@sveltejs/kit';
  * Referências: `.claude/rules/security.md`, `docs/DECISIONS.md` (D-010), issue #15.
  */
 export const handle: Handle = async ({ event, resolve }) => {
+	event.locals.uid = await resolveUid(event.request);
+
 	const response = await resolve(event);
 
 	response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');

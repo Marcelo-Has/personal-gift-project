@@ -83,6 +83,27 @@ nenhum dos runs de #30–#35 havia batido no teto, então subir seria tratar sin
 pela transcrição do run `30503680892`: 41 turnos, zero negações, a issue #31 inteiramente
 implementada com `lint`/`test`/`build` verdes, e nenhum turno sobrando para commit/push/PR —
 tudo perdido com o runner. Ver [D-019], 4ª rodada.
+4ª emenda (2026-07-30): o **`fix.yml`** recebe finalmente a mesma ampliação de leitura e
+utilitários — `TodoWrite`, `gh issue:*`, `npx`, `node`, `cat`, `ls`, `head`, `tail`, `wc`,
+`echo`, `find`, `grep`, `sed`, `mkdir`, `mv`, `cp`. Motivo: **quarta ocorrência do mesmo
+sintoma, e a mais teimosa.** A allow-list do `fix.yml` era a original do primeiro dia — as três
+emendas anteriores contemplaram Reviewer e Developer e passaram por cima dele. Resultado: quatro
+runs seguidos estourando o teto sem produzir um único commit (`30506482646`, `30509108285`,
+`30511102142`), o último com **`permission_denials_count: 14`** em 41 turnos, ou seja **um terço
+do orçamento gasto batendo em ferramenta negada**. Foi o mesmo diagnóstico das emendas de 07-28
+e 07-29, repetido porque a correção nunca foi aplicada a todos os papéis de uma vez.
+Ficam **fora** de propósito, por menor privilégio: `gh pr create` (ele age em PR existente),
+`gh api` e `gh run` amplos — `gh run view` basta para ler log de CI. `gh pr merge` continua fora
+de todas as allow-lists.
+Lição aplicada na hora, e não só registrada: **os seis workflows de IA foram auditados de uma
+vez**, em vez de contemplar só o que doeu — que é o erro que fez este sintoma voltar quatro
+vezes. `review` e `security` ganham `TodoWrite`; `supervisor` e `daily-report` ganham
+`TodoWrite` + os utilitários de leitura (`cat`, `ls`, `head`, `tail`, `wc`, `find`, `grep`).
+Nenhum dos dois últimos havia estourado teto ainda — é justamente o ponto de fazer agora.
+
+Menor privilégio conferido depois da mudança, papel por papel: `gh pr merge` **fora dos seis**;
+`Edit`/`Write` só em `implement` e `fix`, os dois que de fato alteram código; `review`,
+`security`, `supervisor` e `daily-report` seguem read-only; rede (`curl`/`wget`) fora de todos.
 
 ## D-013 | 2026-07-28 | ACEITA
 `allowed_bots: "claude"` em todo step da `claude-code-action`, **nunca `"*"`**. Motivo: os
@@ -311,7 +332,228 @@ caminho da transcrição ser o default da action, que um bump de SHA pode mudar 
 Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
 
+## D-021 | 2026-07-30 | ACEITA
+**Identidade do comprador pré-checkout = sessão anônima do Firebase Auth**, criada sob
+demanda no navegador (`signInAnonymously`, `src/lib/firebase/session.ts`) e verificada no
+servidor por `verificarIdToken`/`requireUid` (`src/lib/server/auth.ts`, F1-05a2, issue #31).
+No checkout (F1-07) a conta vira real por `linkWithCredential`: o `uid` não muda e nenhum
+dado é migrado.
+
+Motivo: a escolha é cara de reverter porque amarra três coisas ao mesmo `uid` — o dono em
+`firestore.rules` (`isOwner(userId)`), o prefixo `users/<uid>/` do caminho da foto no
+Storage (`photoObjectPath`, `src/lib/server/signed-url.ts:81`) e o modelo de conta do
+produto. Trocar depois significaria migrar documentos e objetos já gravados
+(`.claude/rules/right-sizing.md`, filtro nº 2).
+
+Alternativa recusada: um id opaco em cookie httpOnly, sem Firebase Auth. Funcionaria para
+upload e rascunho (o servidor é o único que escreve), mas criaria um segundo conceito de
+identidade a reconciliar no checkout e deixaria o comprador sem conseguir ler o próprio
+pedido, já que `firestore.rules` exige `request.auth`.
+
+Anônimo e sem senha: o comprador não deve precisar criar conta para montar o livro.
+Especializa [D-003] (stack Firebase já decidida); não a contradiz. Não é Decision Gate: a
+escolha aplica o baseline de segurança (usuário só acessa os próprios dados,
+`.claude/rules/security.md`) em vez de enfraquecê-lo — `firestore.rules` e `storage.rules`
+seguem inalterados.
+
+---
 ## D-020 | 2026-07-30 | ACEITA
+**Tetos de `--max-turns` recalibrados por evidência, não por intuição.** Em 2026-07-30,
+**quatro de quatro** workflows de IA estouraram o teto no mesmo dia, cada um num PR real:
+
+| Workflow | Teto | Evidência do estouro | Novo |
+|---|---|---|---|
+| `implement` | 40 → 60 | run `30503680892` morreu em 41 turnos com a issue #31 pronta e nunca commitada; depois o run `30505689066` morreu em **60** com a #30 já 95% entregue (12 arquivos, +990 linhas, `ci` verde) | **80** |
+| `review` | 30 | `error_max_turns` em 31 turnos duas vezes (PR #36 e PR #40) | **50** |
+| `ai-security-review` | 30 | `error_max_turns` em 31 turnos no PR #40 | **50** |
+| `fix` | 25 | run `30506482646` queimou 25 turnos no PR #41 e **não produziu um único commit** | **40** |
+
+Motivo: os tetos foram calibrados quando o repositório era um scaffold. Com o `src/` real,
+diffs de ~1000 linhas, thread de PR longa e issues prescritivas de 150+ linhas, eles passaram
+a cortar o agente **no meio**. O argumento decisivo é de custo, não de generosidade: um agente
+que morre no teto entrega **nada** e o gasto é 100% perdido — o run `30503680892` custou
+US$ 1,90 para produzir zero. Subir o teto converte gasto desperdiçado em trabalho entregue.
+
+`daily-report` (15) e `supervisor` (20) ficam como estão: nenhum dos dois estourou, e a saída
+deles é pequena por natureza (um relatório, uma issue).
+
+Complemento: o `fix.yml` passa a ser instruído a **empurrar a cada correção**, pelo mesmo
+motivo do [D-019] — no run acima ele corrigiu no disco do runner e perdeu tudo. Ele **não**
+ganha guard-rail de saída nesta rodada: já reprova por `max_turns` quando morre, então não há
+no-op silencioso a fechar; se aparecer o caso "verde sem commit", aí vale estender.
+
+Não é Decision Gate: não toca preço, catálogo, dado pessoal nem baseline de segurança. Exige
+**merge manual** pela exceção do [D-014], porque o diff inclui `review.yml`/`security.yml`.
+
+## D-023 | 2026-07-30 | ACEITA
+**O loop autônomo "corrige → CI confirma → entrega completa" dependia de duas peças que não
+existiam.** Ambas descobertas ao tentar concluir o PR #41 (issue #30):
+
+1. **Commit empurrado pelo `claude.yml` NÃO disparava o CI.** Fato observado: o commit
+   `0908f5a3` do PR #41 veio de lá, o PR seguiu exibindo os checks do commit anterior, e a API
+   devolvia 3 check-runs naquele SHA — só do Netlify. `gh pr close`/`reopen` também não
+   recuperou. Foi preciso integrar a `main` na branch à mão só para provocar um CI.
+
+   **Mecanismo provável — hipótese, não causa estabelecida:** `actions/checkout` grava o
+   `GITHUB_TOKEN` no `.git/config` (`persist-credentials: true` é o default), e **push feito
+   com `GITHUB_TOKEN` não cria workflow run** (comportamento documentado, anti-recursão). O
+   push do agente teria saído por essa credencial. O `implement.yml`, cujos pushes sempre
+   disparam CI, declara `contents: write`, e a `claude-code-action` loga ali "Updated remote
+   URL with authentication token" — indício de que ela só reconfigura o git com o token da App
+   quando acredita ter permissão de escrita.
+
+   **Tentativa de correção, e o resultado dela — REVERTIDA.** Apliquei `persist-credentials:
+   false` no checkout do `claude.yml`, para que um push dependente do `GITHUB_TOKEN` falhasse
+   alto em vez de virar no-op silencioso, mantendo `permissions` em `read`. O run
+   `30512293142` mostrou que isso **quebra o workflow inteiro**, e antes de qualquer trabalho:
+
+   ```
+   ##[error]Action failed with error: Command failed:
+   git fetch origin --depth=20 feat/f1-05a-questionario-esqueleto
+   ```
+
+   A `claude-code-action` usa as credenciais persistidas para as **suas próprias** operações de
+   git (o `fetch` da branch), não só para o push do agente. Sem elas nem chega a começar.
+   Revertido: o checkout volta ao default.
+
+   **O que fica de pé do PR #45**, e é o que valia: o **gate de autor** (`OWNER`) e a
+   **allow-list** do `claude.yml` — as duas aplicações de baseline. As `permissions` seguem em
+   `read`, como a revisão de segurança do PR #45 exigiu com razão: a justificativa original
+   ("o token vem da App, então declare `write`") se anulava.
+
+   **Estado honesto: causa não identificada.** O item segue como hipótese, agora com uma
+   tentativa de correção refutada. O loop autônomo **não depende** deste caminho: quem empurra
+   correção de CI é o `fix.yml`, que declara `contents: write` e recebe auth por token da App
+   como o `implement.yml`. Enquanto isso, re-disparar CI numa branch tocada pelo `claude.yml`
+   exige um push humano — foi o que fiz duas vezes no PR #41, integrando a `main`.
+2. **O `fix.yml` não conseguia marcar a entrega como completa.** A allow-list dele não tinha
+   `gh pr edit`, então mesmo deixando o CI verde ele não trocava `entrega:incompleta` por
+   `entrega:completa` — e, pelo gate de custo do [D-019], `review` e `ai-security-review`
+   ficam **pulados** enquanto a label não vira. Deadlock: nenhum mecanismo da fábrica
+   conseguia levar um PR parcial até revisado. Ele ganha `gh pr edit:*`, `gh pr list:*`,
+   `gh issue view:*` e `gh run view:*`, mais a instrução de fechar o ciclo — com a ressalva
+   explícita de **não** marcar em caso de dúvida sobre os critérios de aceite.
+
+Junto vêm duas aplicações de baseline no `claude.yml`, ambas apontadas pela revisão do PR #45:
+
+- **Gate de autor** (`author_association == 'OWNER'`). Sem ele, qualquer pessoa que conseguisse
+  comentar dispararia um agente com token de escrita. Só `OWNER`, pelo motivo já registrado:
+  `COLLABORATOR` sai para colaborador somente-leitura.
+- **Allow-list** (`--allowed-tools`), que faltava — era o único workflow de IA sem uma, contra
+  o [D-012]. A observação decisiva da revisão: **o gate protege o gatilho, não o contexto.** O
+  agente segue lendo a thread inteira (comentários de terceiros, de bot, arquivos, URLs), então
+  basta o dono escrever "@claude resolve isso" num PR com texto plantado para instrução de
+  terceiro chegar a um agente irrestrito. Lista generosa para não estorvar o uso interativo,
+  sem a cauda pior: rede fora, `gh pr merge` fora.
+
+Trade-off aceito e registrado: dar `gh pr edit:*` ao `fix.yml` permite que ele **adicione**
+`entrega:incompleta`, e não só remova — o que desligaria as duas revisões de IA daquele PR pelo
+gate de custo do [D-019]. É evasão de revisão pelo mecanismo que o próprio D-019 criou. Fica
+aceito como MÉDIO porque o `scans` (gitleaks + `npm audit`) não é gateado e continua rodando, o
+merge é humano e a label fica visível no PR — mas é o primeiro lugar a olhar se um PR passar
+sem revisão. A alternativa (não dar `gh pr edit`) recria o deadlock do item 2.
+
+Efeito colateral aceito: **encadeamento bot→bot deixa de acontecer por `claude.yml`**. Antes,
+um comentário de revisão do claude[bot] disparava correção automática — foi assim que o commit
+`d4ceb9a` entrou no PR #36. O respondedor autônomo a CI vermelho passa a ser só o `fix.yml`, e
+a implementação de issue só o `implement.yml`, cada um com a sua allow-list ([D-012]).
+Perde-se emergência, ganha-se previsibilidade e superfície menor.
+
+Não é Decision Gate: aplica o baseline em vez de afrouxá-lo, e não toca preço, catálogo nem
+dado pessoal. `gh pr merge` continua fora de todas as allow-lists.
+
+## D-024 | 2026-07-30 | ACEITA
+**Transcrição como artefato em todo workflow de IA que escreve código, não só no
+`implement.yml`.** O `fix.yml` ganha os mesmos dois steps do [D-019] (redação de segredo que
+falha fechada + `upload-artifact`).
+
+Motivo, e ele é uma lição sobre método: o `fix.yml` estourou o teto **quatro vezes** sem
+produzir commit. Diagnostiquei como allow-list estreita — havia evidência forte
+(`permission_denials_count: 14` em 41 turnos, e a allow-list dele era literalmente a original do
+primeiro dia, ignorada pelas três emendas anteriores do [D-012]). A 4ª emenda a levou de 13 para
+28 entradas. O run seguinte (`30512032016`) devolveu **`permission_denials_count: 17`** — mais
+que antes. **A hipótese foi refutada pelos dados**, e eu não tinha como saber o que estava sendo
+negado porque `show_full_output` está desligado e este workflow nunca subiu transcrição.
+
+É exatamente o buraco que o [D-019] fechou no `implement.yml` e que eu deixei aberto aqui: a
+fábrica cega justamente onde falha. Regra que passa a valer: **workflow de IA que escreve código
+sobe transcrição**. `review`, `security`, `supervisor` e `daily-report` seguem sem artefato por
+ora — são read-only e publicam o próprio resultado como comentário, então já deixam rastro;
+`review`/`security` ainda dependeriam de merge manual pelo [D-014], o que encareceria a mudança.
+
+Registro honesto do que ainda não se sabe: **as 17 negações do `fix.yml` continuam sem causa
+identificada.** O próximo run com artefato responde. Até lá, nenhuma outra emenda de allow-list
+deve ser feita por palpite.
+
+## D-025 | 2026-07-30 | ACEITA
+**Guard-rail de saída no `fix.yml`**, nos mesmos termos do [D-019]: sem commit novo na branch
+e sem explicação no PR, o job fica **vermelho** e comenta no PR. Custo: zero token, só `gh`/`git`.
+
+O [D-020] havia adiado este step com uma condição explícita — *"já reprova por `max_turns`
+quando morre, então não há no-op silencioso a fechar; se aparecer o caso 'verde sem commit', aí
+vale estender."* **O caso apareceu**, no run `30513015702`: `subtype: success`,
+`is_error: false`, 10 turnos, US$ 0,22, **nenhum commit e nenhum comentário no PR**, e o step
+do agente **verde**. Exatamente o no-op silencioso que custou quatro issues no `implement.yml`,
+agora no `fix.yml`. A condição de adiamento foi cumprida, então o adiamento acabou.
+
+Desfechos aceitos pelo guard-rail: (a) commit novo na branch — comparação de SHA antes/depois;
+(b) sem commit, mas **comentário de bot no PR** desde o início do run, ou seja, o Fix não soube
+corrigir e **disse isso**. Qualquer outra coisa reprova.
+
+Junto vai a correção de um bug meu: o nome do artefato de transcrição do [D-024] incluía o nome
+da branch, que contém `/` — proibido em nome de artefato no Actions. O upload falhava e **a
+primeira transcrição do `fix` se perdeu**, que era justamente o instrumento de que eu precisava.
+Passa a ser só `fix-<run_id>`.
+
+Consequência para o método: as **6 negações** do run `30513015702` (e as 17 do anterior)
+continuam sem causa identificada, agora por um bug de nome de artefato em cima de um workflow
+sem observabilidade. Segue valendo a regra do [D-024]: **nenhuma emenda de allow-list por
+palpite** — a próxima só depois de ler a transcrição de fato.
+
+**Correção que vale para os três guard-rails, achada pela revisão do PR #48.** O filtro de
+"alguém publicou algo" era `.user.type == "Bot"`. Mas o `netlify[bot]` comenta em **todo** PR
+deste repositório e **edita** o mesmo comentário fixo a cada deploy, o que satisfaz
+`updated_at >= DESDE`. Ou seja, qualquer bot servia — e no `review.yml`/`security.yml` isso é
+grave: um skip da action por *workflow validation* poderia sair **VERDE** por causa do
+comentário do Netlify, que é precisamente o "verde sem revisão" que a ponte (c) do [D-014]
+existe para impedir. Os três passam a filtrar por `claude[bot]` explicitamente. A revisão
+classificou como MÉDIO no `fix.yml`; no `review`/`security` a consequência é maior, e o mesmo
+padrão estava lá desde a implementação da ponte.
+
+## D-026 | 2026-07-30 | ACEITA
+**A causa raiz das cinco falhas seguidas do `fix.yml`: faltava `additional_permissions:
+actions: read`.** Sem isso o `gh` do agente não tem escopo de Actions, e
+`gh run view --log-failed` — o primeiro comando que o próprio prompt manda rodar — não funciona.
+
+Isto foi **lido na transcrição**, não deduzido. O run `30514339714` (41 turnos, US$ 0,94, **zero
+negações de ferramenta**) gastou **21 dos 41 turnos** tentando ler o log:
+
+| Chamadas | Tentativa |
+|---|---|
+| 1, 4, 21 | `gh run view --log-failed`, inclusive com `--repo` explícito |
+| 2, 3 | `gh auth status` |
+| 6–9 | `gh api .../actions/runs/<id>`, `gh run list` |
+| 13–17 | caçar `GITHUB_TOKEN` no ambiente, até `printenv GITHUB_TOKEN` |
+| 18–20 | `ls ~/.config/gh/`, extrair o token da URL do remote, tentar `curl` na API |
+| 22–34 | desistiu e rodou `lint`/`test`/`build`/`audit` — **todos passaram**, porque a falha estava no job `e2e`, que ele não pode rodar |
+
+O `claude.yml` já tinha `additional_permissions: actions: read`, com o comentário "Ler
+resultados de CI nos PRs". O `fix.yml`, **cuja razão de existir é ler CI vermelho**, nunca
+recebeu — mesma classe de omissão da 4ª emenda do [D-012]: a configuração certa existia num
+workflow e não foi propagada aos outros.
+
+Junto vai uma instrução de parada: se o comando falhar, o agente deve **comentar no PR e parar**,
+não contornar (procurar token no ambiente, chamar a API por `curl`, extrair credencial do
+remote). Insistir custou 21 turnos, e a tentativa de contorno é comportamento que não se quer
+num agente com token de escrita.
+
+**Correção do registro anterior:** as `permission_denials_count` de 14, 17 e 6 que eu havia
+tratado como causa **não eram a causa** — variavam por ruído e este run teve **zero**. As três
+hipóteses que levantei antes de ter transcrição (allow-list estreita, `persist-credentials`,
+nome do artefato) foram todas refutadas. O que resolveu foi instrumentar e ler, exatamente como
+no [D-019]. Fica a regra: **em falha de agente, instrumentar antes de teorizar.**
+
+## D-027 | 2026-07-30 | ACEITA
 **Configuração versionada do deploy Netlify (issue #35, implementa [D-018]).** `svelte.config.js`
 passa a usar `@sveltejs/adapter-netlify` (`publish` default do adapter é `build`, confirmado em
 `node_modules/@sveltejs/adapter-netlify/index.js`) e `netlify.toml` na raiz espelha
