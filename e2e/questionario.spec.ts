@@ -71,7 +71,9 @@ test('deve completar o fluxo feliz até o resumo, com o CTA apontando para /esti
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/como-se-conheceram$/);
-	await page.getByLabel('Como vocês se conheceram').fill('Nos conhecemos na faculdade.');
+	await page
+		.getByRole('textbox', { name: 'Como vocês se conheceram', exact: true })
+		.fill('Nos conhecemos na faculdade.');
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/momentos$/);
@@ -81,7 +83,7 @@ test('deve completar o fluxo feliz até o resumo, com o CTA apontando para /esti
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/piadas$/);
-	await page.getByLabel('Piadas internas').fill('pizza de sexta');
+	await page.getByRole('textbox', { name: 'Piadas internas', exact: true }).fill('pizza de sexta');
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/viagens$/);
@@ -90,11 +92,13 @@ test('deve completar o fluxo feliz até o resumo, com o CTA apontando para /esti
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/dificuldades$/);
-	await page.getByLabel('Dificuldades superadas').fill('distância');
+	await page
+		.getByRole('textbox', { name: 'Dificuldades superadas', exact: true })
+		.fill('distância');
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/planos$/);
-	await page.getByLabel('Planos futuros').fill('morar juntos');
+	await page.getByRole('textbox', { name: 'Planos futuros', exact: true }).fill('morar juntos');
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/mensagem$/);

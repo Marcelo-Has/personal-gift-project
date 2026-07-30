@@ -1,7 +1,7 @@
 /**
  * Schemas Zod do questionário (`CoupleQuestionnaire`, ver `src/lib/order.ts`).
  * Um schema por etapa, reusado no cliente (validação por passo, esta issue) e no
- * servidor (revalidação, #33) — decisão D-020 em `docs/DECISIONS.md`.
+ * servidor (revalidação, #33) — decisão D-022 em `docs/DECISIONS.md`.
  */
 import { z } from 'zod';
 import type { CoupleQuestionnaire } from './order';

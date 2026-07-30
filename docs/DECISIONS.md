@@ -311,7 +311,7 @@ caminho da transcrição ser o default da action, que um bump de SHA pode mudar 
 Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
 
-## D-020 | 2026-07-30 | ACEITA
+## D-022 | 2026-07-30 | ACEITA
 **Adoção de `zod` para validação de entrada do questionário** (issue #30, F1-05a).
 `src/lib/order.ts` modela `CoupleQuestionnaire` como interface TypeScript pura — sem
 validação em runtime — e o único precedente do repo (`parseRegistry` em
