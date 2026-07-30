@@ -450,6 +450,29 @@ Perde-se emergência, ganha-se previsibilidade e superfície menor.
 Não é Decision Gate: aplica o baseline em vez de afrouxá-lo, e não toca preço, catálogo nem
 dado pessoal. `gh pr merge` continua fora de todas as allow-lists.
 
+## D-024 | 2026-07-30 | ACEITA
+**Transcrição como artefato em todo workflow de IA que escreve código, não só no
+`implement.yml`.** O `fix.yml` ganha os mesmos dois steps do [D-019] (redação de segredo que
+falha fechada + `upload-artifact`).
+
+Motivo, e ele é uma lição sobre método: o `fix.yml` estourou o teto **quatro vezes** sem
+produzir commit. Diagnostiquei como allow-list estreita — havia evidência forte
+(`permission_denials_count: 14` em 41 turnos, e a allow-list dele era literalmente a original do
+primeiro dia, ignorada pelas três emendas anteriores do [D-012]). A 4ª emenda a levou de 13 para
+28 entradas. O run seguinte (`30512032016`) devolveu **`permission_denials_count: 17`** — mais
+que antes. **A hipótese foi refutada pelos dados**, e eu não tinha como saber o que estava sendo
+negado porque `show_full_output` está desligado e este workflow nunca subiu transcrição.
+
+É exatamente o buraco que o [D-019] fechou no `implement.yml` e que eu deixei aberto aqui: a
+fábrica cega justamente onde falha. Regra que passa a valer: **workflow de IA que escreve código
+sobe transcrição**. `review`, `security`, `supervisor` e `daily-report` seguem sem artefato por
+ora — são read-only e publicam o próprio resultado como comentário, então já deixam rastro;
+`review`/`security` ainda dependeriam de merge manual pelo [D-014], o que encareceria a mudança.
+
+Registro honesto do que ainda não se sabe: **as 17 negações do `fix.yml` continuam sem causa
+identificada.** O próximo run com artefato responde. Até lá, nenhuma outra emenda de allow-list
+deve ser feita por palpite.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
