@@ -69,6 +69,9 @@ jobs:
       # além de `.claude/` aninhado (skill com escopo de diretório), `AGENTS.md` e `.mcp.json`
       # (este define servidor MCP por `command`, ou seja, execução). Por isso a varredura abaixo
       # é recursiva, e o restore devolve o que a base versiona nesses caminhos.
+      # `CLAUDE.local.md` entrou na varredura na 4ª rodada: o Claude Code também o carrega, e
+      # ele fica no `.gitignore` por convenção — logo nunca existe na base, logo é sempre
+      # "arquivo novo", a mesma classe do `settings.local.json` fechado na 2ª rodada.
       - name: Usar a config de agente da base, não a da branch julgada
         env:
           BASE: ${{ github.event.repository.default_branch }}
@@ -78,7 +81,8 @@ jobs:
 
           # Apaga TODA config de agente da branch julgada — raiz E subdiretórios.
           find . -path ./.git -prune -o -path ./node_modules -prune -o \
-                 \( -name CLAUDE.md -o -name AGENTS.md -o -name .mcp.json -o -name .claude \) \
+                 \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \
+                    -o -name .mcp.json -o -name .claude \) \
                  -print0 | xargs -0r rm -rf
 
           # Restaura da base tudo que a base versiona nesses caminhos.
@@ -101,17 +105,29 @@ jobs:
 
       # Só julga PR ainda `entrega:incompleta` — completa não precisa de veredito de novo,
       # e sem essa label o PR não é da fábrica (D-019).
+      #
+      # E só julga se o head do PR AINDA for o commit que a CI aprovou (4ª rodada da revisão,
+      # MÉDIO). O `ref: head_sha` do checkout acima prende só o DISCO; o `gh pr diff` que o
+      # prompt manda ler e o `gh pr edit` que aplica a label enxergam o head ATUAL do PR. Sem
+      # este `select`, a sequência "CI do commit A fica verde → push do commit B → job inicia"
+      # daria: disco = A, diff julgado = B, label aplicada em B — ou seja, `entrega:completa`
+      # em código cuja CI nunca passou, que é exatamente o que a troca por `head_sha` deveria
+      # ter fechado. Não é teórico: o `fix.yml` empurra commit automaticamente neste repo.
+      # Branch que avançou ⇒ `run=false`, e a CI do commit novo dispara um veredito próprio.
       - id: checar
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          pr=$(gh pr list --head "${BRANCH}" --state open --limit 1 --json number,labels \
-            --jq '.[0] | select((.labels // []) | map(.name) | index("entrega:incompleta")) | .number // empty')
+          pr=$(gh pr list --head "${BRANCH}" --state open --limit 1 --json number,labels,headRefOid \
+            --jq '.[0] | select((.labels // []) | map(.name) | index("entrega:incompleta"))
+                       | select(.headRefOid == $ENV.SHA) | .number // empty')
           if [ -z "${pr}" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "Nenhum PR aberto em ${BRANCH} com entrega:incompleta — nada a julgar."
+            echo "Nada a julgar em ${BRANCH}: ou não há PR aberto com entrega:incompleta, ou o"
+            echo "head do PR já não é ${SHA} (branch avançou depois do CI verde)."
             exit 0
           fi
           echo "run=true" >> "$GITHUB_OUTPUT"

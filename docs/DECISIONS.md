@@ -741,6 +741,13 @@ privilegiado + agente + entrada controlada por quem abre o PR. Corrigidos:
   empurra; force-push também). O guard-rail de saída não pega, porque só confere que houve
   veredito. Trocado por `ref: head_sha`, o commit que o evento carrega e que a `CI` validou.
   Era o achado mais grave da rodada: derrubava a premissa inteira do gate.
+  **Ressalva acrescentada na 4ª rodada — o parágrafo acima deu a premissa por fechada, e ela
+  não estava.** `ref: head_sha` prende só o **disco**. O step `checar` resolvia o PR por nome de
+  branch, e o `gh pr diff` que o prompt manda ler e o `gh pr edit` que aplica a label
+  continuavam enxergando o head **atual** do PR: a sequência "CI do commit A verde → push do
+  commit B → job inicia" daria disco = A, diff julgado = B, label em B. Fechado de fato no
+  `checar`, que agora pede `headRefOid` e só julga se ele ainda for o `head_sha` do evento —
+  branch que avançou não é julgada, e a CI do commit novo dispara um veredito próprio.
 - **O restore de config só cobria a raiz.** `CLAUDE.md` de subdiretório carrega quando o agente
   lê arquivo daquele diretório — e o prompt manda explorar o checkout —, e `.claude/` aninhado,
   `AGENTS.md` e `.mcp.json` (que define servidor MCP por `command`) também escapavam. Mesma
@@ -765,6 +772,20 @@ job em vez de julgar sem restore.
 `concurrency` ficou ADIAR (INFO, custo/ruído) em comentário no workflow. **Critério de parada
 acordado com o dono:** encerrar a iteração aqui e mergear, salvo achado ALTO numa rodada
 seguinte; o que sobrar vira issue de endurecimento, conforme o roteamento do `right-sizing.md`.
+
+**4ª rodada (2026-07-30) — sem achado ALTO; critério de parada atingido.** Foram tratados só os
+dois que completavam correção anterior declarada fechada, e não achado novo:
+
+- O `head_sha` incompleto, corrigido no `checar` (ver a ressalva no item da 3ª rodada acima).
+- `CLAUDE.local.md` fora da varredura do restore — mesma classe do `settings.local.json`
+  (fica no `.gitignore`, logo nunca existe na base, logo é sempre "arquivo novo"). Somado ao
+  `find`.
+
+Os dois achados **novos** foram roteados para issue de endurecimento em vez de inflar este PR:
+`Bash(cat:*)` + `gh pr comment --body-file` como caminho de exfiltração do ambiente do runner
+(a `deny` do `settings.json` só vale para o tool `Read`, e o hook `PreToolUse` não vê segredo
+que não passa pela string do comando), e o nome da branch interpolado dentro do `prompt:`. O
+primeiro exige mexer no `.claude/settings.json` e no hook, fora dos arquivos deste PR.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
