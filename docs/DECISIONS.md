@@ -70,8 +70,8 @@ de leitura/utilitários (`gh issue:*`, `gh pr view:*`, `gh api:*`, `gh run:*`, `
 sintoma do Reviewer — o agente queimava turnos em ferramenta negada e terminava em
 `error_max_turns` sem abrir PR. **`gh pr merge` continua fora**: o merge segue humano na
 Fase 0, assim como `curl`/`wget`.
-2ª emenda (2026-07-29): o Developer ganha ainda `TodoWrite`, `head`, `tail`, `wc`, `echo`,
-`gh pr list:*` e `gh pr ready:*`. Motivo: mesmo sintoma pela terceira vez — os runs
+2ª emenda (2026-07-29): o Developer ganha ainda `TodoWrite`, `head`, `tail`, `wc`, `echo` e
+`gh pr list:*`. Motivo: mesmo sintoma pela terceira vez — os runs
 `30486974039`, `30487192243` e `30478412140` acumularam 1, 5 e **8** negações de ferramenta
 (no último, 41 turnos em 244 s: puro thrash até estourar o teto). `head`/`tail`/`wc` já
 estavam liberados para o Reviewer desde a nota de 2026-07-28; a emenda anterior esqueceu de
