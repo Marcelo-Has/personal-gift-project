@@ -70,6 +70,15 @@ de leitura/utilitários (`gh issue:*`, `gh pr view:*`, `gh api:*`, `gh run:*`, `
 sintoma do Reviewer — o agente queimava turnos em ferramenta negada e terminava em
 `error_max_turns` sem abrir PR. **`gh pr merge` continua fora**: o merge segue humano na
 Fase 0, assim como `curl`/`wget`.
+2ª emenda (2026-07-29): o Developer ganha ainda `TodoWrite`, `head`, `tail`, `wc`, `echo` e
+`gh pr list:*` (`gh pr ready` **não**: draft PR não existe em repo privado no plano Free, então
+a flag de completude do [D-019] é por label, não por draft). Motivo: mesmo sintoma pela
+terceira vez — os runs
+`30486974039`, `30487192243` e `30478412140` acumularam 1, 5 e **8** negações de ferramenta
+(no último, 41 turnos em 244 s: puro thrash até estourar o teto). `head`/`tail`/`wc` já
+estavam liberados para o Reviewer desde a nota de 2026-07-28; a emenda anterior esqueceu de
+dar os mesmos ao Developer. **`gh pr merge` continua fora**, e `--max-turns` fica em 40 —
+nenhum dos runs de #30–#35 bateu no teto, então subir seria tratar sintoma inexistente.
 
 ## D-013 | 2026-07-28 | ACEITA
 `allowed_bots: "claude"` em todo step da `claude-code-action`, **nunca `"*"`**. Motivo: os
@@ -160,6 +169,115 @@ tempo em outros projetos — padroniza a operação e evita mais um provedor par
 Escopo: só a hospedagem do app (desbloqueia F1-08). Onde roda a fila+worker de geração
 pesada (F2-07) e o provedor de print-on-demand (F3-01) seguem PENDENTES em [D-104],
 a decidir quando essas fases chegarem.
+
+## D-019 | 2026-07-29 | ACEITA
+**Contrato de saída do Developer + guard-rail de saída no `implement.yml`.** Motivo: o
+Developer terminava `success` **sem branch, sem PR e sem comentário**, e a fábrica não tinha
+como perceber — runs `30470508059` (#22), `30486974039` (#30), `30486980529` (#31) e
+`30487192243` (#33) saíram verdes com zero artefato; o de #30 gastou 20 turnos e US$ 0,89 e o
+runner foi destruído com tudo dentro. O caso de #22 foi mascarado por um PR aberto à mão
+(#25), e foi por isso que a falha sobreviveu quatro issues.
+
+Diagnóstico: `.claude/agents/developer.md` nunca nomeava `git push` (a palavra "push" não
+existia em nenhum arquivo de `.claude/agents/`) e não tinha obrigação terminal; e
+`implement.yml` era o único workflow de IA **sem nenhum step depois da action** — enquanto
+`review.yml`/`security.yml` têm o "Exigir veredito publicado no PR" da ponte (c) do [D-014].
+Essa assimetria é o que separava os workflows que produzem dos que não produzem.
+
+O que passa a valer:
+1. **Três desfechos aceitáveis, nunca o silêncio:** (a) PR referenciando a issue;
+   (b) issue `decision-needed`; (c) comentário na issue explicando o bloqueio. O contrato
+   está tanto em `.claude/agents/developer.md` quanto **inline no prompt** de
+   `implement.yml` — o prompt é o único texto garantido em contexto, já que o workflow não
+   instancia subagente e o `tools:` do frontmatter dos agentes é **inerte no CI**.
+2. **Publicar cedo:** branch empurrada e PR aberto na primeira mudança que compile, não no
+   fim. Se a sessão morrer, o trabalho sobrevive.
+3. **Flag de completude** em três sinais: label `entrega:incompleta` → `entrega:completa`,
+   prefixo `[WIP]` no título, e checkbox no corpo do PR. Draft PR **não** serve — GitHub não
+   oferece draft em repositório privado no plano Free, a mesma limitação de plano que travou
+   o enforcement do [D-014].
+4. **Guard-rail** (`gh` puro, zero token): sem PR e sem `decision-needed` → job **vermelho**
+   + comentário na issue; PR sem `entrega:completa` → **vermelho** como entrega parcial;
+   PR com `entrega:completa` → verde. Presumir sucesso deixa de ser possível.
+5. **`concurrency` por issue** (`cancel-in-progress: false`), atendendo a
+   `docs/AUTONOMY.md` §5. Grupo por issue e não global de propósito: um grupo único faria o
+   GitHub cancelar o run pendente e perder a issue em silêncio. A serialização entre issues
+   diferentes fica operacional — seis runs disparados em 4 min derrubaram três sessões no 1º
+   turno (`is_error:true`, `num_turns:1`, US$ 0,000744 e ~192 s **idênticos** nos três).
+6. **`setup-node` + `npm ci` no workflow**, espelhando `ci.yml`: o agente gastava turnos
+   instalando dependência sem cache antes de poder tocar no código. Em contrapartida o
+   Developer **não** roda `test:e2e` (~115 MB de browser) nem `test:rules` (JVM + emulador) —
+   quem roda esses é o CI, em jobs próprios.
+7. **Transcrição como artefato** (`if: always()`, retenção 7 dias). O commit `b294cc8` havia
+   apagado o step que despejava cada `tool_use` e cada negação, e `show_full_output` está
+   desligado: as negações de ferramenta ficaram indiagnosticáveis justamente onde a fábrica
+   falha. Artefato em vez de `show_full_output: true` para não jogar a transcrição no log.
+8. **`workflow_dispatch` com input `issue`**: re-disparar deixa de exigir remover e recolocar
+   label. E o caminho `issue_comment` passa a ignorar comentário em PR (lá quem responde é o
+   `claude.yml`), que daria falso-vermelho no guard-rail.
+
+Endurecimento vindo da revisão do PR #36 (aplica o baseline, não o afrouxa):
+- **Gate de autor no gatilho `issue_comment`** (`author_association` em
+  OWNER/MEMBER/COLLABORATOR). Sem ele, qualquer pessoa com acesso **somente-leitura**
+  comentava "@claude" numa issue e disparava um job com `contents: write` conduzido por um
+  agente que roda `npm`/`node`/`git` — escalada read → write, com o corpo do comentário
+  entrando direto no contexto do agente. O caminho `issues`/`labeled` não precisa do gate:
+  aplicar label já exige write/triage, e é por ele que o Supervisor (claude[bot]) abre trabalho.
+- **`ISSUE` validado como só-dígitos.** O input do `workflow_dispatch` terminava dentro de um
+  regex do guard-rail; `--arg` do jq barra injeção de sintaxe jq, não de regex. Disparar com
+  `issue: .*` faria o guard-rail achar qualquer PR e sair **verde sem entrega** — o próprio
+  falso-sucesso que o D-019 elimina.
+- **Transcrição redigida antes do upload.** Artefato do Actions **não** passa pelo masking de
+  segredo (só o log do job passa). Bastava o agente rodar `cat .git/config` (extraheader com o
+  GITHUB_TOKEN) ou ecoar variável de ambiente para o `CLAUDE_CODE_OAUTH_TOKEN` — que não
+  expira no fim do job — cair num arquivo baixável por 7 dias.
+- **Guard-rail sem exceção de gatilho.** A primeira versão pulava o guard-rail em
+  `issue_comment`, reabrindo o no-op silencioso exatamente por aquele caminho.
+- **A `decision-needed` do desfecho (b) tem de citar `#N`.** Sem esse filtro, com dois runs em
+  paralelo, o run da issue A passava de graça porque o run da issue B abriu uma
+  decision-needed no mesmo instante.
+
+2ª rodada de revisão do PR #36 (os controles acima tinham furos próprios):
+- **Só `OWNER` no gate de autor.** `author_association` reflete **associação, não permissão**:
+  o GitHub devolve `COLLABORATOR` para qualquer colaborador convidado, inclusive somente-leitura,
+  e `MEMBER` para membro de org independente da permissão no repo. Aceitar os três deixava a
+  escalada read → write aberta. Repo de um dono só; ampliar depois é decisão consciente.
+- **Redação falha FECHADA.** Se o `perl` não completar, o arquivo é apagado em vez de subir cru:
+  o upload tem `if: always()` e subiria a transcrição não redigida do mesmo jeito. O upload
+  passa a depender de `steps.redigir.outcome == 'success'`.
+- **`github_pat_` e `AUTHORIZATION: Bearer` na redação.** PAT fine-grained é uma das saídas
+  cogitadas para o impasse do [D-014]; se um dia entrar num secret, não pode vazar no artefato.
+- **O guard-rail distingue infra de no-op.** Com `steps.claude.outcome == 'skipped'` (o agente
+  nem rodou porque um step anterior quebrou), a mensagem diz isso em vez de acusar o Developer.
+  Diagnóstico errado é o que fez esta falha durar quatro issues.
+
+3ª rodada — o primeiro disparo real (run `30502654283`, issue #31) achou dois fatos que
+nenhuma revisão de leitura pegaria:
+- **O match por `#N` solto era falso-positivo com dente, não nitpick.** O guard-rail atribuiu
+  à issue #31 o **PR #36**, que é infra da fábrica e só dizia `Refs #31`. Se aquele PR tivesse
+  `entrega:completa`, o job sairia **verde sem entrega nenhuma** — o exato falso-sucesso que o
+  D-019 existe para impedir. As duas revisões classificaram isso como LOW/ADIAR; o run
+  provou que é correção, não robustez (filtro nº 1 de `.claude/rules/right-sizing.md`).
+  Passa a exigir **palavra de fechamento** (`Closes`/`Fixes`/`Resolves` + `#N`), que é o que o
+  contrato do Developer manda escrever. Verificado contra os PRs reais do repo: `#31` deixa de
+  casar com o #36, e `#22`→#25, `#15`→#16, `#10`→#18 continuam certos.
+- **Não é possível testar o `implement.yml` antes do merge.** Disparar contra a branch faz a
+  `claude-code-action` responder `Skipping action due to workflow validation: the workflow file
+  must ... have identical content to the version on the default branch` — a mesma mecânica que
+  o [D-014] registra — e **sair com exit 0**. Ou seja: o Developer nem roda, e sem o guard-rail
+  o run sairia verde. Consequência prática: mudança em `implement.yml` só pode ser validada de
+  ponta a ponta **depois** do merge humano; e `steps.claude.outcome` **não** detecta esse skip
+  (ele é bem-sucedido aos olhos do Actions), então quem o pega é o guard-rail — que é
+  precisamente a ponte (c) do D-014 agora estendida ao `implement.yml`.
+
+Adiado para o backlog de endurecimento da Fase 5 (`.claude/rules/right-sizing.md`):
+`actions: write` acima do necessário no `implement.yml`; `Bash(gh api:*)` e `Bash(git:*)` permitirem
+contornar o "merge é humano" por `gh api` ou `git push origin HEAD:main` — risco residual da
+mesma limitação de plano do [D-014] (sem branch protection em repo privado no Free); e o
+caminho da transcrição ser o default da action, que um bump de SHA pode mudar em silêncio.
+
+Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
+afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
