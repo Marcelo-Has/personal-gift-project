@@ -37,8 +37,12 @@ Restrições que definem o papel, e por quê:
 > **Onde a allow-list vale de verdade.** O `tools:` do frontmatter acima só se aplica quando
 > este agente é invocado localmente pelo Claude Code. Na fábrica quem restringe é o
 > `--allowed-tools` do `claude_args` em `.github/workflows/verdict.yml` — hoje ele soma
-> `TodoWrite` e utilitários de leitura (`cat`, `ls`, `head`, `tail`, `wc`, `grep`) ao que está
-> aqui. Ao auditar o que o Verdict pode fazer em CI, leia o workflow, não só este arquivo.
+> `TodoWrite` e utilitários de leitura (`ls`, `head`, `tail`, `wc`, `grep`) ao que está aqui.
+> Ao auditar o que o Verdict pode fazer em CI, leia o workflow, não só este arquivo.
+>
+> `Bash(cat:*)` **saiu** da allow-list do workflow (issue #56): era redundante com `Read`, que
+> já está aqui, e mais largo — a `deny` do `.claude/settings.json` vale para o tool `Read`, não
+> para `Bash`, então `cat` contornava a lista inteira.
 >
 > `Bash(find:*)` **saiu** da allow-list do workflow: `find` não é utilitário de leitura —
 > `find . -exec sh -c '<qualquer coisa>' \;` executa comando arbitrário e `find . -delete`
