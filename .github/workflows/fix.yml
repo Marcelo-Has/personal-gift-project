@@ -10,10 +10,22 @@ permissions:
   pull-requests: write
   issues: read          # ler os comentários do PR no guard-rail do D-025
   id-token: write
+  # ADIAR (revisão de segurança do PR #55, 2ª rodada, BAIXO): o `verdict.yml` não pede
+  # `actions: write` — permitiria apagar os artefatos de transcrição que o próprio workflow
+  # sobe como registro auditável — e aqui a sobra é a mesma. NÃO removido junto de propósito:
+  # o [D-026] documenta cinco falhas seguidas deste workflow por escopo de Actions faltando, e
+  # `gh run view --log-failed` é a razão de existir dele. Trocar um achado BAIXO por risco de
+  # re-quebrar a leitura de CI é mau negócio. Ao mexer, o passo seguro é `actions: read`
+  # (confirmando antes se o `additional_permissions` abaixo depende deste bloco), não remover.
   actions: write
 
 jobs:
   fix:
+    # ADIAR, mesmo caso do `verdict.yml` (revisão de segurança do PR #55, MÉDIO sem superfície
+    # atual): `workflow_run` roda privilegiado no repo base, com segredos, mesmo quando o CI que
+    # o disparou veio de um PR de fork. Repo privado de dono único hoje ([D-014]/[D-019]) — sem
+    # fork de terceiro. Ao virar público OU entrar colaborador, somar aos DOIS workflows:
+    #   github.event.workflow_run.head_repository.full_name == github.repository
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     steps:
@@ -75,19 +87,12 @@ jobs:
             perdido. Se o orçamento de turnos estiver acabando, pare de investigar e
             empurre o que já corrigiu.
 
-            FECHE O CICLO DA ENTREGA. Se o PR desta branch estiver com a label
-            `entrega:incompleta` (D-019) e, depois da sua correção, o CI estiver verde E os
-            critérios de aceite da issue que ele fecha estiverem atendidos (leia a issue com
-            `gh issue view`), então marque a entrega como completa:
-              gh pr edit --title "<título sem [WIP]>" \
-                --remove-label 'entrega:incompleta' --add-label 'entrega:completa'
-            Sem isso o `review` e o `ai-security-review` continuam **pulados** — é o gate de
-            custo do D-019 — e a entrega nunca chega a ser revisada. Na dúvida sobre os
-            critérios, NÃO marque: deixe `entrega:incompleta` e diga no PR o que falta.
+            Quem decide se a entrega está completa é o `verdict.yml`, um agente separado que
+            roda quando o CI ficar verde (issue #50). Não troque label nem título deste PR.
 
             Não faça merge. Não commite segredos. Se a causa exigir uma decisão humana,
             crie uma issue `decision-needed` (docs/AUTONOMY.md).
-          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 
       # Mesma observabilidade que o `implement.yml` ganhou no [D-019]: sem ela este workflow é
       # indiagnosticável. Quatro runs seguidos estouraram o teto sem produzir commit e, no

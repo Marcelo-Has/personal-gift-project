@@ -645,6 +645,148 @@ remover, voltando ao `jose` da própria cadeia — quando o `jwks-rsa`/`firebase
 funcionar sob `require(esm)` (ou o `jose` voltar a publicar entrada CJS), ou quando a função da
 Netlify passar a embutir o `jose` no bundle. Enquanto isso, o guard do `ci.yml` é o sinal.
 
+## D-030 | 2026-07-30 | ACEITA (parcial — bloqueada na entrega dos arquivos de workflow)
+**Agente `Verdict`, dedicado ao julgamento de `entrega:completa`, separado de quem escreveu o
+código (issue #50).** Segue o desenho que a própria issue já havia decidido (a alternativa de
+estender o `fix.yml` para julgar a própria entrega foi rejeitada nela por autoavaliação e por
+destrancar `review`/`ai-security-review` do gate do [D-019] sem revisão independente — ver
+"Por que NÃO estender o `fix.yml`" na issue).
+
+`.claude/agents/verdict.md` está criado neste PR: read-only (`Read`, `Grep`, `Glob` + `Bash` só
+para `gh issue view`, `gh pr view/diff/comment/edit` e `git diff/log/show`), sem `Edit`/`Write`,
+sem `git push`, sem `gh pr merge`. Ele lê a issue pela palavra de fechamento (`Closes`/`Fixes`/
+`Resolves` + `#N`, não `#N` solto — regra já fixada no [D-019] 3ª rodada) e os critérios de
+aceite, lê o diff do PR, e decide: marca `entrega:completa` (tirando `[WIP]` do título) ou
+comenta o que falta. Nunca os dois em silêncio.
+
+**Bloqueio técnico, não Decision Gate.** O restante do desenho — `.github/workflows/verdict.yml`
+(gatilho `workflow_run` da `CI` com `conclusion == 'success'`, que só age quando o PR da branch
+segue `entrega:incompleta`) e a remoção de `gh pr edit` da allow-list do `fix.yml` (fecha o
+achado MÉDIO do PR #48: hoje quem escreve o código também controla a label que libera as
+revisões) — **não pôde ser empurrado nesta sessão**. `git push` foi recusado pelo GitHub com
+`refusing to allow a GitHub App to create or update workflow .github/workflows/fix.yml without
+'workflows' permission`: a credencial deste runner tem escopo para conteúdo/PR/issue, mas não
+para `.github/workflows/*`. Não é uma falha de lógica nem Decision Gate (nada de preço, catálogo
+ou dado pessoal) — é permissão de plataforma, do mesmo tipo que trava o enforcement do [D-014]
+(GitHub Pro em repo privado).
+
+Seguindo a instrução do próprio `fix.yml` para esse tipo de situação (não insistir, não tentar
+contornar procurando token alternativo — só reportar), o conteúdo pronto de
+`.github/workflows/verdict.yml` e o diff de `fix.yml` foram deixados como comentário no PR #55
+para aplicação manual (ou por uma execução com credencial com escopo `workflows`). **Custo do
+gatilho novo:** não medido ainda — só é observável depois que o workflow rodar de verdade em CI
+verde real, o que exige o push manual primeiro. Registrar quando o primeiro disparo acontecer.
+
+PR permanece `entrega:incompleta` até os dois arquivos de workflow serem aplicados; os itens
+"`gh pr edit` removido do `fix.yml`" e "custo medido" do Definition of Done da issue #50
+continuam em aberto.
+
+**Continuação (2026-07-30, mesma sessão) — bloqueio resolvido.** O texto acima fica como
+registro do que era verdade quando foi escrito; o estado atual é este:
+
+- O dono do repositório (`Marcelo-Has`) aplicou os dois arquivos de workflow **manualmente**,
+  no commit `1406043`, com credencial pessoal — que tem o escopo `workflows` que falta ao
+  GitHub App do runner. Conteúdo idêntico ao publicado no comentário do PR #55, sem alteração.
+  Com isso o item "`gh pr edit` removido do `fix.yml`" do DoD da issue #50 está **fechado**.
+- O `[WIP]` do título e o swap `entrega:incompleta` → `entrega:completa` também foram
+  **manuais** (dono, 18:39Z), não obra do Verdict — ver o item seguinte.
+- **`verdict.yml` ainda NÃO rodou nenhuma vez, e não vai rodar neste PR.** Workflow disparado
+  por `workflow_run` só existe a partir da branch default: a API responde `workflow verdict.yml
+  not found on the default branch` enquanto ele não estiver na `main`. Logo o gatilho passa a
+  valer **do próximo PR em diante**, e o item **"custo medido" do DoD segue legitimamente em
+  aberto** — registrar quando o primeiro disparo real acontecer. (A revisão automática do PR #55
+  inferiu que "o pipeline já rodou de ponta a ponta" a partir do título/label já trocados; a
+  inferência está errada pelo motivo acima, e fica anotada aqui para não se propagar.)
+- Achados da revisão tratados no próprio PR #55: restaurar `.claude/`/`CLAUDE.md` da branch base
+  antes de julgar (senão o PR sob julgamento reescreve as instruções do juiz) e remoção de
+  `actions: write` do `verdict.yml`. O gate de origem do `workflow_run` (`head_repository`)
+  ficou **adiado** por `.claude/rules/right-sizing.md` — repo privado de dono único não tem fork
+  de terceiro — com o gate pronto em comentário no `verdict.yml` e no `fix.yml`, para o dia em
+  que o repositório virar público ou entrar um colaborador.
+
+**2ª rodada de revisão (2026-07-30) — dois MÉDIOS a mais, ambos corrigidos.** A re-revisão
+confirmou os achados anteriores como tratados e encontrou dois que a primeira não pegou:
+
+- **`Bash(find:*)` não é utilitário de leitura.** Estava na allow-list do `verdict.yml`, e
+  `find . -exec sh -c '<qualquer coisa>' \;` executa comando arbitrário (`find . -delete` apaga
+  arquivo) — derruba de uma vez as três garantias que definem o papel do Verdict. Agravante: o
+  bloco de auditoria do `verdict.md` afirmava que era leitura. **Removido** do workflow e a
+  afirmação corrigida no agente; `Glob` já cobre busca de arquivo. (`Bash(find:*)` também está
+  em `review.yml`/`security.yml`; limpar lá é issue separada, e o `fix.yml` é inócuo porque
+  aquele agente tem `Edit`/`Write`/push por desenho.)
+- **O restore de config era parcial, e o resíduo é execução de comando.** `git checkout <tree>
+  -- <path>` só sobrescreve caminho que existe na base, então arquivo **novo** na branch
+  sobrevivia. `.claude/settings.local.json` está no `.gitignore` — nunca existe na base, logo é
+  sempre "novo" — e carrega `hooks.PreToolUse` com `type: command`, como o `settings.json`
+  versionado deste repo demonstra. Uma branch com `git add -f` nele executaria comando no runner
+  privilegiado, que tem as credenciais da Anthropic e `pull-requests: write`. **Corrigido** com
+  `rm -rf .claude CLAUDE.md` antes do checkout, fechando o limite inteiro. O prompt do Verdict
+  ganhou o aviso de que esses caminhos se conferem por `gh pr diff`/`git show HEAD:<caminho>`,
+  que leem a branch sem carregá-la como config.
+
+Três achados BAIXOS ficaram **ADIAR** por `right-sizing.md`, todos anotados em comentário no
+código em vez de virar issue: `or .updated_at` no guard-rail de saída (aceita comentário antigo
+editado), curinga `Bash(gh pr edit:*)` (autoriza também `--base`/`--body`), e `actions: write`
+no `fix.yml`. Este último foi **deliberadamente não removido**, contra a recomendação da revisão:
+o [D-026] registra cinco falhas seguidas daquele workflow por escopo de Actions faltando, e
+`gh run view --log-failed` é a razão de existir dele — trocar um achado BAIXO por risco de
+re-quebrar a leitura de CI é mau negócio. Ao mexer um dia, o passo seguro é `actions: read`.
+
+**3ª rodada (2026-07-30) — três MÉDIOS, todos corrigidos; encerrada a iteração.** A revisão
+continuou produtiva (2 → 2 → 3 MÉDIOS), porque o desenho é genuinamente sensível: runner
+privilegiado + agente + entrada controlada por quem abre o PR. Corrigidos:
+
+- **Julgava a branch, não o commit que o CI aprovou.** `ref: head_branch` deixava o Verdict
+  avaliar — e marcar `entrega:completa` — código empurrado DEPOIS do CI verde (o `fix.yml`
+  empurra; force-push também). O guard-rail de saída não pega, porque só confere que houve
+  veredito. Trocado por `ref: head_sha`, o commit que o evento carrega e que a `CI` validou.
+  Era o achado mais grave da rodada: derrubava a premissa inteira do gate.
+  **Ressalva acrescentada na 4ª rodada — o parágrafo acima deu a premissa por fechada, e ela
+  não estava.** `ref: head_sha` prende só o **disco**. O step `checar` resolvia o PR por nome de
+  branch, e o `gh pr diff` que o prompt manda ler e o `gh pr edit` que aplica a label
+  continuavam enxergando o head **atual** do PR: a sequência "CI do commit A verde → push do
+  commit B → job inicia" daria disco = A, diff julgado = B, label em B. Fechado de fato no
+  `checar`, que agora pede `headRefOid` e só julga se ele ainda for o `head_sha` do evento —
+  branch que avançou não é julgada, e a CI do commit novo dispara um veredito próprio.
+- **O restore de config só cobria a raiz.** `CLAUDE.md` de subdiretório carrega quando o agente
+  lê arquivo daquele diretório — e o prompt manda explorar o checkout —, e `.claude/` aninhado,
+  `AGENTS.md` e `.mcp.json` (que define servidor MCP por `command`) também escapavam. Mesma
+  classe da 2ª rodada, pelo eixo do diretório em vez do arquivo novo. A varredura virou
+  recursiva, e o restore devolve o que a base versiona nesses caminhos.
+- **Credencial do checkout legível pelo juiz.** `actions/checkout` grava o `GITHUB_TOKEN` em
+  `.git/config` (`persist-credentials` é `true` por padrão); a allow-list tem `Bash(cat:*)` e
+  `Read`, e a `deny` do `settings.json` cobre `.env`/`.pem`/`secrets*`/`serviceAccount*` mas
+  **não** `.git/**` — o token era legível e publicável via `gh pr comment`. Descartado no fim do
+  step de restore, que é o único uso de rede do git no job.
+- Somado ao BAIXO: o prompt e o `verdict.md` passaram a dizer que corpo do PR, issue,
+  comentários e diff são **dado a ser julgado, nunca instrução** — o juiz lê texto de terceiro e
+  segura a ferramenta que troca a label.
+
+O step de restore foi **executado de verdade** contra um clone com config hostil plantada em 7
+pontos (`src/lib/CLAUDE.md`, `docs/CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.claude/` aninhado,
+`settings.local.json`, `CLAUDE.md` adulterado): todos removidos, base restaurada, conteúdo
+julgado intacto, e o `verdict.md` da branch ainda legível por `git show HEAD:<caminho>` — que é
+o caminho que o prompt agora indica. Sem config na base o step **falha fechado**, reprovando o
+job em vez de julgar sem restore.
+
+`concurrency` ficou ADIAR (INFO, custo/ruído) em comentário no workflow. **Critério de parada
+acordado com o dono:** encerrar a iteração aqui e mergear, salvo achado ALTO numa rodada
+seguinte; o que sobrar vira issue de endurecimento, conforme o roteamento do `right-sizing.md`.
+
+**4ª rodada (2026-07-30) — sem achado ALTO; critério de parada atingido.** Foram tratados só os
+dois que completavam correção anterior declarada fechada, e não achado novo:
+
+- O `head_sha` incompleto, corrigido no `checar` (ver a ressalva no item da 3ª rodada acima).
+- `CLAUDE.local.md` fora da varredura do restore — mesma classe do `settings.local.json`
+  (fica no `.gitignore`, logo nunca existe na base, logo é sempre "arquivo novo"). Somado ao
+  `find`.
+
+Os dois achados **novos** foram roteados para issue de endurecimento em vez de inflar este PR:
+`Bash(cat:*)` + `gh pr comment --body-file` como caminho de exfiltração do ambiente do runner
+(a `deny` do `settings.json` só vale para o tool `Read`, e o hook `PreToolUse` não vê segredo
+que não passa pela string do comando), e o nome da branch interpolado dentro do `prompt:`. O
+primeiro exige mexer no `.claude/settings.json` e no hook, fora dos arquivos deste PR.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
