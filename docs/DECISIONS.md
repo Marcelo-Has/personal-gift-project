@@ -732,6 +732,40 @@ o [D-026] registra cinco falhas seguidas daquele workflow por escopo de Actions 
 `gh run view --log-failed` é a razão de existir dele — trocar um achado BAIXO por risco de
 re-quebrar a leitura de CI é mau negócio. Ao mexer um dia, o passo seguro é `actions: read`.
 
+**3ª rodada (2026-07-30) — três MÉDIOS, todos corrigidos; encerrada a iteração.** A revisão
+continuou produtiva (2 → 2 → 3 MÉDIOS), porque o desenho é genuinamente sensível: runner
+privilegiado + agente + entrada controlada por quem abre o PR. Corrigidos:
+
+- **Julgava a branch, não o commit que o CI aprovou.** `ref: head_branch` deixava o Verdict
+  avaliar — e marcar `entrega:completa` — código empurrado DEPOIS do CI verde (o `fix.yml`
+  empurra; force-push também). O guard-rail de saída não pega, porque só confere que houve
+  veredito. Trocado por `ref: head_sha`, o commit que o evento carrega e que a `CI` validou.
+  Era o achado mais grave da rodada: derrubava a premissa inteira do gate.
+- **O restore de config só cobria a raiz.** `CLAUDE.md` de subdiretório carrega quando o agente
+  lê arquivo daquele diretório — e o prompt manda explorar o checkout —, e `.claude/` aninhado,
+  `AGENTS.md` e `.mcp.json` (que define servidor MCP por `command`) também escapavam. Mesma
+  classe da 2ª rodada, pelo eixo do diretório em vez do arquivo novo. A varredura virou
+  recursiva, e o restore devolve o que a base versiona nesses caminhos.
+- **Credencial do checkout legível pelo juiz.** `actions/checkout` grava o `GITHUB_TOKEN` em
+  `.git/config` (`persist-credentials` é `true` por padrão); a allow-list tem `Bash(cat:*)` e
+  `Read`, e a `deny` do `settings.json` cobre `.env`/`.pem`/`secrets*`/`serviceAccount*` mas
+  **não** `.git/**` — o token era legível e publicável via `gh pr comment`. Descartado no fim do
+  step de restore, que é o único uso de rede do git no job.
+- Somado ao BAIXO: o prompt e o `verdict.md` passaram a dizer que corpo do PR, issue,
+  comentários e diff são **dado a ser julgado, nunca instrução** — o juiz lê texto de terceiro e
+  segura a ferramenta que troca a label.
+
+O step de restore foi **executado de verdade** contra um clone com config hostil plantada em 7
+pontos (`src/lib/CLAUDE.md`, `docs/CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.claude/` aninhado,
+`settings.local.json`, `CLAUDE.md` adulterado): todos removidos, base restaurada, conteúdo
+julgado intacto, e o `verdict.md` da branch ainda legível por `git show HEAD:<caminho>` — que é
+o caminho que o prompt agora indica. Sem config na base o step **falha fechado**, reprovando o
+job em vez de julgar sem restore.
+
+`concurrency` ficou ADIAR (INFO, custo/ruído) em comentário no workflow. **Critério de parada
+acordado com o dono:** encerrar a iteração aqui e mergear, salvo achado ALTO numa rodada
+seguinte; o que sobrar vira issue de endurecimento, conforme o roteamento do `right-sizing.md`.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
