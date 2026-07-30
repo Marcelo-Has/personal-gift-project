@@ -364,6 +364,42 @@ no-op silencioso a fechar; se aparecer o caso "verde sem commit", aí vale esten
 Não é Decision Gate: não toca preço, catálogo, dado pessoal nem baseline de segurança. Exige
 **merge manual** pela exceção do [D-014], porque o diff inclui `review.yml`/`security.yml`.
 
+## D-023 | 2026-07-30 | ACEITA
+**O loop autônomo "corrige → CI confirma → entrega completa" dependia de duas peças que não
+existiam.** Ambas descobertas ao tentar concluir o PR #41 (issue #30):
+
+1. **Commit empurrado pelo `claude.yml` NÃO disparava o CI.** O commit `0908f5a3` do PR #41
+   veio de lá e o PR seguiu exibindo os checks do commit anterior; `gh pr close`/`reopen`
+   também não recuperou (a API devolvia 3 check-runs, só do Netlify). Causa: o workflow
+   declarava `permissions: contents: read` embora empurrasse de fato — o token vem da App, não
+   do bloco `permissions:`. O `implement.yml`, que declara `contents: write`, sempre disparou
+   CI nos seus pushes. A declaração passa a ser honesta (`contents`, `pull-requests` e
+   `issues` em `write`). Sem isto o loop nunca fecha: o agente corrige e ninguém confere.
+2. **O `fix.yml` não conseguia marcar a entrega como completa.** A allow-list dele não tinha
+   `gh pr edit`, então mesmo deixando o CI verde ele não trocava `entrega:incompleta` por
+   `entrega:completa` — e, pelo gate de custo do [D-019], `review` e `ai-security-review`
+   ficam **pulados** enquanto a label não vira. Deadlock: nenhum mecanismo da fábrica
+   conseguia levar um PR parcial até revisado. Ele ganha `gh pr edit:*`, `gh pr list:*`,
+   `gh issue view:*` e `gh run view:*`, mais a instrução de fechar o ciclo — com a ressalva
+   explícita de **não** marcar em caso de dúvida sobre os critérios de aceite.
+
+Junto vem o **gate de autor no `claude.yml`** (`author_association == 'OWNER'`), que aplica o
+baseline: é o **único** workflow de IA sem `--allowed-tools`, logo o agente ali tem o conjunto
+cheio de ferramentas e o corpo do comentário entra direto no contexto dele. Sem gate, qualquer
+pessoa que consiga comentar dispararia um agente irrestrito com token de escrita — a mesma
+escalada read → write fechada no `implement.yml`, e aqui mais grave justamente por não haver
+allow-list. Só `OWNER`, pelo motivo já registrado: `COLLABORATOR` sai para colaborador
+somente-leitura.
+
+Efeito colateral aceito: **encadeamento bot→bot deixa de acontecer por `claude.yml`**. Antes,
+um comentário de revisão do claude[bot] disparava correção automática — foi assim que o commit
+`d4ceb9a` entrou no PR #36. O respondedor autônomo a CI vermelho passa a ser só o `fix.yml`, e
+a implementação de issue só o `implement.yml`, cada um com a sua allow-list ([D-012]).
+Perde-se emergência, ganha-se previsibilidade e superfície menor.
+
+Não é Decision Gate: aplica o baseline em vez de afrouxá-lo, e não toca preço, catálogo nem
+dado pessoal. `gh pr merge` continua fora de todas as allow-lists.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

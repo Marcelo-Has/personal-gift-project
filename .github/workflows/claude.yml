@@ -12,16 +12,39 @@ on:
 
 jobs:
   claude:
+    # Canal INTERATIVO do dono, e só dele (`author_association == 'OWNER'`). Este é o único
+    # workflow de IA sem `--allowed-tools`, ou seja, o agente aqui tem o conjunto de
+    # ferramentas cheio — e o corpo do comentário entra direto no contexto dele. Sem gate de
+    # autor, qualquer pessoa que consiga comentar dispararia um agente irrestrito com token
+    # de escrita: é a mesma escalada read → write fechada no `implement.yml` pelo [D-019],
+    # e aqui vale mais porque lá existe allow-list e aqui não.
+    # `author_association` reflete associação, não permissão: `COLLABORATOR` sai para
+    # qualquer colaborador convidado, inclusive somente-leitura. Por isso só `OWNER`.
+    # Encadeamento bot→bot deixa de acontecer por este caminho, de propósito: o respondedor
+    # autônomo a CI vermelho é o `fix.yml`, e a implementação de issue é o `implement.yml`.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       github.event.comment.author_association == 'OWNER') ||
+      (github.event_name == 'pull_request_review_comment' &&
+       contains(github.event.comment.body, '@claude') &&
+       github.event.comment.author_association == 'OWNER') ||
+      (github.event_name == 'pull_request_review' &&
+       contains(github.event.review.body, '@claude') &&
+       github.event.review.author_association == 'OWNER') ||
+      (github.event_name == 'issues' &&
+       (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
+       github.event.issue.author_association == 'OWNER')
     runs-on: ubuntu-latest
+    # `write` porque este workflow EMPURRA commit — declarava `read` e empurrava mesmo assim
+    # (o token vem da App, não do bloco `permissions:`). Além de desonesta, a declaração
+    # antiga tinha efeito prático: o commit `0908f5a3` no PR #41 foi empurrado por aqui e
+    # **não disparou o CI** — o PR ficou com check do commit anterior, e o loop autônomo
+    # "corrige → CI confirma" não fechava. Ver [D-023].
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write
+      pull-requests: write
+      issues: write
       id-token: write
       actions: write # Ler resultados de CI nos PRs e disparar/gerenciar workflows
     steps:
