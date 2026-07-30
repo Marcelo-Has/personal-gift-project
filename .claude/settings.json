@@ -34,7 +34,7 @@
           },
           {
             "type": "command",
-            "command": "grep -qiE '\\bgh[[:space:]]+(pr|issue|api|release|gist)[[:space:]][^|;&]*(--body-file|--input|[[:space:]]-F)' && { echo 'Bloqueado: --body-file/-F/--input em comando gh publica conteudo de arquivo sem passar pelo filtro de segredo do comando; publique com --body com o texto revisado' >&2; exit 2; }; exit 0"
+            "command": "grep -qiE '\\bgh[[:space:]][^|;&]*(--body-file|--input|[[:space:]]-F)' && { echo 'Bloqueado: --body-file/-F/--input em comando gh publica conteudo de arquivo sem passar pelo filtro de segredo do comando; publique com --body com o texto revisado' >&2; exit 2; }; exit 0"
           }
         ]
       }

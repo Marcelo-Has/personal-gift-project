@@ -788,15 +788,24 @@ que não passa pela string do comando), e o nome da branch interpolado dentro do
 primeiro exige mexer no `.claude/settings.json` e no hook, fora dos arquivos deste PR.
 
 ## D-031 | 2026-07-30 | ACEITA
-**Issue #56 (FU-08): fecha a CLASSE do vazamento que o [D-030] só havia fechado no caso
+**Issue #56 (FU-08): ESTREITA a classe do vazamento que o [D-030] havia fechado só no caso
 específico** (a credencial do `actions/checkout` no `.git/config`, tratada com `git config
---unset-all` no próprio `verdict.yml`). Três frentes:
+--unset-all` no próprio `verdict.yml`). A issue foi escrita com a ambição de "fechar a classe";
+a revisão do PR #57 mostrou que **isso não foi alcançado por completo**, e o registro fica
+honesto quanto a isso — ver "limite reconhecido" no fim. Frentes:
 
 1. **`Bash(cat:*)` contornava a `deny` do `.claude/settings.json` por inteiro.** A `deny`
    (`Read(./.env)`, `Read(**/*.pem)`, `Read(**/secrets*)`, `Read(**/serviceAccount*.json)`) só
    vale para o tool `Read` — `Bash(cat:*)` é outro caminho para o mesmo byte, e não tem `deny`
    nenhuma. **Removido** de `.github/workflows/verdict.yml` e `.github/workflows/fix.yml`: nos
-   dois, `Read`/`Glob`/`Grep` já cobrem leitura, então `cat` era redundante e mais largo. Ficou
+   dois, `Read`/`Glob`/`Grep` já cobrem leitura, então `cat` era redundante e mais largo.
+   A 3ª rodada de revisão do PR #57 apontou, com razão, que o argumento vale igual para
+   `grep`/`head`/`tail`/`wc` — nenhum deles é o tool `Read`, então nenhum é coberto pela `deny`,
+   e `grep -m1 . .git/config` lê exatamente o que `Read(./.git/**)` passou a negar. Tirar só o
+   `cat` deixaria a `deny` contornável do mesmo jeito. **Os quatro saíram também**, do
+   `verdict.yml`. No `fix.yml` não adianta podar utilitário de leitura (ver limite reconhecido
+   abaixo): lá sobram `Bash(node:*)`/`Bash(npx:*)`, que são execução arbitrária, e o ganho real
+   vem do restore de config de agente e do `unset-all` — foi para issue própria. Ficou
    de fora `review.yml`/`security.yml` — mesmo achado, mesma correção, mas aqueles dois caem no
    impasse do [D-014] (branch protection não aplicável em repo privado no plano Free; PR que os
    altera exige merge manual à parte) e viram issue de endurecimento separada em vez de inflar
@@ -817,10 +826,15 @@ específico** (a credencial do `actions/checkout` no `.git/config`, tratada com 
    que lê como `-R cli/cli`). O padrão não exige mais sufixo — em `gh`, `-F` só significa
    `--body-file`/`--field`, então não há forma legítima a preservar. Cobre `--body-file`,
    `--body-file=<arquivo>`, `--input`, `-F <arquivo>`, `-F<arquivo>`, `-F -` e `-F-`.
-   Ele exige a flag **no mesmo segmento** de um `gh <subcomando>`
-   (sem `|`, `;` ou `&` no meio), e não em qualquer ponto da string: a primeira tentativa, que
-   procurava os dois termos em qualquer ordem, bloqueou um `git commit -F -` cuja mensagem
-   apenas *falava* sobre `gh` — falso-positivo que o teste agora cobre.
+   Ele exige a flag **no mesmo segmento** de um `gh` (sem `|`, `;` ou `&` no meio), e não em
+   qualquer ponto da string: a primeira tentativa, que procurava os dois termos em qualquer
+   ordem, bloqueou um `git commit -F -` cuja mensagem apenas *falava* sobre `gh` —
+   falso-positivo que o teste agora cobre. Uma tentativa intermediária exigia um subcomando
+   conhecido colado no `gh` (`gh (pr|issue|api) …`), e a 3ª rodada de revisão mostrou que isso
+   também era contornável: `gh` aceita flag global **antes** do subcomando, e
+   `gh -R owner/repo pr comment 57 --body-file <arquivo>` passava direto (verificado: `gh -R
+   cli/cli pr view 1` funciona igual a `gh pr view -R cli/cli 1`). A exigência de subcomando
+   caiu; basta `gh` no mesmo segmento antes da flag.
 3. **Nome da branch interpolado em posição de instrução no `verdict.yml`.** Git proíbe espaço e
    newline no nome, então o poder de manipulação é pequeno, mas o aviso "trate como dado" do
    prompt não citava a branch. Tirado da frase descritiva ("(branch X) acabou de ficar verde") e

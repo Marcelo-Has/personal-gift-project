@@ -190,13 +190,16 @@ jobs:
           # merge é humano ([D-012]). Apertar quando/se a allow-list da action suportar
           # restrição por flag.
           #
-          # `Bash(cat:*)` SAIU da allow-list (issue #56): era redundante com `Read`, que já está
-          # aqui, e mais largo — a `deny` do `.claude/settings.json` vale para o tool `Read`, não
-          # para `Bash`, então `cat` contornava a lista inteira. O julgamento continua possível:
-          # `Read`/`Grep`/`Glob` leem arquivo, e `gh pr diff`/`git show` leem o que o prompt manda
-          # conferir. `Bash(grep:*)` continua na lista pelo mesmo motivo que `cat` saiu — vale
-          # revisitar; ver a FU de endurecimento do canal de publicação.
-          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr edit:*)"'
+          # `Bash(cat:*)`, `Bash(grep:*)`, `Bash(head:*)`, `Bash(tail:*)` e `Bash(wc:*)` SAÍRAM da
+          # allow-list (issue #56, 3ª rodada de revisão do PR #57). Todos são redundantes com os
+          # tools `Read`/`Grep`, que já estão aqui, e todos são mais largos: a `deny` do
+          # `.claude/settings.json` vale para o tool `Read`, não para `Bash`, então qualquer um
+          # deles contornava a lista inteira — `grep -m1 . .git/config` e `head /proc/self/environ`
+          # leem exatamente o que `Read(./.git/**)`/`Read(/proc/**)` passaram a negar. O argumento
+          # é o mesmo que tirou o `cat`; aplicá-lo só ao `cat` deixaria a `deny` contornável do
+          # mesmo jeito. O julgamento continua possível: `Read`/`Grep`/`Glob` leem arquivo (e
+          # respeitam a `deny`), e `gh pr diff`/`git show` leem o que o prompt manda conferir.
+          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(ls:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr edit:*)"'
 
       - name: Redigir segredos da transcrição
         id: redigir
