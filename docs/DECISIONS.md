@@ -875,7 +875,19 @@ a issue de endurecimento do canal de publicação, junto com o limite reconhecid
 
 **Limite reconhecido — isto mitiga, não fecha a classe.** Denylist por regex sobre shell livre
 barra uma *sintaxe*, não o *canal*: `gh pr comment --body "$(cat segredo)"` publica o mesmo byte
-sem casar com nenhum padrão. O que fecha de verdade é tirar `Bash(gh pr comment:*)` do agente e
+sem casar com nenhum padrão. A 4ª rodada de revisão somou uma variante mais direta: basta
+**mascarar o token `gh`** para a âncora não casar, sem mudar o que o bash executa —
+`"gh" pr comment … --body-file x` (o payload JSON escapa as aspas, então o caractere após `gh`
+é `\`, não espaço), `g\h pr comment …`, ou indireção por variável (`c=gh; $c pr comment …`, em
+que o literal `gh` nunca aparece junto da flag). Ou seja: **só o caso direto ficou bloqueado.**
+Nenhum leitor futuro deve concluir que `--body-file` foi de fato fechado pelo hook.
+
+Dois registros menores da mesma rodada: (a) o padrão bloqueia junto o uso legítimo de
+`gh api … -F campo=valor` (campo tipado, não leitura de arquivo) — não há esse padrão em nenhum
+workflow do repo hoje, mas quem adicionar vai apanhar sem saber por quê; (b) `claude.yml`,
+`daily-report.yml`, `implement.yml` e `supervisor.yml` seguem com `cat`/`grep`/`head`/`tail`/
+`wc`/`find` nas allow-lists — mesma classe, e estão no escopo da issue do canal de publicação,
+não esquecidos. O que fecha de verdade é tirar `Bash(gh pr comment:*)` do agente e
 publicar o veredito num step separado, não-IA, a partir de saída estruturada — mesmo desenho do
 guard-rail que `review.yml`/`security.yml` já usam. Isso é redesenho do canal de publicação dos
 oito workflows de agente, cai no [D-014] e virou issue própria. Até lá, o hook vale como defesa
