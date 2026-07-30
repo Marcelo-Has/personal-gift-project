@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "22"          # espelhar .github/workflows/ci.yml
+  # Secrets scanning da Netlify falha o build ao encontrar o VALOR de uma variável
+  # de ambiente no output. As PUBLIC_FIREBASE_* são públicas por design (o SDK
+  # cliente as expõe no bundle; quem protege os dados são firestore.rules/storage.rules,
+  # ver src/lib/firebase/client.ts) — por isso são omitidas da varredura.
+  SECRETS_SCAN_OMIT_KEYS = "PUBLIC_FIREBASE_API_KEY,PUBLIC_FIREBASE_AUTH_DOMAIN,PUBLIC_FIREBASE_PROJECT_ID,PUBLIC_FIREBASE_STORAGE_BUCKET,PUBLIC_FIREBASE_MESSAGING_SENDER_ID,PUBLIC_FIREBASE_APP_ID"
