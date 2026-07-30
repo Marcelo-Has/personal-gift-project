@@ -1,0 +1,129 @@
+name: Verdict on CI success
+# Julga se um PR que a fábrica marcou `entrega:incompleta` já atende aos critérios de aceite,
+# depois que o CI dele fica verde (por exemplo, por ação do fix.yml). Agente dedicado e
+# separado de quem escreveu o código — ver .claude/agents/verdict.md e a issue #50.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read          # ler a issue e os comentários do PR
+  id-token: write
+  actions: write
+
+jobs:
+  verdict:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      # Só julga PR ainda `entrega:incompleta` — completa não precisa de veredito de novo,
+      # e sem essa label o PR não é da fábrica (D-019).
+      - id: checar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --head "${BRANCH}" --state open --limit 1 --json number,labels \
+            --jq '.[0] | select((.labels // []) | map(.name) | index("entrega:incompleta")) | .number // empty')
+          if [ -z "${pr}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Nenhum PR aberto em ${BRANCH} com entrega:incompleta — nada a julgar."
+            exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "pr=${pr}" >> "$GITHUB_OUTPUT"
+          echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+        id: claude
+        if: steps.checar.outputs.run == 'true'
+        with:
+          anthropic_api_key: ${{ vars.FACTORY_AUTH != 'oauth' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ vars.FACTORY_AUTH == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          allowed_bots: "claude"
+          prompt: |
+            Você é o Verdict (ver .claude/agents/verdict.md) — agente dedicado ao julgamento de
+            completude, separado de quem escreveu o código. O CI do PR #${{ steps.checar.outputs.pr }}
+            (branch ${{ github.event.workflow_run.head_branch }}) acabou de ficar verde, e o PR
+            segue com a label `entrega:incompleta`.
+
+            1. Leia o PR: `gh pr view ${{ steps.checar.outputs.pr }} --json title,body`. Ache a
+               issue que ele fecha pela palavra de fechamento (`Closes`/`Fixes`/`Resolves` +
+               `#N`) no corpo — não por qualquer `#N` solto (já causou falso-positivo real, ver
+               D-019, 3ª rodada).
+            2. Leia a issue (`gh issue view <N>`) e os critérios de aceite dela.
+            3. Leia o diff (`gh pr diff ${{ steps.checar.outputs.pr }}`). Pode explorar o
+               checkout local (Read/Grep/Glob) para conferir o que o diff alega.
+            4. Decida:
+               - Critérios atendidos → marque a entrega como completa:
+                 `gh pr edit ${{ steps.checar.outputs.pr }} --title "<título sem [WIP]>" \
+                   --remove-label 'entrega:incompleta' --add-label 'entrega:completa'`
+               - Falta algo, ou há dúvida → NÃO mexa em label nem título; comente no PR
+                 explicando exatamente o que falta. Na dúvida, não marque.
+
+            Você só julga: sem Edit/Write, sem git push, sem gh pr merge (merge é humano,
+            D-012). Publique sempre um veredito — label trocada OU comentário — nunca em
+            silêncio.
+          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr edit:*)"'
+
+      - name: Redigir segredos da transcrição
+        id: redigir
+        if: always() && steps.checar.outputs.run == 'true'
+        env:
+          T: ${{ runner.temp }}/claude-execution-output.json
+        run: |
+          [ -f "$T" ] || exit 0
+          if ! perl -i -pe 's/(gh[pousr]_|github_pat_|sk-ant-)[A-Za-z0-9_\-]{10,}/[REDIGIDO]/g;
+                            s{AUTHORIZATION:\s*(basic|bearer)\s+[A-Za-z0-9+/=_.-]+}{AUTHORIZATION: [REDIGIDO]}gi' "$T"; then
+            rm -f "$T"
+            echo "::error::Redação falhou — transcrição descartada em vez de subir crua."
+            exit 1
+          fi
+          echo "Transcrição redigida antes do upload."
+
+      - name: Guardar transcrição do Verdict
+        if: always() && steps.checar.outputs.run == 'true' && steps.redigir.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verdict-${{ github.run_id }}
+          path: ${{ runner.temp }}/claude-execution-output.json
+          retention-days: 7
+          if-no-files-found: warn
+
+      # Guard-rail de saída: sem ele, um skip da action por "workflow validation" (D-014) ou um
+      # no-op silencioso do agente sairia verde sem julgamento nenhum.
+      - name: Exigir veredito publicado (label trocada ou comentário)
+        if: always() && steps.checar.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ steps.checar.outputs.pr }}
+          DESDE: ${{ steps.checar.outputs.ts }}
+          AGENTE: ${{ steps.claude.outcome }}
+        run: |
+          set -euo pipefail
+
+          completa=$(gh pr view "${PR}" --json labels --jq '(.labels // []) | map(.name) | index("entrega:completa") != null')
+          if [ "${completa}" = "true" ]; then
+            echo "Veredito: entrega marcada completa no PR #${PR}."
+            exit 0
+          fi
+
+          novos=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+            --jq "[.[] | select(.user.login == \"claude[bot]\")
+                       | select(.created_at >= \"${DESDE}\" or .updated_at >= \"${DESDE}\")]
+                  | length")
+          if [ "${novos}" -gt 0 ]; then
+            echo "Veredito: sem troca de label, mas comentário publicado no PR #${PR} explicando o que falta."
+            exit 0
+          fi
+
+          echo "::error::O Verdict rodou e não publicou julgamento (nem label, nem comentário) no PR #${PR} (step do agente: ${AGENTE})."
+          exit 1
