@@ -681,6 +681,29 @@ PR permanece `entrega:incompleta` até os dois arquivos de workflow serem aplica
 "`gh pr edit` removido do `fix.yml`" e "custo medido" do Definition of Done da issue #50
 continuam em aberto.
 
+**Continuação (2026-07-30, mesma sessão) — bloqueio resolvido.** O texto acima fica como
+registro do que era verdade quando foi escrito; o estado atual é este:
+
+- O dono do repositório (`Marcelo-Has`) aplicou os dois arquivos de workflow **manualmente**,
+  no commit `1406043`, com credencial pessoal — que tem o escopo `workflows` que falta ao
+  GitHub App do runner. Conteúdo idêntico ao publicado no comentário do PR #55, sem alteração.
+  Com isso o item "`gh pr edit` removido do `fix.yml`" do DoD da issue #50 está **fechado**.
+- O `[WIP]` do título e o swap `entrega:incompleta` → `entrega:completa` também foram
+  **manuais** (dono, 18:39Z), não obra do Verdict — ver o item seguinte.
+- **`verdict.yml` ainda NÃO rodou nenhuma vez, e não vai rodar neste PR.** Workflow disparado
+  por `workflow_run` só existe a partir da branch default: a API responde `workflow verdict.yml
+  not found on the default branch` enquanto ele não estiver na `main`. Logo o gatilho passa a
+  valer **do próximo PR em diante**, e o item **"custo medido" do DoD segue legitimamente em
+  aberto** — registrar quando o primeiro disparo real acontecer. (A revisão automática do PR #55
+  inferiu que "o pipeline já rodou de ponta a ponta" a partir do título/label já trocados; a
+  inferência está errada pelo motivo acima, e fica anotada aqui para não se propagar.)
+- Achados da revisão tratados no próprio PR #55: restaurar `.claude/`/`CLAUDE.md` da branch base
+  antes de julgar (senão o PR sob julgamento reescreve as instruções do juiz) e remoção de
+  `actions: write` do `verdict.yml`. O gate de origem do `workflow_run` (`head_repository`)
+  ficou **adiado** por `.claude/rules/right-sizing.md` — repo privado de dono único não tem fork
+  de terceiro — com o gate pronto em comentário no `verdict.yml` e no `fix.yml`, para o dia em
+  que o repositório virar público ou entrar um colaborador.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

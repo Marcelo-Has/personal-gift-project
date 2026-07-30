@@ -14,6 +14,11 @@ permissions:
 
 jobs:
   fix:
+    # ADIAR, mesmo caso do `verdict.yml` (revisão de segurança do PR #55, MÉDIO sem superfície
+    # atual): `workflow_run` roda privilegiado no repo base, com segredos, mesmo quando o CI que
+    # o disparou veio de um PR de fork. Repo privado de dono único hoje ([D-014]/[D-019]) — sem
+    # fork de terceiro. Ao virar público OU entrar colaborador, somar aos DOIS workflows:
+    #   github.event.workflow_run.head_repository.full_name == github.repository
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     steps:

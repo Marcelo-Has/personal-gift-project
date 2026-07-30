@@ -12,16 +12,43 @@ permissions:
   pull-requests: write
   issues: read          # ler a issue e os comentários do PR
   id-token: write
-  actions: write
+  # Sem `actions: write` (achado BAIXO da revisão de segurança do PR #55): nem a allow-list do
+  # agente nem os guard-rails usam `gh run`/`gh workflow`, e essa permissão deixaria apagar os
+  # artefatos de transcrição que este mesmo workflow sobe como registro auditável.
 
 jobs:
   verdict:
+    # ADIAR (revisão de segurança do PR #55, MÉDIO sem superfície atual): `workflow_run` roda
+    # privilegiado no repo base, com segredos, mesmo quando o CI que o disparou veio de um PR
+    # de fork. Hoje o repo é privado e de dono único ([D-014]/[D-019]), então não há fork de
+    # terceiro. No dia em que virar público OU entrar um colaborador (mesmo somente-leitura —
+    # pode forkar e abrir PR), somar ao `if` abaixo:
+    #   github.event.workflow_run.head_repository.full_name == github.repository
+    # O `fix.yml:17` tem exatamente o mesmo padrão e precisa do mesmo gate na mesma hora.
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
+
+      # Integridade do juiz (achado MÉDIO da revisão de segurança do PR #55). O checkout acima é
+      # a branch SOB JULGAMENTO, e a `claude-code-action` carrega `CLAUDE.md`/`.claude/` do
+      # workspace. Sem este step, um PR que edite `.claude/agents/verdict.md`, `CLAUDE.md` ou
+      # `.claude/rules/*` reescreveria as instruções do juiz que vai julgar esse mesmo PR — e
+      # este PR é justamente o que cria o `verdict.md`, então o alvo passa a existir.
+      # A config do agente vem sempre da branch default; o CONTEÚDO julgado segue sendo o da
+      # branch, que é o que o agente precisa ler.
+      # Limite conhecido: arquivo NOVO em `.claude/` (inexistente na base) sobrevive ao restore —
+      # o que se fecha aqui é a sobrescrita dos arquivos que o prompt referencia.
+      - name: Usar a config de agente da base, não a da branch julgada
+        env:
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "${BASE}"
+          git checkout FETCH_HEAD -- .claude/ CLAUDE.md
+          echo "Config de agente restaurada de ${BASE}."
 
       # Só julga PR ainda `entrega:incompleta` — completa não precisa de veredito de novo,
       # e sem essa label o PR não é da fábrica (D-019).

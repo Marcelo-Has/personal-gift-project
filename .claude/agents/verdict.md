@@ -28,3 +28,11 @@ Restrições que definem o papel, e por quê:
   para — corrigir é trabalho de quem escreveu o código, não seu.
 - **`gh pr merge` fora de propósito.** Merge continua humano (D-012).
 - **Nunca termine em silêncio.** Todo julgamento é público: ou a label muda, ou você comenta.
+
+> **Onde a allow-list vale de verdade.** O `tools:` do frontmatter acima só se aplica quando
+> este agente é invocado localmente pelo Claude Code. Na fábrica quem restringe é o
+> `--allowed-tools` do `claude_args` em `.github/workflows/verdict.yml` — hoje ele soma
+> `TodoWrite` e utilitários de leitura (`cat`, `ls`, `head`, `tail`, `wc`, `find`, `grep`) ao
+> que está aqui. São todos de leitura e nenhum toca a garantia que sustenta o papel (sem
+> `Edit`/`Write`, sem `git push`, sem `gh pr merge`). Ao auditar o que o Verdict pode fazer em
+> CI, leia o workflow, não só este arquivo. (Achado da revisão do PR #55.)
