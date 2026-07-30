@@ -311,6 +311,23 @@ caminho da transcrição ser o default da action, que um bump de SHA pode mudar 
 Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
 
+## D-020 | 2026-07-30 | ACEITA
+**Adoção de `zod` para validação de entrada do questionário** (issue #30, F1-05a).
+`src/lib/order.ts` modela `CoupleQuestionnaire` como interface TypeScript pura — sem
+validação em runtime — e o único precedente do repo (`parseRegistry` em
+`src/lib/registry.ts`) é um validador artesanal que não escala para 9 blocos com tupla e
+arrays de objeto (`people: [Person, Person]`, `milestones: Milestone[]`, `trips: Trip[]`).
+
+Um schema por etapa em `src/lib/order-schema.ts`, reusado tal e qual no cliente (validação
+por passo desta issue) e, na revalidação de servidor de #33, sem cópia divergente — é
+exatamente o que `.claude/rules/security.md` exige (revalidar no servidor o que o cliente já
+validou). Mensagens de erro em português direto no schema (`z.string().min(1, 'Informe o
+nome.')`), para não duplicar texto entre schema e UI.
+
+Escopo: só validação de entrada do questionário. Não é Decision Gate — nada de preço,
+catálogo ou dado pessoal de usuário real; `.claude/rules/right-sizing.md` cobre o resto
+(nenhum componente genérico tipo "Input"/"Wizard" sem um segundo uso concreto).
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
