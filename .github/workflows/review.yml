@@ -69,12 +69,18 @@ jobs:
           DESDE: ${{ steps.inicio.outputs.ts }}
         run: |
           set -euo pipefail
+          # Filtra por `claude[bot]`, NÃO por `.user.type == "Bot"`: o `netlify[bot]` comenta em
+          # todo PR deste repo e **edita** o mesmo comentário fixo a cada deploy, o que bate no
+          # `updated_at >= DESDE`. Com o filtro genérico, um skip da action por *workflow
+          # validation* poderia sair VERDE por causa do comentário do Netlify — exatamente o
+          # "verde sem revisão" que este guard-rail existe para impedir ([D-014], ponte (c)).
+          # Achado da revisão do PR #48, que o encontrou no `fix.yml`; o mesmo padrão estava aqui.
           novos=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
-            --jq "[.[] | select(.user.type == \"Bot\")
+            --jq "[.[] | select(.user.login == \"claude[bot]\")
                        | select(.created_at >= \"${DESDE}\" or .updated_at >= \"${DESDE}\")]
                   | length")
           if [ "${novos}" -eq 0 ]; then
             echo "::error::O Reviewer não publicou veredito no PR #${PR}. A revisão não aconteceu — tratar como reprovado, não como verde."
             exit 1
           fi
-          echo "Veredito publicado (${novos} comentário(s) de bot desde ${DESDE})."
+          echo "Veredito publicado (${novos} comentário(s) do claude[bot] desde ${DESDE})."

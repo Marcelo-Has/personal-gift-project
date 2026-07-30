@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: read          # ler os comentários do PR no guard-rail do D-025
   id-token: write
   actions: write
 
@@ -19,7 +20,14 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
+
+      # Guard-rail de saída (parte 1/2): SHA da branch e instante, antes do agente.
+      - id: antes
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+        id: claude
         with:
           # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
           # usa a API medida; FACTORY_AUTH=oauth usa a assinatura. A credencial não
@@ -90,7 +98,61 @@ jobs:
         if: always() && steps.redigir.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: fix-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}
+          # Sem o nome da branch: ela contém `/` (`feat/...`), proibido em nome de artefato,
+          # e o upload falhava — foi assim que a primeira transcrição do fix se perdeu.
+          name: fix-${{ github.run_id }}
           path: ${{ runner.temp }}/claude-execution-output.json
           retention-days: 7
           if-no-files-found: warn
+
+      # Guard-rail de saída (parte 2/2). O [D-020] adiou este step com uma condição explícita:
+      # "já reprova por max_turns quando morre, então não há no-op silencioso a fechar; se
+      # aparecer o caso 'verde sem commit', aí vale estender." O caso apareceu — run
+      # `30513015702`: `subtype: success`, `is_error: false`, 10 turnos, US$ 0,22, e **nenhum
+      # commit e nenhum comentário no PR**. É o mesmo no-op silencioso que o [D-019] fechou no
+      # `implement.yml`, e que aqui saía verde. Custo: zero token, só `gh`/`git`.
+      - name: Exigir correção empurrada ou explicação no PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          ANTES: ${{ steps.antes.outputs.sha }}
+          DESDE: ${{ steps.antes.outputs.ts }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AGENTE: ${{ steps.claude.outcome }}
+        run: |
+          set -euo pipefail
+
+          agora=$(gh api "repos/${GITHUB_REPOSITORY}/branches/${BRANCH}" --jq .commit.sha 2>/dev/null || echo '')
+          if [ -n "${agora}" ] && [ "${agora}" != "${ANTES}" ]; then
+            echo "Correção empurrada: ${ANTES:0:8} -> ${agora:0:8}."
+            exit 0
+          fi
+
+          pr=$(gh pr list --head "${BRANCH}" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -z "${pr}" ]; then
+            echo "::error::Nenhum commit novo em ${BRANCH} e nenhum PR aberto para ela (step do agente: ${AGENTE}) — o Fix não produziu nada."
+            exit 1
+          fi
+
+          # Desfecho alternativo aceitável: não soube corrigir, mas EXPLICOU no PR.
+          # Filtra por `claude[bot]`, NÃO por `.user.type == "Bot"`: o `netlify[bot]` comenta em
+          # todo PR deste repo (deploy preview), então qualquer bot satisfaria este ramo e o
+          # guard-rail viraria decoração. Achado da revisão de segurança do PR #48 — classificado
+          # como MÉDIO, mas na prática desligaria o controle, porque o comentário do Netlify é
+          # quase garantido dentro da janela.
+          explicou=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr}/comments" --paginate \
+            --jq "[.[] | select(.user.login == \"claude[bot]\") | select(.created_at >= \"${DESDE}\")] | length")
+          if [ "${explicou}" -gt 0 ]; then
+            echo "Sem commit, mas o Fix explicou no PR #${pr} (${explicou} comentário(s))."
+            exit 0
+          fi
+
+          gh pr comment "${pr}" --body "$(printf '%s\n' \
+            '⚠️ O Fix rodou e não produziu nada: nenhum commit novo nesta branch e nenhuma explicação aqui.' \
+            '' \
+            "Run: ${RUN_URL} (transcrição nos artefatos). Step do agente: \`${AGENTE}\`." \
+            '' \
+            'O CI segue vermelho e precisa de correção humana, ou de outro disparo. Guard-rail do D-025.')"
+          echo "::error::O Fix não empurrou commit nem explicou no PR #${pr} (step do agente: ${AGENTE}) — tratar como reprovado, não como verde."
+          exit 1
