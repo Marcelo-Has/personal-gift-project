@@ -121,25 +121,40 @@ jobs:
             `npm run test:e2e` (baixa ~115 MB de browser) nem `npm run test:rules` (exige
             JVM e emulador) — quem roda esses dois é o CI, em jobs próprios.
 
+            ORÇAMENTO: você tem 60 turnos e o runner é DESTRUÍDO no fim. Nada que não
+            esteja empurrado para o GitHub sobrevive. A issue já traz "Arquivos exatos" e
+            "Ler antes" — leia o que ela manda e comece; não faça arqueologia do repo além
+            disso, e NUNCA leia código dentro de `node_modules/` (dúvida de tipagem do
+            SvelteKit se resolve rodando `npm run check`, não lendo a fonte dele). Agrupe
+            leituras curtas numa só chamada de Bash.
+
             CONTRATO DE SAÍDA — obrigatório. O job REPROVA se não for cumprido:
 
-            1. Crie a branch e, na PRIMEIRA mudança que compile, publique-a e abra o PR
-               já, sem esperar terminar:
-                 git push -u origin <branch>
+            1. ABRA O PR PRIMEIRO, ANTES DE ESCREVER CÓDIGO. Não é o último passo, é o
+               primeiro depois de ler a issue. Commit vazio serve — o objetivo é o PR
+               existir:
+                 git checkout -b feat/<slug-da-issue>
+                 git commit --allow-empty -m "chore: abre PR de #${{ github.event.inputs.issue || github.event.issue.number }} (WIP)"
+                 git push -u origin feat/<slug-da-issue>
                  gh pr create --title "[WIP] <título>" --body "... Closes #${{ github.event.inputs.issue || github.event.issue.number }}"
                  gh pr edit --add-label 'entrega:incompleta'
-               Continue empurrando commits nesse mesmo PR. Assim, se a sessão morrer no
-               meio, o trabalho não se perde — foi o que aconteceu nos runs anteriores
-               desta fábrica.
+               **O PR TEM de existir antes do seu 10º turno.** Se chegar ao 10º sem PR,
+               pare tudo e faça isto agora.
 
-            2. Ao concluir de fato (`npm run lint` e `npm test` rodados, critérios de aceite
+            2. Depois, implemente empurrando aos poucos: `git add -A && git commit && git push`
+               a cada arquivo ou etapa concluída, NUNCA só no fim. No run 30503680892 o
+               Developer implementou a issue inteira, viu lint/test/build passarem, e morreu
+               no teto de turnos antes do primeiro commit — o trabalho todo foi perdido com
+               o runner. Commit empurrado é a única coisa que sobrevive a você.
+
+            3. Ao concluir de fato (`npm run lint` e `npm test` rodados, critérios de aceite
                atendidos), marque a entrega como completa:
                  gh pr edit --title "<título sem [WIP]>" \
                    --remove-label 'entrega:incompleta' --add-label 'entrega:completa'
                e marque a checkbox "Entrega completa" no corpo do PR.
                NUNCA marque `entrega:completa` sem ter rodado lint e test.
 
-            3. NUNCA termine sem um destes desfechos: (a) PR aberto referenciando a issue;
+            4. NUNCA termine sem um destes desfechos: (a) PR aberto referenciando a issue;
                (b) issue `decision-needed` criada, se a tarefa cair num Decision Gate de
                docs/AUTONOMY.md — nesse caso não adivinhe, registre Opções + Recomendação +
                o que bloqueia, e **cite `#N` no corpo dela** (o guard-rail só aceita como
@@ -147,12 +162,12 @@ jobs:
                na issue explicando o bloqueio. Terminar em silêncio, sem nenhum dos três, é
                a falha que este contrato existe para impedir.
 
-            4. Se o orçamento de turnos estiver acabando, PARE de codar e garanta o desfecho
+            5. Se o orçamento de turnos estiver acabando, PARE de codar e garanta o desfecho
                (a) com o que já existe: deixe `entrega:incompleta`, mantenha o `[WIP]` no
                título e liste no corpo do PR exatamente o que falta.
 
             Não faça merge: `gh pr merge` não está na allow-list e o merge é humano (D-012).
-          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+          claude_args: '--max-turns 60 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 
       # Artefato NÃO passa pelo masking de segredo do Actions (só o log do job passa), e a
       # transcrição registra a saída de cada comando do agente. Basta ele depurar `git` uma
