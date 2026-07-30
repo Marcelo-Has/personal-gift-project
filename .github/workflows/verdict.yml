@@ -39,14 +39,23 @@ jobs:
       # este PR é justamente o que cria o `verdict.md`, então o alvo passa a existir.
       # A config do agente vem sempre da branch default; o CONTEÚDO julgado segue sendo o da
       # branch, que é o que o agente precisa ler.
-      # Limite conhecido: arquivo NOVO em `.claude/` (inexistente na base) sobrevive ao restore —
-      # o que se fecha aqui é a sobrescrita dos arquivos que o prompt referencia.
+      #
+      # O `rm -rf` antes do checkout NÃO é redundante, e o risco aqui não é só "reescrever
+      # instrução" (2ª rodada da revisão de segurança do PR #55): `git checkout <tree> -- <path>`
+      # só sobrescreve caminho que EXISTE na base, então arquivo novo na branch sobreviveria.
+      # `.claude/settings.local.json` está no `.gitignore` — logo nunca existe na base, logo é
+      # sempre "novo" — e esse arquivo carrega `hooks.PreToolUse` com `type: command`, como o
+      # `.claude/settings.json` versionado deste repo demonstra. Uma branch que fizesse
+      # `git add -f` nele executaria comando arbitrário neste runner privilegiado, que tem
+      # `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN` e `GITHUB_TOKEN` com `pull-requests: write`.
+      # Vale o mesmo para `.claude/rules/*` e `.claude/skills/*` novos, que carregam sozinhos.
       - name: Usar a config de agente da base, não a da branch julgada
         env:
           BASE: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           git fetch --depth=1 origin "${BASE}"
+          rm -rf .claude CLAUDE.md          # mata também o que é NOVO na branch julgada
           git checkout FETCH_HEAD -- .claude/ CLAUDE.md
           echo "Config de agente restaurada de ${BASE}."
 
@@ -89,6 +98,12 @@ jobs:
             2. Leia a issue (`gh issue view <N>`) e os critérios de aceite dela.
             3. Leia o diff (`gh pr diff ${{ steps.checar.outputs.pr }}`). Pode explorar o
                checkout local (Read/Grep/Glob) para conferir o que o diff alega.
+               ATENÇÃO a um ponto que engana: `CLAUDE.md` e `.claude/` no checkout foram
+               restaurados da branch base de propósito, para o PR sob julgamento não reescrever
+               as SUAS instruções. Então um arquivo que o PR cria ou altera nesses caminhos
+               NÃO aparece no disco — e isso não significa que ele não exista. Confira esses
+               caminhos pelo `gh pr diff` ou por `git show HEAD:<caminho>`, que leem a branch
+               sem carregá-la como config. Para todo o resto do repositório o disco é a branch.
             4. Decida:
                - Critérios atendidos → marque a entrega como completa:
                  `gh pr edit ${{ steps.checar.outputs.pr }} --title "<título sem [WIP]>" \
@@ -99,7 +114,12 @@ jobs:
             Você só julga: sem Edit/Write, sem git push, sem gh pr merge (merge é humano,
             D-012). Publique sempre um veredito — label trocada OU comentário — nunca em
             silêncio.
-          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr edit:*)"'
+          # ADIAR (2ª rodada, BAIXO): `Bash(gh pr edit:*)` é mais largo que o papel — o Verdict
+          # só precisa de `--title`, `--remove-label` e `--add-label`, mas o curinga também
+          # autoriza `--base` (trocar a branch de destino) e `--body`. Sem impacto hoje, porque
+          # merge é humano ([D-012]). Apertar quando/se a allow-list da action suportar
+          # restrição por flag.
+          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr edit:*)"'
 
       - name: Redigir segredos da transcrição
         id: redigir
@@ -143,6 +163,13 @@ jobs:
             exit 0
           fi
 
+          # ADIAR (revisão de segurança do PR #55, 2ª rodada, BAIXO): o `or .updated_at` existe
+          # em `review.yml`/`security.yml` porque lá o comentário de progresso da action é
+          # editado durante o run. AQUI o desfecho esperado é sempre um comentário novo, então
+          # ele só abre a porta para um comentário ANTIGO do `claude[bot]`, editado dentro da
+          # janela, satisfazer o guard-rail sem julgamento nenhum. Estreito hoje (o `fix.yml`
+          # comenta antes de DESDE, e `review`/`security` ficam pulados enquanto o PR é
+          # `entrega:incompleta`). Ao mexer, restringir a `created_at >= DESDE` só neste arquivo.
           novos=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
             --jq "[.[] | select(.user.login == \"claude[bot]\")
                        | select(.created_at >= \"${DESDE}\" or .updated_at >= \"${DESDE}\")]

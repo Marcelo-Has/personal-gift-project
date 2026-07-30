@@ -704,6 +704,34 @@ registro do que era verdade quando foi escrito; o estado atual é este:
   de terceiro — com o gate pronto em comentário no `verdict.yml` e no `fix.yml`, para o dia em
   que o repositório virar público ou entrar um colaborador.
 
+**2ª rodada de revisão (2026-07-30) — dois MÉDIOS a mais, ambos corrigidos.** A re-revisão
+confirmou os achados anteriores como tratados e encontrou dois que a primeira não pegou:
+
+- **`Bash(find:*)` não é utilitário de leitura.** Estava na allow-list do `verdict.yml`, e
+  `find . -exec sh -c '<qualquer coisa>' \;` executa comando arbitrário (`find . -delete` apaga
+  arquivo) — derruba de uma vez as três garantias que definem o papel do Verdict. Agravante: o
+  bloco de auditoria do `verdict.md` afirmava que era leitura. **Removido** do workflow e a
+  afirmação corrigida no agente; `Glob` já cobre busca de arquivo. (`Bash(find:*)` também está
+  em `review.yml`/`security.yml`; limpar lá é issue separada, e o `fix.yml` é inócuo porque
+  aquele agente tem `Edit`/`Write`/push por desenho.)
+- **O restore de config era parcial, e o resíduo é execução de comando.** `git checkout <tree>
+  -- <path>` só sobrescreve caminho que existe na base, então arquivo **novo** na branch
+  sobrevivia. `.claude/settings.local.json` está no `.gitignore` — nunca existe na base, logo é
+  sempre "novo" — e carrega `hooks.PreToolUse` com `type: command`, como o `settings.json`
+  versionado deste repo demonstra. Uma branch com `git add -f` nele executaria comando no runner
+  privilegiado, que tem as credenciais da Anthropic e `pull-requests: write`. **Corrigido** com
+  `rm -rf .claude CLAUDE.md` antes do checkout, fechando o limite inteiro. O prompt do Verdict
+  ganhou o aviso de que esses caminhos se conferem por `gh pr diff`/`git show HEAD:<caminho>`,
+  que leem a branch sem carregá-la como config.
+
+Três achados BAIXOS ficaram **ADIAR** por `right-sizing.md`, todos anotados em comentário no
+código em vez de virar issue: `or .updated_at` no guard-rail de saída (aceita comentário antigo
+editado), curinga `Bash(gh pr edit:*)` (autoriza também `--base`/`--body`), e `actions: write`
+no `fix.yml`. Este último foi **deliberadamente não removido**, contra a recomendação da revisão:
+o [D-026] registra cinco falhas seguidas daquele workflow por escopo de Actions faltando, e
+`gh run view --log-failed` é a razão de existir dele — trocar um achado BAIXO por risco de
+re-quebrar a leitura de CI é mau negócio. Ao mexer um dia, o passo seguro é `actions: read`.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

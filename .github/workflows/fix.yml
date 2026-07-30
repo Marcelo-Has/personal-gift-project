@@ -10,6 +10,13 @@ permissions:
   pull-requests: write
   issues: read          # ler os comentários do PR no guard-rail do D-025
   id-token: write
+  # ADIAR (revisão de segurança do PR #55, 2ª rodada, BAIXO): o `verdict.yml` não pede
+  # `actions: write` — permitiria apagar os artefatos de transcrição que o próprio workflow
+  # sobe como registro auditável — e aqui a sobra é a mesma. NÃO removido junto de propósito:
+  # o [D-026] documenta cinco falhas seguidas deste workflow por escopo de Actions faltando, e
+  # `gh run view --log-failed` é a razão de existir dele. Trocar um achado BAIXO por risco de
+  # re-quebrar a leitura de CI é mau negócio. Ao mexer, o passo seguro é `actions: read`
+  # (confirmando antes se o `additional_permissions` abaixo depende deste bloco), não remover.
   actions: write
 
 jobs:
