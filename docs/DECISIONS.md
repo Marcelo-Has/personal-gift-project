@@ -312,6 +312,35 @@ Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline d
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
 
 ---
+## D-020 | 2026-07-30 | ACEITA
+**Tetos de `--max-turns` recalibrados por evidência, não por intuição.** Em 2026-07-30,
+**quatro de quatro** workflows de IA estouraram o teto no mesmo dia, cada um num PR real:
+
+| Workflow | Teto | Evidência do estouro | Novo |
+|---|---|---|---|
+| `implement` | 40 → 60 | run `30503680892` morreu em 41 turnos com a issue #31 pronta e nunca commitada; depois o run `30505689066` morreu em **60** com a #30 já 95% entregue (12 arquivos, +990 linhas, `ci` verde) | **80** |
+| `review` | 30 | `error_max_turns` em 31 turnos duas vezes (PR #36 e PR #40) | **50** |
+| `ai-security-review` | 30 | `error_max_turns` em 31 turnos no PR #40 | **50** |
+| `fix` | 25 | run `30506482646` queimou 25 turnos no PR #41 e **não produziu um único commit** | **40** |
+
+Motivo: os tetos foram calibrados quando o repositório era um scaffold. Com o `src/` real,
+diffs de ~1000 linhas, thread de PR longa e issues prescritivas de 150+ linhas, eles passaram
+a cortar o agente **no meio**. O argumento decisivo é de custo, não de generosidade: um agente
+que morre no teto entrega **nada** e o gasto é 100% perdido — o run `30503680892` custou
+US$ 1,90 para produzir zero. Subir o teto converte gasto desperdiçado em trabalho entregue.
+
+`daily-report` (15) e `supervisor` (20) ficam como estão: nenhum dos dois estourou, e a saída
+deles é pequena por natureza (um relatório, uma issue).
+
+Complemento: o `fix.yml` passa a ser instruído a **empurrar a cada correção**, pelo mesmo
+motivo do [D-019] — no run acima ele corrigiu no disco do runner e perdeu tudo. Ele **não**
+ganha guard-rail de saída nesta rodada: já reprova por `max_turns` quando morre, então não há
+no-op silencioso a fechar; se aparecer o caso "verde sem commit", aí vale estender.
+
+Não é Decision Gate: não toca preço, catálogo, dado pessoal nem baseline de segurança. Exige
+**merge manual** pela exceção do [D-014], porque o diff inclui `review.yml`/`security.yml`.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 por estilo e tamanho (depende do custo real por SKU).

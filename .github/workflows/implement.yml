@@ -167,7 +167,7 @@ jobs:
                título e liste no corpo do PR exatamente o que falta.
 
             Não faça merge: `gh pr merge` não está na allow-list e o merge é humano (D-012).
-          claude_args: '--max-turns 60 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+          claude_args: '--max-turns 80 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 
       # Artefato NÃO passa pelo masking de segredo do Actions (só o log do job passa), e a
       # transcrição registra a saída de cada comando do agente. Basta ele depurar `git` uma
