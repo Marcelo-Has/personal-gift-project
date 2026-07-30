@@ -485,6 +485,31 @@ Registro honesto do que ainda não se sabe: **as 17 negações do `fix.yml` cont
 identificada.** O próximo run com artefato responde. Até lá, nenhuma outra emenda de allow-list
 deve ser feita por palpite.
 
+## D-025 | 2026-07-30 | ACEITA
+**Guard-rail de saída no `fix.yml`**, nos mesmos termos do [D-019]: sem commit novo na branch
+e sem explicação no PR, o job fica **vermelho** e comenta no PR. Custo: zero token, só `gh`/`git`.
+
+O [D-020] havia adiado este step com uma condição explícita — *"já reprova por `max_turns`
+quando morre, então não há no-op silencioso a fechar; se aparecer o caso 'verde sem commit', aí
+vale estender."* **O caso apareceu**, no run `30513015702`: `subtype: success`,
+`is_error: false`, 10 turnos, US$ 0,22, **nenhum commit e nenhum comentário no PR**, e o step
+do agente **verde**. Exatamente o no-op silencioso que custou quatro issues no `implement.yml`,
+agora no `fix.yml`. A condição de adiamento foi cumprida, então o adiamento acabou.
+
+Desfechos aceitos pelo guard-rail: (a) commit novo na branch — comparação de SHA antes/depois;
+(b) sem commit, mas **comentário de bot no PR** desde o início do run, ou seja, o Fix não soube
+corrigir e **disse isso**. Qualquer outra coisa reprova.
+
+Junto vai a correção de um bug meu: o nome do artefato de transcrição do [D-024] incluía o nome
+da branch, que contém `/` — proibido em nome de artefato no Actions. O upload falhava e **a
+primeira transcrição do `fix` se perdeu**, que era justamente o instrumento de que eu precisava.
+Passa a ser só `fix-<run_id>`.
+
+Consequência para o método: as **6 negações** do run `30513015702` (e as 17 do anterior)
+continuam sem causa identificada, agora por um bug de nome de artefato em cima de um workflow
+sem observabilidade. Segue valendo a regra do [D-024]: **nenhuma emenda de allow-list por
+palpite** — a próxima só depois de ler a transcrição de fato.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
