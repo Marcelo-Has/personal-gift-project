@@ -311,6 +311,30 @@ caminho da transcrição ser o default da action, que um bump de SHA pode mudar 
 Não é Decision Gate: nada de preço, catálogo ou dado pessoal, e o baseline de segurança não é
 afrouxado — `gh pr merge` continua fora e o merge segue humano ([D-012]).
 
+## D-021 | 2026-07-30 | ACEITA
+**Identidade do comprador pré-checkout = sessão anônima do Firebase Auth**, criada sob
+demanda no navegador (`signInAnonymously`, `src/lib/firebase/session.ts`) e verificada no
+servidor por `verificarIdToken`/`requireUid` (`src/lib/server/auth.ts`, F1-05a2, issue #31).
+No checkout (F1-07) a conta vira real por `linkWithCredential`: o `uid` não muda e nenhum
+dado é migrado.
+
+Motivo: a escolha é cara de reverter porque amarra três coisas ao mesmo `uid` — o dono em
+`firestore.rules` (`isOwner(userId)`), o prefixo `users/<uid>/` do caminho da foto no
+Storage (`photoObjectPath`, `src/lib/server/signed-url.ts:81`) e o modelo de conta do
+produto. Trocar depois significaria migrar documentos e objetos já gravados
+(`.claude/rules/right-sizing.md`, filtro nº 2).
+
+Alternativa recusada: um id opaco em cookie httpOnly, sem Firebase Auth. Funcionaria para
+upload e rascunho (o servidor é o único que escreve), mas criaria um segundo conceito de
+identidade a reconciliar no checkout e deixaria o comprador sem conseguir ler o próprio
+pedido, já que `firestore.rules` exige `request.auth`.
+
+Anônimo e sem senha: o comprador não deve precisar criar conta para montar o livro.
+Especializa [D-003] (stack Firebase já decidida); não a contradiz. Não é Decision Gate: a
+escolha aplica o baseline de segurança (usuário só acessa os próprios dados,
+`.claude/rules/security.md`) em vez de enfraquecê-lo — `firestore.rules` e `storage.rules`
+seguem inalterados.
+
 ---
 ## D-020 | 2026-07-30 | ACEITA
 **Tetos de `--max-turns` recalibrados por evidência, não por intuição.** Em 2026-07-30,
