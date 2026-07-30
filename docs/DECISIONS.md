@@ -402,18 +402,30 @@ existiam.** Ambas descobertas ao tentar concluir o PR #41 (issue #30):
    URL with authentication token" — indício de que ela só reconfigura o git com o token da App
    quando acredita ter permissão de escrita.
 
-   **Correção:** `persist-credentials: false` no checkout do `claude.yml`. Assim um push que
-   dependa do `GITHUB_TOKEN` **falha alto** em vez de virar no-op silencioso. As `permissions`
-   ficam em `read`: elevá-las daria `contents: write` ao `GITHUB_TOKEN` no único workflow cujo
-   agente não tinha `--allowed-tools` e, sem branch protection na `main` ([D-014]), isso é push
-   direto na `main` — custo de segurança real por um benefício não comprovado. Foi o que a
-   revisão de segurança do PR #45 apontou como bloqueante, com razão: a justificativa original
-   ("o token vem da App, então declare write") se anulava.
+   **Tentativa de correção, e o resultado dela — REVERTIDA.** Apliquei `persist-credentials:
+   false` no checkout do `claude.yml`, para que um push dependente do `GITHUB_TOKEN` falhasse
+   alto em vez de virar no-op silencioso, mantendo `permissions` em `read`. O run
+   `30512293142` mostrou que isso **quebra o workflow inteiro**, e antes de qualquer trabalho:
 
-   **Validação pendente:** empurrar um commit de teste por este caminho e confirmar que o CI
-   dispara *naquele SHA*. Enquanto isso não for feito, o item fica registrado como hipótese.
-   O loop autônomo não depende dele: quem empurra correção de CI é o `fix.yml`, que declara
-   `contents: write` e recebe auth por token da App como o `implement.yml`.
+   ```
+   ##[error]Action failed with error: Command failed:
+   git fetch origin --depth=20 feat/f1-05a-questionario-esqueleto
+   ```
+
+   A `claude-code-action` usa as credenciais persistidas para as **suas próprias** operações de
+   git (o `fetch` da branch), não só para o push do agente. Sem elas nem chega a começar.
+   Revertido: o checkout volta ao default.
+
+   **O que fica de pé do PR #45**, e é o que valia: o **gate de autor** (`OWNER`) e a
+   **allow-list** do `claude.yml` — as duas aplicações de baseline. As `permissions` seguem em
+   `read`, como a revisão de segurança do PR #45 exigiu com razão: a justificativa original
+   ("o token vem da App, então declare `write`") se anulava.
+
+   **Estado honesto: causa não identificada.** O item segue como hipótese, agora com uma
+   tentativa de correção refutada. O loop autônomo **não depende** deste caminho: quem empurra
+   correção de CI é o `fix.yml`, que declara `contents: write` e recebe auth por token da App
+   como o `implement.yml`. Enquanto isso, re-disparar CI numa branch tocada pelo `claude.yml`
+   exige um push humano — foi o que fiz duas vezes no PR #41, integrando a `main`.
 2. **O `fix.yml` não conseguia marcar a entrega como completa.** A allow-list dele não tinha
    `gh pr edit`, então mesmo deixando o CI verde ele não trocava `entrega:incompleta` por
    `entrega:completa` — e, pelo gate de custo do [D-019], `review` e `ai-security-review`
@@ -449,6 +461,29 @@ Perde-se emergência, ganha-se previsibilidade e superfície menor.
 
 Não é Decision Gate: aplica o baseline em vez de afrouxá-lo, e não toca preço, catálogo nem
 dado pessoal. `gh pr merge` continua fora de todas as allow-lists.
+
+## D-024 | 2026-07-30 | ACEITA
+**Transcrição como artefato em todo workflow de IA que escreve código, não só no
+`implement.yml`.** O `fix.yml` ganha os mesmos dois steps do [D-019] (redação de segredo que
+falha fechada + `upload-artifact`).
+
+Motivo, e ele é uma lição sobre método: o `fix.yml` estourou o teto **quatro vezes** sem
+produzir commit. Diagnostiquei como allow-list estreita — havia evidência forte
+(`permission_denials_count: 14` em 41 turnos, e a allow-list dele era literalmente a original do
+primeiro dia, ignorada pelas três emendas anteriores do [D-012]). A 4ª emenda a levou de 13 para
+28 entradas. O run seguinte (`30512032016`) devolveu **`permission_denials_count: 17`** — mais
+que antes. **A hipótese foi refutada pelos dados**, e eu não tinha como saber o que estava sendo
+negado porque `show_full_output` está desligado e este workflow nunca subiu transcrição.
+
+É exatamente o buraco que o [D-019] fechou no `implement.yml` e que eu deixei aberto aqui: a
+fábrica cega justamente onde falha. Regra que passa a valer: **workflow de IA que escreve código
+sobe transcrição**. `review`, `security`, `supervisor` e `daily-report` seguem sem artefato por
+ora — são read-only e publicam o próprio resultado como comentário, então já deixam rastro;
+`review`/`security` ainda dependeriam de merge manual pelo [D-014], o que encareceria a mudança.
+
+Registro honesto do que ainda não se sabe: **as 17 negações do `fix.yml` continuam sem causa
+identificada.** O próximo run com artefato responde. Até lá, nenhuma outra emenda de allow-list
+deve ser feita por palpite.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)

@@ -52,13 +52,6 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 1
-          # `persist-credentials: false` é a correção do sintoma do PR #41: por default o
-          # checkout grava o GITHUB_TOKEN no `.git/config`, e **push feito com GITHUB_TOKEN
-          # não cria workflow run** (comportamento documentado, anti-recursão). O commit
-          # `0908f5a3` foi aceito e o CI nunca disparou naquele SHA — no-op silencioso. Sem
-          # a credencial persistida, o push sai pelo token da App (que dispara workflow) ou
-          # falha alto, em vez de virar silêncio. Ver [D-023].
-          persist-credentials: false
 
       - name: Run Claude Code
         id: claude
