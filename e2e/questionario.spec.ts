@@ -102,7 +102,9 @@ test('deve completar o fluxo feliz até o resumo, com o CTA apontando para /esti
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/mensagem$/);
-	await page.getByLabel('Mensagem especial').fill('Amo vocês dois.');
+	await page
+		.getByRole('textbox', { name: 'Mensagem especial', exact: true })
+		.fill('Amo vocês dois.');
 
 	await expect(page.getByRole('heading', { name: 'Resumo' })).toBeVisible();
 	const cta = page.getByRole('link', { name: 'Escolher estilo e tamanho' });
