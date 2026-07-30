@@ -645,6 +645,42 @@ remover, voltando ao `jose` da própria cadeia — quando o `jwks-rsa`/`firebase
 funcionar sob `require(esm)` (ou o `jose` voltar a publicar entrada CJS), ou quando a função da
 Netlify passar a embutir o `jose` no bundle. Enquanto isso, o guard do `ci.yml` é o sinal.
 
+## D-030 | 2026-07-30 | ACEITA (parcial — bloqueada na entrega dos arquivos de workflow)
+**Agente `Verdict`, dedicado ao julgamento de `entrega:completa`, separado de quem escreveu o
+código (issue #50).** Segue o desenho que a própria issue já havia decidido (a alternativa de
+estender o `fix.yml` para julgar a própria entrega foi rejeitada nela por autoavaliação e por
+destrancar `review`/`ai-security-review` do gate do [D-019] sem revisão independente — ver
+"Por que NÃO estender o `fix.yml`" na issue).
+
+`.claude/agents/verdict.md` está criado neste PR: read-only (`Read`, `Grep`, `Glob` + `Bash` só
+para `gh issue view`, `gh pr view/diff/comment/edit` e `git diff/log/show`), sem `Edit`/`Write`,
+sem `git push`, sem `gh pr merge`. Ele lê a issue pela palavra de fechamento (`Closes`/`Fixes`/
+`Resolves` + `#N`, não `#N` solto — regra já fixada no [D-019] 3ª rodada) e os critérios de
+aceite, lê o diff do PR, e decide: marca `entrega:completa` (tirando `[WIP]` do título) ou
+comenta o que falta. Nunca os dois em silêncio.
+
+**Bloqueio técnico, não Decision Gate.** O restante do desenho — `.github/workflows/verdict.yml`
+(gatilho `workflow_run` da `CI` com `conclusion == 'success'`, que só age quando o PR da branch
+segue `entrega:incompleta`) e a remoção de `gh pr edit` da allow-list do `fix.yml` (fecha o
+achado MÉDIO do PR #48: hoje quem escreve o código também controla a label que libera as
+revisões) — **não pôde ser empurrado nesta sessão**. `git push` foi recusado pelo GitHub com
+`refusing to allow a GitHub App to create or update workflow .github/workflows/fix.yml without
+'workflows' permission`: a credencial deste runner tem escopo para conteúdo/PR/issue, mas não
+para `.github/workflows/*`. Não é uma falha de lógica nem Decision Gate (nada de preço, catálogo
+ou dado pessoal) — é permissão de plataforma, do mesmo tipo que trava o enforcement do [D-014]
+(GitHub Pro em repo privado).
+
+Seguindo a instrução do próprio `fix.yml` para esse tipo de situação (não insistir, não tentar
+contornar procurando token alternativo — só reportar), o conteúdo pronto de
+`.github/workflows/verdict.yml` e o diff de `fix.yml` foram deixados como comentário no PR #55
+para aplicação manual (ou por uma execução com credencial com escopo `workflows`). **Custo do
+gatilho novo:** não medido ainda — só é observável depois que o workflow rodar de verdade em CI
+verde real, o que exige o push manual primeiro. Registrar quando o primeiro disparo acontecer.
+
+PR permanece `entrega:incompleta` até os dois arquivos de workflow serem aplicados; os itens
+"`gh pr edit` removido do `fix.yml`" e "custo medido" do Definition of Done da issue #50
+continuam em aberto.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
