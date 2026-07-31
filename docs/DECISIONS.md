@@ -852,6 +852,12 @@ honesto quanto a isso — ver "limite reconhecido" no fim. Frentes:
    (`tool_input.command`). Variável indefinida ⇒ string vazia ⇒ `grep` não casa ⇒ cai no
    `exit 0` ⇒ liberação incondicional. Ou seja, o filtro anti-segredo escrito lá atrás estava
    inerte desde sempre, em silêncio. Os dois hooks passaram a ler a stdin.
+   **Efeito colateral que só apareceu depois:** enquanto o hook estava inerte, o *conteúdo* da
+   lista de padrões não importava — nada era bloqueado de todo jeito. Com ele funcionando, os
+   padrões viraram o controle de verdade, e a lista original (Anthropic, AWS, PEM) não cobria os
+   segredos deste repo. Somados: Stripe (`sk_live_`, `sk_test_`, `rk_live_`, `whsec_`), GitHub
+   (`ghp_`, `gho_`, `ghs_`, `github_pat_`) e `AUTHORIZATION: basic` — este último é a credencial
+   que o `actions/checkout` grava no `.git/config` e que originou toda esta classe no [D-030].
    **Consequência de processo:** controle de segurança sem teste executável apodrece sem aviso,
    então esta issue também traz `tests/hooks/pretooluse.test.ts`, que alimenta cada hook com um
    payload-fixture e exige `exit 2`/`exit 0`. Efeito colateral bem-vindo: como o payload é JSON

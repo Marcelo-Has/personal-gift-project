@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "grep -qiE 'sk-ant-|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|STRIPE_SECRET|AKIA[0-9A-Z]{16}' && { echo 'Bloqueado: possível segredo no comando' >&2; exit 2; }; exit 0"
+            "command": "grep -qiE 'sk-ant-|sk_live_|sk_test_|rk_live_|whsec_|ghp_|gho_|ghs_|github_pat_|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|STRIPE_SECRET|AKIA[0-9A-Z]{16}|AUTHORIZATION: basic' && { echo 'Bloqueado: possível segredo no comando' >&2; exit 2; }; exit 0"
           },
           {
             "type": "command",
