@@ -33,6 +33,68 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
 
+      # Integridade do Fix (achado ALTO da 2ª rodada da revisão de segurança do PR #57,
+      # issue #62). Mesmo risco do `verdict.yml`: o checkout acima é a branch cujo CI falhou, e a
+      # `claude-code-action` carrega `CLAUDE.md`/`.claude/` do workspace — incluindo
+      # `hooks.PreToolUse` do tipo `command`, execução de comando arbitrário neste runner, que
+      # tem `contents: write` e `GITHUB_TOKEN`. Sem este step, uma branch cujo CI falhasse de
+      # propósito reescreveria as instruções do próprio agente que vai "corrigi-la".
+      #
+      # DIFERENÇA para `verdict.yml`/`review.yml`/`security.yml`: aqueles só leem, então apagar e
+      # restaurar no disco basta. Aqui o Fix termina cada correção com `git add -A && git commit
+      # && git push` — se o disco tivesse o conteúdo da BASE nesses caminhos, o `add -A`
+      # comitaria esse conteúdo por cima do que a branch versiona ali, apagando de vez qualquer
+      # mudança de config de agente que o PR tivesse feito. Por isso aqui, em vez de
+      # `git checkout <path>` (que mexe no índice, como fazem os outros três), o conteúdo da base
+      # é escrito só no ARQUIVO (`git show`) e os caminhos rastreados ganham
+      # `git update-index --skip-worktree`: o git ignora a diferença disco×índice neles, então o
+      # `add -A` do agente não os vê e o commit dele preserva o que a branch tinha.
+      #
+      # ADIAR (sem superfície hoje): caminho que exista na BASE mas que a branch nunca rastreou
+      # ficaria em disco sem `skip-worktree`, e um `add -A` o adicionaria como arquivo novo. Não
+      # é o caso de nenhuma branch ativa; se aparecer, tratar então.
+      - name: Usar a config de agente da base, não a da branch sob correção
+        env:
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "${BASE}"
+
+          # Caminhos de config de agente que a BRANCH já rastreia — é a esses que o
+          # `skip-worktree` se aplica depois.
+          rastreados=$(git ls-tree -r --name-only HEAD \
+            | grep -E '(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/' || true)
+
+          # Apaga TODA config de agente do disco — raiz e subdiretórios, rastreada ou não
+          # (`.claude/settings.local.json` está no `.gitignore`, logo nunca rastreado: some
+          # daqui e não volta, por não estar no índice).
+          find . -path ./.git -prune -o -path ./node_modules -prune -o \
+                 \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \
+                    -o -name .mcp.json -o -name .claude \) \
+                 -print0 | xargs -0r rm -rf
+
+          # Escreve no disco o conteúdo da base — só para o agente LER — sem tocar no índice.
+          git ls-tree -r --name-only FETCH_HEAD \
+            | grep -E '(^|/)(CLAUDE\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/' \
+            | while IFS= read -r caminho; do
+                mkdir -p "$(dirname "$caminho")"
+                git show "FETCH_HEAD:${caminho}" > "$caminho"
+              done
+
+          # Some com a divergência disco×índice nesses caminhos para o `add -A`/`commit -a` do
+          # agente, sem tocar no índice (ao contrário de `git checkout <path>`).
+          if [ -n "${rastreados}" ]; then
+            printf '%s\n' "${rastreados}" | xargs -r git update-index --skip-worktree --
+          fi
+
+          # Descarta a credencial que o `actions/checkout` persistiu em `.git/config` ([D-030]).
+          # NÃO deixa o push seguinte sem credencial: a issue #59 ([D-032]) confirmou em execução
+          # real que a própria `claude-code-action` reescreve a URL do remote com um token
+          # embutido quando inicializa — depois deste `unset-all`, portanto sem depender dele.
+          git config --unset-all http.https://github.com/.extraheader || true
+
+          echo "Config de agente restaurada de ${BASE} só para leitura; índice preservado."
+
       # Guard-rail de saída (parte 1/2): SHA da branch e instante, antes do agente.
       - id: antes
         run: |

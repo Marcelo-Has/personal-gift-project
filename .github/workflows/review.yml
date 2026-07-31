@@ -33,6 +33,40 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
+      # Integridade do revisor (achado ALTO da 2ª rodada da revisão de segurança do PR #57,
+      # issue #62). Igual ao `verdict.yml`: o checkout acima é a branch SOB REVISÃO, e a
+      # `claude-code-action` carrega `CLAUDE.md`/`.claude/` do workspace — incluindo
+      # `hooks.PreToolUse` do tipo `command` em `.claude/settings.json`, que é execução de
+      # comando arbitrário neste runner, que tem `ANTHROPIC_API_KEY`/`GITHUB_TOKEN`. Sem este
+      # step, um PR poderia reescrever as instruções (ou o hook) do próprio Reviewer que vai
+      # julgá-lo. Ver os comentários do `verdict.yml` para o porquê de cada detalhe: o `rm -rf`
+      # recursivo por diretório e não só na raiz, e `CLAUDE.local.md`/`.claude/settings.local.json`,
+      # que por estarem no `.gitignore` nunca voltam da base. Este job só lê (sem `git push`),
+      # então não precisa da ressalva de índice que o `fix.yml` trata.
+      - name: Usar a config de agente da base, não a da branch sob revisão
+        env:
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "${BASE}"
+
+          # Apaga TODA config de agente da branch sob revisão — raiz E subdiretórios.
+          find . -path ./.git -prune -o -path ./node_modules -prune -o \
+                 \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \
+                    -o -name .mcp.json -o -name .claude \) \
+                 -print0 | xargs -0r rm -rf
+
+          # Restaura da base tudo que a base versiona nesses caminhos.
+          git ls-tree -r --name-only FETCH_HEAD \
+            | grep -E '(^|/)(CLAUDE\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/' \
+            | xargs -r git checkout FETCH_HEAD --
+
+          # Descarta a credencial que o `actions/checkout` persistiu em `.git/config`
+          # (mesmo achado do `verdict.yml`, [D-030]): `persist-credentials` é `true` por padrão.
+          git config --unset-all http.https://github.com/.extraheader || true
+
+          echo "Config de agente restaurada de ${BASE}; credencial do checkout descartada."
+
       # Guard-rail D-014 (parte 1/2): marca o instante antes da revisão.
       - id: inicio
         run: echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
