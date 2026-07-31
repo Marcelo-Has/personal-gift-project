@@ -33,11 +33,20 @@ jobs:
             Você NÃO tem capacidade de publicar no GitHub (FU-09, issue #58): ESCREVA o
             resumo no arquivo ${{ runner.temp }}/relatorio.md. Um step separado, sem IA,
             abre a issue com esse conteúdo. `Write` serve só para esse arquivo.
+
+            ORÇAMENTO E FERRAMENTAS: você tem 25 turnos e SÓ Read, Glob, Grep, Write,
+            TodoWrite e Bash com `git log`, `gh issue list`, `gh issue view`, `gh pr list`
+            e `ls`. NÃO existem `cat`, `grep`, `head`, `tail`, `wc`, `find` nem
+            `gh issue create` — cada tentativa é um turno perdido. Se o orçamento estiver
+            acabando, escreva o arquivo com o que já apurou.
           # `Bash(gh issue:*)` saiu: era o curinga mais largo da fábrica — autorizava
           # `gh issue create/edit/comment/close` em qualquer issue. Quem publica agora é o step
           # não-IA abaixo. Leitura continua por `gh issue list`, e os utilitários de leitura por
           # Bash saíram pelo motivo já registrado no [D-031]: não respeitam a `deny`.
-          claude_args: '--max-turns 15 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(git log:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh pr list:*),Bash(ls:*)"'
+          # `--max-turns` 15 → 25 (ver [D-035]): a FU-09 somou uma exigência a este agente
+          # (escrever o arquivo do relatório) e tirou ferramentas dele no mesmo movimento. O
+          # teto foi calibrado antes das duas mudanças.
+          claude_args: '--max-turns 25 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(git log:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh pr list:*),Bash(ls:*)"'
 
       # Publica o relatório (FU-09, issue #58): sem `Bash(gh issue:*)` no agente, quem abre a
       # issue é este step, não-IA, a partir do arquivo. Se o agente não escreveu nada, o job
