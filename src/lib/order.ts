@@ -8,14 +8,24 @@ export interface Person {
 	traits: string[];
 }
 
+/**
+ * Referência a uma foto do casal.
+ *
+ * `photoId` é a referência DURÁVEL — só o último segmento do caminho no Storage, gerado no
+ * SERVIDOR (`crypto.randomUUID()` na rota de upload, F1-05b). Guardar o caminho inteiro
+ * seria IDOR esperando acontecer: viria pronto do cliente e nada impediria
+ * `users/<uid-de-outro>/...`. O invariante de `$lib/server/signed-url.ts` é explícito — "o
+ * caminho do objeto é sempre montado aqui, a partir de ids validados, nunca recebido
+ * pronto" —, e quem gera a URL de leitura remonta com o `uid` da SESSÃO (achado MÉDIO da
+ * revisão de segurança do PR #67).
+ *
+ * `url` é assinada e EXPIRA em 10 min (`.claude/rules/security.md`: foto nunca fica
+ * pública), então é estado efêmero de UI — opcional, renovada sob demanda a partir do
+ * `photoId`, e sem valor algum depois de persistida.
+ */
 export interface PhotoReference {
-	url: string;
-	/**
-	 * Caminho no Storage (`photoObjectPath`, `src/lib/server/signed-url.ts`), aditivo
-	 * (F1-05c, issue #33): `url` assinada expira em minutos e não deve ser persistida;
-	 * o rascunho grava `path` e gera a URL de download sob demanda.
-	 */
-	path?: string;
+	photoId: string;
+	url?: string;
 	caption?: string;
 }
 

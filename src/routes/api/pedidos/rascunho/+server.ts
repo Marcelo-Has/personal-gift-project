@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { requireUid } from '$lib/server/auth';
-import { salvarRascunhoSchema } from '$lib/order-schema';
-import { carregarRascunho, salvarRascunho } from '$lib/server/orders';
+import { orderIdSchema, salvarRascunhoSchema } from '$lib/order-schema';
+import { carregarRascunho, PedidoNaoEditavelError, salvarRascunho } from '$lib/server/orders';
 import type { RequestHandler } from './$types';
 
 /**
@@ -32,7 +32,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const { orderId, questionnaire, choice } = resultado.data;
 
-	await salvarRascunho({ uid, orderId, dados: { questionnaire, choice } });
+	try {
+		await salvarRascunho({ uid, orderId, dados: { questionnaire, choice } });
+	} catch (erro) {
+		// 409 e não 500: o pedido existe e a requisição é válida — o que não bate é o estado.
+		if (erro instanceof PedidoNaoEditavelError) {
+			error(409, erro.message);
+		}
+		throw erro;
+	}
 
 	return json({ ok: true });
 };
@@ -40,10 +48,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 export const GET: RequestHandler = async ({ locals, url }) => {
 	const uid = requireUid(locals);
 
-	const orderId = url.searchParams.get('orderId');
-	if (!orderId) {
-		error(400, 'Parâmetro orderId é obrigatório.');
+	// Valida a FORMA aqui, com o mesmo schema do `POST`. Antes, o parâmetro cru descia até
+	// `assertSafeOrderId`, que lança `Error` comum — e `orderId` malformado virava 500 em vez
+	// de 400. O traversal já estava barrado; era o contrato que divergia entre os dois verbos.
+	const parametro = orderIdSchema.safeParse(url.searchParams.get('orderId') ?? '');
+	if (!parametro.success) {
+		error(400, 'Parâmetro orderId ausente ou inválido.');
 	}
+	const orderId = parametro.data;
 
 	const rascunho = await carregarRascunho({ uid, orderId });
 	if (!rascunho) {

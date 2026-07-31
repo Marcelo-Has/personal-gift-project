@@ -17,6 +17,17 @@ import { getAdminFirestore } from './firebase-admin';
  */
 const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
+/**
+ * Pedido que já saiu do rascunho não é editável por esta rota. Erro tipado, e não `Error`
+ * genérico, porque o handler precisa distinguir isto (409) de falha de infraestrutura (500).
+ */
+export class PedidoNaoEditavelError extends Error {
+	constructor() {
+		super('Pedido não está mais em rascunho e não pode ser alterado.');
+		this.name = 'PedidoNaoEditavelError';
+	}
+}
+
 function assertSafeOrderId(orderId: string): void {
 	if (!SAFE_ID.test(orderId)) {
 		throw new Error(
@@ -71,6 +82,18 @@ export async function salvarRascunho(
 ): Promise<void> {
 	const ref = store.doc(orderPath(uid, orderId));
 	const existente = await ref.get();
+
+	// Pedido que já saiu do rascunho não volta atrás por esta rota (achado MÉDIO da revisão
+	// de segurança do PR #67). Sem isto, um POST em `orderId` existente rebaixaria o `status`
+	// e sobrescreveria `questionnaire`/`choice` seja qual for o estado — reabrindo pelo
+	// servidor exatamente o que `firestore.rules` fecha no cliente ("o comprador não altera o
+	// próprio pedido"). Hoje não há superfície, porque só existe `'rascunho'`; quando o F1-07
+	// introduzir `aguardando_pagamento`/`pago`, isto vira alteração de pedido pago se ninguém
+	// lembrar. É mais barato fechar agora, com o estado ainda vazio.
+	const statusAtual = (existente.data() as { status?: OrderStatus } | undefined)?.status;
+	if (existente.exists && statusAtual && statusAtual !== 'rascunho') {
+		throw new PedidoNaoEditavelError();
+	}
 
 	const payload: Record<string, unknown> = {
 		...dados,

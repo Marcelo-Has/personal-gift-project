@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { carregarRascunho, salvarRascunho, type OrderStore } from './orders';
+import {
+	carregarRascunho,
+	PedidoNaoEditavelError,
+	salvarRascunho,
+	type OrderStore
+} from './orders';
 
 /**
  * Firestore falso: é dependência externa (`.claude/rules/testing.md`), então é
@@ -124,6 +129,48 @@ describe('salvarRascunho', () => {
 		await salvarRascunho({ uid: 'uid-alice', orderId: 'pedido-1', dados: {} }, store);
 
 		expect(docs.get('users/uid-alice/orders/pedido-1')?.status).toBe('rascunho');
+	});
+
+	// Sem esta trava, um POST rebaixaria o status de um pedido pago de volta para rascunho e
+	// sobrescreveria o conteúdo — reabrindo pelo servidor o que `firestore.rules` fecha no
+	// cliente. Hoje só existe `'rascunho'`; a trava existe para o F1-07 não herdar o buraco.
+	it.each(['aguardando_pagamento', 'pago'])(
+		'deve recusar alteração e não escrever nada quando o status já é %s',
+		async (status) => {
+			const { store, calls, docs } = fakeStore({
+				'users/uid-alice/orders/pedido-1': { status, questionnaire: { howTheyMet: 'original' } }
+			});
+
+			await expect(
+				salvarRascunho(
+					{
+						uid: 'uid-alice',
+						orderId: 'pedido-1',
+						dados: { questionnaire: { howTheyMet: 'sobrescrito' } }
+					},
+					store
+				)
+			).rejects.toThrow(PedidoNaoEditavelError);
+
+			expect(calls.filter((chamada) => chamada.method === 'set')).toHaveLength(0);
+			const doc = docs.get('users/uid-alice/orders/pedido-1');
+			expect(doc?.status).toBe(status);
+			expect((doc?.questionnaire as { howTheyMet?: string })?.howTheyMet).toBe('original');
+		}
+	);
+
+	it('deve continuar aceitando escrita quando o pedido existente ainda é rascunho', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'rascunho' }
+		});
+
+		await salvarRascunho(
+			{ uid: 'uid-alice', orderId: 'pedido-1', dados: { questionnaire: { howTheyMet: 'novo' } } },
+			store
+		);
+
+		const doc = docs.get('users/uid-alice/orders/pedido-1');
+		expect((doc?.questionnaire as { howTheyMet?: string })?.howTheyMet).toBe('novo');
 	});
 
 	it.each([

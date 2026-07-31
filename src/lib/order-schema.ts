@@ -22,17 +22,21 @@ export const personSchema = z.object({
 
 export const peopleSchema = z.tuple([personSchema, personSchema]);
 
+// `photoId` identifica a foto; `url` é assinada, expira em 10 min e só serve de preview
+// (ver `PhotoReference` em `./order.ts`). Mesma allow-list de `orderIdSchema`/`signed-url.ts`,
+// e não um `min(1)` qualquer: este id vem do cliente e vira segmento de caminho no Storage,
+// então sem a âncora o `../` passaria — achado MÉDIO da revisão de segurança do PR #67.
 export const photoSchema = z.object({
-	url: z.string().trim().min(1, 'URL da foto é obrigatória.'),
-	// Aditivo (F1-05c, issue #33): caminho no Storage, persistido no lugar da URL
-	// assinada (que expira). Ver `PhotoReference` em `src/lib/order.ts`.
-	path: z.string().trim().min(1, 'Caminho da foto inválido.').optional(),
+	photoId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'ID de foto inválido.'),
+	url: z.string().trim().min(1).max(2048, 'URL muito longa.').optional(),
 	caption: z.string().trim().max(200, 'Legenda muito longa.').optional()
 });
 
-// F1-05b: exigir ao menos 1 foto quando o upload existir. Sem upload nesta issue, o
-// array vazio é válido para não travar o fluxo.
-export const photosSchema = z.array(photoSchema);
+// Teto explícito, como em todos os outros arrays deste arquivo. `photos` era a exceção, e
+// esta issue é a primeira a levar o schema para uma rota de servidor que ESCREVE: sem o
+// `.max()`, um único POST carregaria dezenas de milhares de entradas.
+// Exigir ao menos 1 foto é decisão de produto ainda não tomada — lista vazia segue válida.
+export const photosSchema = z.array(photoSchema).max(20, 'No máximo 20 fotos.');
 
 export const howTheyMetSchema = z
 	.string()

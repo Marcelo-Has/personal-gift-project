@@ -9,9 +9,18 @@ import type { RequestHandler } from './$types';
 const salvarRascunhoMock = vi.fn();
 const carregarRascunhoMock = vi.fn();
 
+/** Mesma classe do módulo real: o handler distingue por `instanceof` para responder 409. */
+class PedidoNaoEditavelError extends Error {
+	constructor() {
+		super('Pedido não está mais em rascunho e não pode ser alterado.');
+		this.name = 'PedidoNaoEditavelError';
+	}
+}
+
 vi.mock('$lib/server/orders', () => ({
 	salvarRascunho: (...args: unknown[]) => salvarRascunhoMock(...args),
-	carregarRascunho: (...args: unknown[]) => carregarRascunhoMock(...args)
+	carregarRascunho: (...args: unknown[]) => carregarRascunhoMock(...args),
+	PedidoNaoEditavelError
 }));
 
 const { GET, POST } = await import('./+server');
@@ -77,6 +86,18 @@ describe('POST /api/pedidos/rascunho', () => {
 		expect(salvarRascunhoMock).not.toHaveBeenCalled();
 	});
 
+	// 409 e não 500: a requisição é válida, o que não bate é o estado do pedido. Sem isto, um
+	// POST rebaixaria pedido pago para rascunho — o buraco que a trava em `orders.ts` fecha.
+	it('deve responder 409 quando o pedido já saiu do rascunho', async () => {
+		salvarRascunhoMock.mockRejectedValue(new PedidoNaoEditavelError());
+
+		const resposta = status(
+			POST(eventoPost({ orderId: 'pedido-1', questionnaire: QUESTIONARIO_VALIDO }, 'uid-alice'))
+		);
+
+		expect(await resposta).toBe(409);
+	});
+
 	it('deve responder 400 e não escrever nada quando o corpo não é JSON', async () => {
 		expect(await status(POST(eventoPost('{ isso não é json', 'uid-alice')))).toBe(400);
 		expect(salvarRascunhoMock).not.toHaveBeenCalled();
@@ -138,6 +159,17 @@ describe('GET /api/pedidos/rascunho', () => {
 		expect(await status(GET(eventoGet(null, 'uid-alice')))).toBe(400);
 		expect(carregarRascunhoMock).not.toHaveBeenCalled();
 	});
+
+	// Antes, o parâmetro cru descia até `assertSafeOrderId` e o `Error` comum de lá virava
+	// 500. O traversal já estava barrado; era o contrato que divergia do `POST`, que valida
+	// o mesmo id com Zod e responde 400.
+	it.each(['../outro', '../../etc/passwd', 'pedido com espaco', 'a'.repeat(129)])(
+		'deve responder 400 (não 500) quando o orderId é malformado: %j',
+		async (orderId) => {
+			expect(await status(GET(eventoGet(orderId, 'uid-alice')))).toBe(400);
+			expect(carregarRascunhoMock).not.toHaveBeenCalled();
+		}
+	);
 
 	it('deve devolver o rascunho do dono quando ele existe', async () => {
 		carregarRascunhoMock.mockResolvedValue({
