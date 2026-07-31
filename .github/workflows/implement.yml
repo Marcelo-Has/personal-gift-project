@@ -147,14 +147,23 @@ jobs:
                no teto de turnos antes do primeiro commit — o trabalho todo foi perdido com
                o runner. Commit empurrado é a única coisa que sobrevive a você.
 
-            3. Ao concluir de fato (`npm run lint` e `npm test` rodados, critérios de aceite
-               atendidos), marque a entrega como completa:
+            3. ANTES de fechar o ciclo, atualize `docs/ROADMAP.md` NO MESMO PR (FU-16, D-045).
+               Se a issue tem código `Fx-yy` no título, marque a linha dela como `[x]`; se a
+               issue manda acrescentar uma linha nova (o Supervisor declara a linha exata
+               quando decompõe um item), acrescente-a já marcada. Item pai só vira `[x]`
+               quando todos os sub-itens estiverem `[x]`. Issue `FU-xx` NÃO tem linha no
+               ROADMAP — não invente uma; a exceção é o FU que conclui um item já planejado,
+               aí marque a linha existente. O Supervisor escolhe a próxima fronteira lendo
+               esse arquivo: sem esta marcação ele planeja contra um mapa errado.
+
+            4. Ao concluir de fato (`npm run lint` e `npm test` rodados, critérios de aceite
+               atendidos, ROADMAP atualizado), marque a entrega como completa:
                  gh pr edit --title "<título sem [WIP]>" \
                    --remove-label 'entrega:incompleta' --add-label 'entrega:completa'
                e marque a checkbox "Entrega completa" no corpo do PR.
                NUNCA marque `entrega:completa` sem ter rodado lint e test.
 
-            4. NUNCA termine sem um destes desfechos: (a) PR aberto referenciando a issue;
+            5. NUNCA termine sem um destes desfechos: (a) PR aberto referenciando a issue;
                (b) issue `decision-needed` criada, se a tarefa cair num Decision Gate de
                docs/AUTONOMY.md — nesse caso não adivinhe, registre Opções + Recomendação +
                o que bloqueia, e **cite `#N` no corpo dela** (o guard-rail só aceita como
@@ -170,7 +179,7 @@ jobs:
                PR fica na lista indistinguível de um WIP andando, e ninguém descobre que
                está esperando decisão humana.
 
-            5. Se o orçamento de turnos estiver acabando, PARE de codar e garanta o desfecho
+            6. Se o orçamento de turnos estiver acabando, PARE de codar e garanta o desfecho
                (a) com o que já existe: deixe `entrega:incompleta`, mantenha o `[WIP]` no
                título e liste no corpo do PR exatamente o que falta.
 

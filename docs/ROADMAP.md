@@ -8,6 +8,27 @@
 > **[gate D-xxx]** = toca uma decisão PENDENTE → criar como `decision-needed`, não `status:ready`.
 > Detalhe de cada issue no padrão de `FASE-1-issues.md`.
 
+## Quem mantém este arquivo (FU-16, [D-045])
+
+Este arquivo **não é histórico**: o Supervisor decide a próxima fronteira lendo-o. Um ROADMAP
+defasado faz a fábrica planejar contra um mapa errado. Por isso a manutenção é obrigação de
+quem entrega, no mesmo PR — não tarefa separada que alguém precisa lembrar:
+
+- **Marcar `[x]` é do Developer**, no PR que fecha a issue. Issue com código `Fx-yy` no título
+  → a linha correspondente vira `[x]` no mesmo commit. Nunca antes: `[x]` significa
+  *mergeado*, e é o merge do PR que torna a marca verdadeira.
+- **Item novo é do Supervisor propor, do Developer escrever.** O Supervisor é read-only por
+  desenho ([D-031]); quando decompõe um item (F1-05 → F1-05a/b/c) ou descobre trabalho de
+  produto que o plano não previa, ele declara na issue a **linha exata** a acrescentar, e o
+  Developer a escreve no PR. Item pai só vira `[x]` quando todos os sub-itens estiverem `[x]`.
+- **FU-xx NÃO entra aqui.** Follow-up de revisão e conserto de fábrica vive como issue e como
+  entrada em `DECISIONS.md`. Este arquivo é o plano de fases do **produto**; encher de FU
+  transforma o mapa em log e o Supervisor perde a fronteira de vista. A exceção é quando um
+  FU conclui um item que já estava no plano — aí a linha existente é marcada (foi o caso do
+  F5-04, concluído pelo FU-15).
+- **A deriva é medida sem IA:** `daily-report.yml` cruza as issues fechadas com código `Fx-yy`
+  contra este arquivo e denuncia no relatório diário o que ficou por marcar.
+
 ---
 
 ## FASE 0 — A fábrica de IA  ✅ concluída
@@ -28,20 +49,29 @@ diagnóstico das negações do Reviewer no 1º PR real, e ajuste de cadência/cu
 DoD: um app SvelteKit que builda, com Firebase seguro, questionário com upload seguro,
 seleção de estilo/tamanho e checkout Stripe em teste, com deploy de staging.
 
-- [ ] **F1-01** — Scaffold SvelteKit + toolchain (lint/test/build). *Bloqueia todas.*
-- [ ] **F1-02** — Modelo de domínio do Pedido + leitura do registry (`published`/`draft`).
-- [ ] **F1-03** — Landing page "Nossa História".
-- [ ] **F1-04** — Firebase: config + regras mínimas (Auth/Firestore/Storage) + signed URLs.
+- [x] **F1-01** — Scaffold SvelteKit + toolchain (lint/test/build). *Bloqueia todas.* (#7)
+- [x] **F1-02** — Modelo de domínio do Pedido + leitura do registry (`published`/`draft`). (#20)
+- [x] **F1-03** — Landing page "Nossa História". (#21)
+- [x] **F1-04** — Firebase: config + regras mínimas (Auth/Firestore/Storage) + signed URLs. (#22)
       **CSP:** liberar `connect-src` para os hosts do Firebase (Auth/Firestore) — ver nota abaixo.
-- [ ] **F1-05** — Questionário guiado (multi-step) + upload seguro de fotos.
+- [x] **F1-05** — Questionário guiado (multi-step) + upload seguro de fotos.
+      Decomposto em quatro entregas; o pai fecha porque as quatro fecharam.
       **CSP:** as URLs assinadas vêm de outro domínio (`firebasestorage.googleapis.com`); sem
       liberar `img-src`/`connect-src`, a foto simplesmente não carrega e o erro só aparece no
       console do navegador — ver nota abaixo.
-- [ ] **F1-06** — Seleção de estilo e tamanho (lê catálogo `published`; trata vazio).
+  - [x] **F1-05a** — Esqueleto multi-step: estado e validação por etapa. (#30)
+  - [x] **F1-05a2** — Sessão anônima (Firebase Anonymous Auth) + `uid` verificado no servidor. (#31)
+  - [x] **F1-05b** — Upload de fotos por URL assinada. (#32)
+  - [x] **F1-05c** — Rascunho do Pedido no Firestore (status pré-pagamento). (#33)
+- [x] **F1-06** — Seleção de estilo e tamanho (lê catálogo `published`; trata vazio). (#34)
 - [ ] **F1-07** — Stripe modo teste: checkout + webhook com assinatura verificada.
+      Desbloqueado: o *modelo* de preço saiu do gate em [D-036] (só por tamanho). Os **números**
+      continuam no D-101, mas não bloqueiam o modo teste.
       **CSP:** o Checkout exige `script-src https://js.stripe.com` e `frame-src` — ver nota abaixo.
-- [ ] **F1-08** — [D-018: Netlify] Host/infra + deploy automático de **staging**.
+- [x] **F1-08** — [D-018: Netlify] Host/infra + deploy automático de **staging**. (#35)
       **CSP:** rota pré-renderizada não passa pelo `handle`; fixar os headers na camada de CDN/edge.
+  - [x] **F1-08b** — Deploy reprovado pelo secrets scanning: `FIREBASE_PROJECT_ID` é o nome do
+        repositório. (#51)
 
 > **Nota de CSP (FU-01, PR #13).** A CSP em `svelte.config.js` é restritiva por design
 > (`default-src 'self'`) e **vai bloquear** Firebase e Stripe até ser afrouxada nas tarefas acima.
@@ -101,7 +131,9 @@ conformidade revisadas.
 - [ ] **F5-01** — Revisão de segurança dedicada (authZ, regras Firebase, segredos, SCA, pen-test básico).
 - [ ] **F5-02** — [gate LGPD] Privacidade e termos revisados por você/contador/advogado.
 - [ ] **F5-03** — [gate D-105/D-106/D-101] Definir catálogo público (estilos, tamanhos, preços) e publicar no registry.
-- [ ] **F5-04** — Branch protection real na `main` (GitHub Pro) — enforcement do D-014.
+- [x] **F5-04** — Branch protection real na `main` — enforcement do D-014. Antecipado pelo FU-15
+      (#77): o repositório virou público e a proteção deixou de exigir GitHub Pro. Ver [D-041],
+      inclusive o que **não** morreu do impasse e os dois limites registrados.
 - [ ] **F5-05** — [gate] Stripe modo **real** + primeiro deploy em **prod**.
 - [ ] **F5-06** — E2E do fluxo completo de compra (por estilo e tamanho).
 - [ ] **F5-07** — **Primeira venda real** de ponta a ponta, sem intervenção manual.
@@ -124,3 +156,6 @@ DoD: crescer catálogo e mercado reusando a mesma fábrica.
 3. Respeitar as dependências (ex.: F1-01 antes de tudo; motor F2-06 depende das skills F2-02/03/05).
 4. Preferir tarefas que desbloqueiam outras.
 5. Segurança e observabilidade de custo caminham com cada fase, não só no fim.
+6. Ao decompor um item ou criar tarefa de produto que o plano não previa, **declarar na issue a
+   linha exata do ROADMAP** a acrescentar (código, fase e posição). Você não escreve o arquivo;
+   quem escreve é o Developer, no PR. Ver "Quem mantém este arquivo", no topo.

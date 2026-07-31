@@ -72,6 +72,41 @@ jobs:
             | "- **\(.workflowName)** em `\(.headBranch)` — \(.displayTitle) (\(.createdAt)) — \(.url)"
           ' "${RUNNER_TEMP}/runs.json" > "${RUNNER_TEMP}/runs-vermelhos.txt"
 
+          # Deriva do ROADMAP (FU-16, [D-045]). O `docs/ROADMAP.md` é o que o Supervisor lê para
+          # escolher a próxima fronteira; quando ele fica para trás, a fábrica planeja contra um
+          # mapa errado — e o sintoma é silencioso, porque nenhum check fica vermelho por isso.
+          # Foi assim que sete itens da FASE 1 ficaram `[ ]` depois de mergeados.
+          #
+          # Aqui é SINAL, não gate: reprovar o `ci` de um PR de código por marcação de documento
+          # seria desproporcional (`.claude/rules/right-sizing.md`). Quem marca é o Developer, no
+          # PR que fecha a issue; este step só denuncia o que escapou.
+          #
+          # Falso-positivo conhecido e aceito: issue fechada como duplicada ou substituída (foi o
+          # caso de #26/#27/#29) aparece aqui como deriva. Custo de uma linha a mais no relatório
+          # contra o custo de não enxergar a deriva de verdade — barato, e some assim que a linha
+          # do item for marcada.
+          gh issue list --state closed --limit 200 --json number,title,url \
+            > "${RUNNER_TEMP}/issues-fechadas.json"
+          # `[a-z0-9]*` no fim porque a fábrica decompõe item em sufixo de letra e número
+          # (F1-05a, F1-05a2, F1-08b). `FU-xx` não casa de propósito: follow-up de fábrica não
+          # tem linha no ROADMAP.
+          jq -r '
+            .[]
+            | select(.title | test("\\[F[0-9]+-[0-9]+[a-z0-9]*\\]"))
+            | "\(.title | capture("\\[(?<c>F[0-9]+-[0-9]+[a-z0-9]*)\\]").c)\t#\(.number)\t\(.url)"
+          ' "${RUNNER_TEMP}/issues-fechadas.json" \
+            | sort -u | awk -F'\t' '!visto[$1]++' > "${RUNNER_TEMP}/codigos-fechados.tsv"
+
+          : > "${RUNNER_TEMP}/roadmap-deriva.txt"
+          while IFS=$'\t' read -r codigo num url; do
+            [ -n "$codigo" ] || continue
+            if ! grep -q -- "\*\*${codigo}\*\*" docs/ROADMAP.md; then
+              echo "- \`${codigo}\` (${num}) — issue fechada e o código **não existe** no ROADMAP — ${url}"
+            elif ! grep -qE -- "^ *- \[x\] \*\*${codigo}\*\*" docs/ROADMAP.md; then
+              echo "- \`${codigo}\` (${num}) — issue fechada e a linha do ROADMAP continua \`[ ]\` — ${url}"
+            fi
+          done < "${RUNNER_TEMP}/codigos-fechados.tsv" >> "${RUNNER_TEMP}/roadmap-deriva.txt"
+
           : > "$SINAIS"
           if [ -s "${RUNNER_TEMP}/prs-parados.txt" ] || [ -s "${RUNNER_TEMP}/runs-vermelhos.txt" ]; then
             {
@@ -100,6 +135,26 @@ jobs:
             echo "::warning::Há sinais de fábrica parada — ver a issue do relatório de hoje."
           else
             echo "Nenhum PR parado e nenhum run de agente vermelho nas últimas 24h."
+          fi
+
+          # Seção própria e append: deriva de ROADMAP não é "fábrica parada" (a fábrica pode
+          # estar produzindo bem e mesmo assim deixar o mapa para trás). Misturar as duas
+          # debaixo do mesmo título faria o leitor descartar uma pela outra.
+          if [ -s "${RUNNER_TEMP}/roadmap-deriva.txt" ]; then
+            {
+              echo "## 🗺️ ROADMAP fora de sincronia (FU-16)"
+              echo
+              echo "Issues fechadas cujo item de \`docs/ROADMAP.md\` não acompanhou. Quem marca é o"
+              echo "Developer, no PR que fecha a issue ([D-045]) — o que está aqui escapou disso:"
+              echo
+              cat "${RUNNER_TEMP}/roadmap-deriva.txt"
+              echo
+              echo "> Issue fechada como duplicada ou substituída também aparece nesta lista."
+              echo
+            } >> "$SINAIS"
+            echo "::warning::ROADMAP fora de sincronia — ver a issue do relatório de hoje."
+          else
+            echo "ROADMAP em sincronia com as issues fechadas."
           fi
 
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
