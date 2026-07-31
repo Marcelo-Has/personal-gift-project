@@ -1210,8 +1210,37 @@ Teto é limite, não orçamento gasto: subir não custa nada em run que termina 
 do veredito com o que já se tem. Revisão parcial publicada vale mais que job vermelho sem nada —
 e o guard-rail da [D-037] transforma "sem nada" em vermelho, corretamente.
 
----
-## PENDENTES (Decision Gates antes do lançamento)
+## D-039 | 2026-07-31 | ACEITA
+**O repositório virou PÚBLICO, e isso disparou um ADIAR que estava escrito nos workflows há
+semanas.** `verdict.yml` e `fix.yml` traziam, no `if` do job, um comentário nestes termos:
+
+> `workflow_run` roda privilegiado no repo base, com segredos, mesmo quando o CI que o
+> disparou veio de um PR de fork. Repo privado de dono único hoje — sem fork de terceiro.
+> **Ao virar público OU entrar colaborador**, somar aos DOIS workflows:
+> `github.event.workflow_run.head_repository.full_name == github.repository`
+
+A condição passou a valer no instante em que a visibilidade mudou: num repo público, qualquer
+pessoa forka e abre PR. **Gate aplicado nos dois arquivos.**
+
+**Por que era urgente, e não mais um item de higiene.** `workflow_run` é o único gatilho da
+fábrica que roda com segredos a partir de ação de terceiro. No `verdict.yml` isso significaria
+`ANTHROPIC_API_KEY` e um agente lendo o conteúdo do PR de um estranho. No `fix.yml` é pior:
+`contents: write` mais `Bash(git:*)`/`Bash(node:*)`/`Bash(npx:*)` — execução arbitrária com
+token de escrita, disparada por qualquer PR de fork cujo CI falhe. Os outros gatilhos já
+estavam cobertos e continuam: `claude.yml` e `implement.yml` exigem `author_association ==
+'OWNER'` no caminho de comentário; `supervisor.yml`/`daily-report.yml` são `schedule`/
+`workflow_dispatch`; `review.yml`/`security.yml` rodam em `pull_request`, que **não** entrega
+segredo a fork.
+
+**Consequência aceita:** PR vindo de fork não recebe veredito automático nem autocorreção. É a
+troca certa — o veredito é conveniência, o segredo não é. Se um dia houver contribuição externa
+de verdade, o caminho é um fluxo com aprovação humana explícita, não afrouxar este gate.
+
+**Efeito colateral bom, a explorar:** o [D-014] existe porque *branch protection* exigia GitHub
+Pro em repositório privado, e é a origem de todo o `merge-manual` e dos guard-rails de
+"veredito publicado". **Em repositório público, branch protection é gratuita.** O impasse pode
+deixar de existir — vira issue própria, porque desmontar os guard-rails que hoje substituem a
+proteção de branch é decisão de desenho, não ajuste de config.
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
   por SKU). O *modelo* de preço já foi decidido em [D-036] (só por tamanho; estilo não altera
