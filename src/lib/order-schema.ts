@@ -22,11 +22,14 @@ export const personSchema = z.object({
 
 export const peopleSchema = z.tuple([personSchema, personSchema]);
 
-// `path` é o que identifica a foto de verdade; `url` é assinada, expira em 10 min e existe
+// `photoId` é o que identifica a foto de verdade; `url` é assinada, expira em 10 min e existe
 // só para o preview da sessão (ver `PhotoReference` em `./order.ts`). Exigir `url` aqui faria
 // a persistência guardar uma URL morta — achado da revisão do PR #66.
+//
+// A mesma allow-list de `signed-url.ts`/`orders.ts`, e não um `min(1)` qualquer: este id vem
+// do cliente e vira segmento de caminho no Storage. Sem a âncora, `../` passaria.
 export const photoSchema = z.object({
-	path: z.string().trim().min(1, 'Caminho da foto é obrigatório.'),
+	photoId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'ID de foto inválido.'),
 	url: z.string().trim().min(1).optional(),
 	caption: z.string().trim().max(200, 'Legenda muito longa.').optional()
 });

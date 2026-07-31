@@ -124,8 +124,8 @@
 				photoId: extrairPhotoId(upload.path),
 				idToken
 			});
-			// `path` é o que fica; `url` é só o preview desta sessão e expira em 10 min.
-			questionario.photos.push({ path: upload.path, url: download.url });
+			// `photoId` é o que fica; `url` é só o preview desta sessão e expira em 10 min.
+			questionario.photos.push({ photoId: extrairPhotoId(upload.path), url: download.url });
 
 			const item = itensFoto.find((item) => item.id === id);
 			if (item) item.status = 'concluida';
@@ -141,7 +141,7 @@
 	/**
 	 * Renova as URLs de preview ao entrar na etapa de fotos. Elas expiram em 10 minutos e o
 	 * questionário tem 9 etapas: sem isto, quem envia as fotos cedo e volta depois vê `<img>`
-	 * quebrado (achado da revisão do PR #66). O `path` é durável e é o que permite renovar.
+	 * quebrado (achado da revisão do PR #66). O `photoId` é durável e é o que permite renovar,
 	 * Melhor esforço, como o resto do fluxo: falhar aqui não trava o preenchimento.
 	 */
 	$effect(() => {
@@ -155,13 +155,13 @@
 				for (const foto of semPreview) {
 					const download = await solicitarUrlDeDownload({
 						orderId: orderIdRascunho,
-						photoId: extrairPhotoId(foto.path),
+						photoId: foto.photoId,
 						idToken
 					});
 					foto.url = download.url;
 				}
 			} catch {
-				// Sem sessão/rede: o preview fica sem imagem, mas o `path` continua guardado.
+				// Sem sessão/rede: preview sem imagem, mas o `photoId` continua guardado.
 			}
 		})();
 	});
@@ -230,9 +230,9 @@
 		{/if}
 
 		{#if questionario.photos.length > 0}
-			<!-- Chave é o `path`, não a `url`: a url é renovada e trocaria a identidade do item. -->
+			<!-- Chave é o `photoId`, não a `url`: a url é renovada e trocaria a identidade do item. -->
 			<ul class="preview-fotos">
-				{#each questionario.photos as foto, indice (foto.path)}
+				{#each questionario.photos as foto, indice (foto.photoId)}
 					<li>
 						{#if foto.url}
 							<img src={foto.url} alt="Foto enviada do casal" />
