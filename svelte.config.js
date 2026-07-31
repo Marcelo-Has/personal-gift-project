@@ -25,9 +25,10 @@ const config = {
 		// 3. `connect-src` (F1-04): liberados só os hosts que o Firebase realmente
 		//    usa — Auth (`identitytoolkit`/`securetoken`), Firestore e o Google Cloud
 		//    Storage, destino das URLs assinadas de foto. `script-src` continua em
-		//    `self`: o SDK do Firebase vem do bundle, não de CDN. `img-src` ainda NÃO
-		//    foi liberado porque nenhuma tela exibe foto; isso entra em F1-05, junto
-		//    com a tela que precisa.
+		//    `self`: o SDK do Firebase vem do bundle, não de CDN. `img-src` (F1-05b)
+		//    libera só `storage.googleapis.com` — o host que `getSignedUrl` do
+		//    `@google-cloud/storage` devolve (confirmado em `signed-url.test.ts`), não
+		//    `firebasestorage.googleapis.com` — para exibir o preview da foto enviada.
 		csp: {
 			mode: 'auto',
 			directives: {
@@ -37,7 +38,7 @@ const config = {
 				'form-action': ['self'],
 				'frame-ancestors': ['none'],
 				'script-src': ['self'],
-				'img-src': ['self', 'data:'],
+				'img-src': ['self', 'data:', 'https://storage.googleapis.com'],
 				'connect-src': [
 					'self',
 					'https://identitytoolkit.googleapis.com',

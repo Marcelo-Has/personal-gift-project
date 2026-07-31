@@ -31,6 +31,22 @@ describe('CSP configurada em svelte.config.js', () => {
 		expect(csp?.directives?.['script-src']).toEqual(['self']);
 	});
 
+	describe('img-src liberado para o Storage (F1-05b)', () => {
+		const imgSrc = csp?.directives?.['img-src'] ?? [];
+
+		it('deve liberar self, data: e o host do Storage quando o app exibe preview de foto', () => {
+			expect(imgSrc).toEqual(
+				expect.arrayContaining(['self', 'data:', 'https://storage.googleapis.com'])
+			);
+		});
+
+		it('deve usar allow-list de hosts específicos, sem curinga, ao liberar terceiros', () => {
+			for (const origem of imgSrc) {
+				expect(origem).not.toContain('*');
+			}
+		});
+	});
+
 	describe('connect-src liberado para o Firebase (F1-04)', () => {
 		const connectSrc = csp?.directives?.['connect-src'] ?? [];
 

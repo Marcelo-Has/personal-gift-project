@@ -22,13 +22,20 @@ export const personSchema = z.object({
 
 export const peopleSchema = z.tuple([personSchema, personSchema]);
 
+// `photoId` é o que identifica a foto de verdade; `url` é assinada, expira em 10 min e existe
+// só para o preview da sessão (ver `PhotoReference` em `./order.ts`). Exigir `url` aqui faria
+// a persistência guardar uma URL morta — achado da revisão do PR #66.
+//
+// A mesma allow-list de `signed-url.ts`/`orders.ts`, e não um `min(1)` qualquer: este id vem
+// do cliente e vira segmento de caminho no Storage. Sem a âncora, `../` passaria.
 export const photoSchema = z.object({
-	url: z.string().trim().min(1, 'URL da foto é obrigatória.'),
+	photoId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'ID de foto inválido.'),
+	url: z.string().trim().min(1).optional(),
 	caption: z.string().trim().max(200, 'Legenda muito longa.').optional()
 });
 
-// F1-05b: exigir ao menos 1 foto quando o upload existir. Sem upload nesta issue, o
-// array vazio é válido para não travar o fluxo.
+// O upload existe desde F1-05b (issue #32), mas exigir ao menos 1 foto é decisão de
+// produto/UX ainda não tomada — lista vazia continua válida para não travar o fluxo.
 export const photosSchema = z.array(photoSchema);
 
 export const howTheyMetSchema = z
