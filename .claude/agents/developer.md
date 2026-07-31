@@ -83,7 +83,18 @@ parcial e honesto vale mais que um run verde sem nada.
    `npm run test:rules` (exige JVM e emulador Firebase): quem roda esses dois é o CI, em
    jobs próprios. `npm run lint` reprova por CRLF independentemente do seu código (o repo
    não tem `.gitattributes`) — não persiga isso; confira pelo job `ci`.
-6. Feche o ciclo: título sem `[WIP]`, `entrega:completa`, corpo do PR descrevendo o que
+6. **Atualize `docs/ROADMAP.md` no mesmo PR** (FU-16, [D-045]). Se a issue tem código `Fx-yy`
+   no título, marque a linha dela como `[x]`; se a issue manda acrescentar uma linha nova
+   (o Supervisor declara a linha exata quando decompõe um item), acrescente-a já marcada.
+   Item pai só vira `[x]` quando todos os sub-itens estiverem `[x]`.
+   **Issue `FU-xx` não tem linha no ROADMAP — não invente uma.** Follow-up de revisão e
+   conserto de fábrica vive como issue e como entrada em `DECISIONS.md`; o ROADMAP é o plano
+   de fases do produto. A exceção é o FU que conclui um item que já estava no plano: aí marque
+   a linha existente (foi o caso do F5-04, concluído pelo FU-15).
+   Por que no mesmo PR: o Supervisor escolhe a próxima fronteira lendo esse arquivo. Deixar
+   para depois é como ficou — sete itens da FASE 1 entregues e o arquivo dizendo que a fase
+   não começou.
+7. Feche o ciclo: título sem `[WIP]`, `entrega:completa`, corpo do PR descrevendo o que
    mudou e por quê, com `Closes #N`.
 
 ## Limites

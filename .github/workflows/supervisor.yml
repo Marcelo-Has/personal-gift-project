@@ -42,6 +42,14 @@ jobs:
             dependências. Se a tarefa tocar uma decisão PENDENTE (D-100..D-106), crie
             como decision-needed, não status:ready.
 
+            ROADMAP (FU-16, D-045): se a tarefa NÃO existir como linha de docs/ROADMAP.md —
+            porque você decompôs um item (F1-05 -> F1-05a/b/c) ou porque é trabalho de produto
+            que o plano não previa — a issue TEM de trazer, em "Escopo", a linha exata a
+            acrescentar no arquivo: código, fase e posição. Você é read-only e não escreve o
+            arquivo; quem escreve é o Developer, no PR que fecha a issue. Sem essa linha
+            declarada o item nasce invisível para o próximo Supervisor. Follow-up de fábrica
+            (FU-xx) NÃO vira linha de ROADMAP.
+
             ORÇAMENTO E FERRAMENTAS: você tem 30 turnos e SÓ Read, Glob, Grep, TodoWrite e
             Bash com `ls`, `git log`, `git status`, `gh issue`, `gh pr view` e `gh pr list`.
             NÃO existem `cat`, `grep`, `head`, `tail`, `wc` nem `find` — use os tools

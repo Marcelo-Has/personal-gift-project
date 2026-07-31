@@ -1499,6 +1499,63 @@ rodada): disparar `implement.yml` contra a branch faz a `claude-code-action` res
 valida **depois** do merge. O que dá para verificar antes — e foi verificado — é que o YAML
 continua válido e que os dois comandos já estavam autorizados.
 
+## D-045 | 2026-07-31 | ACEITA
+**[FU-16] O ROADMAP passa a ser escrito por quem entrega, no mesmo PR — e a deriva vira sinal
+diário não-IA.** Fecha a issue #82.
+
+**O buraco: o arquivo tinha três leitores e nenhum escritor.** `supervisor.yml` lê o
+`docs/ROADMAP.md` para escolher a fronteira, o `/new-issue` o lê para saber se o item é `[gate]`,
+e o `daily-report.yml` promete listar "itens do ROADMAP que avançaram". Ninguém tinha a obrigação
+de escrevê-lo — e o Supervisor nem tem a **capacidade**: `permissions: contents: read` e
+`--allowed-tools` sem `Edit`/`Write`, poda deliberada do FU-09 ([D-031]). O Developer tem as duas
+ferramentas, mas nem `developer.md` nem o prompt de `implement.yml` mencionavam o arquivo. Ele foi
+escrito à mão uma vez, na criação, e nunca mais.
+
+**O que a deriva já custava.** Sete itens da FASE 1 mergeados e ainda `[ ]` (F1-01 a F1-06 e
+F1-08); cinco itens que a própria fábrica criou por necessidade e que não existiam no arquivo
+(F1-05a, F1-05a2, F1-05b, F1-05c, F1-08b); e o F5-04, concluído pelo FU-15 ([D-041]), sem marca.
+Efeito prático: o Supervisor decidia a próxima tarefa lendo um mapa que dizia que a FASE 1 não
+havia começado. Ele acertava só porque cruzava com as issues fechadas — gastando turnos para
+reconstruir o que o arquivo deveria afirmar.
+
+**Decisão — marcar é do Developer, no mesmo PR que fecha a issue.** Não é tarefa separada nem
+passagem de bastão: issue com código `Fx-yy` no título → a linha vira `[x]` no mesmo commit.
+Nunca antes do merge, porque `[x]` significa *mergeado* e é o merge que torna a marca verdadeira;
+se o PR não for mergeado, a marca vai junto. Item pai só fecha quando todos os sub-itens fecharem.
+
+**Item novo: o Supervisor propõe a linha, o Developer a escreve.** A alternativa era dar
+`Edit`/`Write` + `contents: write` ao Supervisor. **Recusada:** reabriria a superfície que o FU-09
+fechou ([D-031]) — naquele workflow a poda dos leitores de Bash *fecha* o caminho em vez de só
+estreitá-lo, justamente porque ele não tem `node`/`npx`/`git`. Devolver escrita ali para resolver
+um problema que o Developer já resolve seria pagar em segurança por conveniência. Então quando o
+Supervisor decompõe um item ou descobre trabalho de produto não previsto, a issue traz a **linha
+exata** (código, fase e posição) e o Developer a escreve.
+
+**`FU-xx` não entra no ROADMAP.** Follow-up de revisão e conserto de fábrica vive como issue e
+como entrada aqui. O ROADMAP é o plano de fases do **produto**: enchê-lo de FU transforma o mapa
+em log e o Supervisor perde a fronteira de vista — que é a única coisa que ele vai buscar ali.
+Exceção registrada: FU que conclui item já planejado marca a linha existente (foi o F5-04/FU-15).
+
+**Sinal, não gate — e não-IA.** A verificação entra no `daily-report.yml`, junto do levantamento
+do FU-13 ([D-043]): cruza issues fechadas com código `Fx-yy` contra o arquivo e denuncia o que
+ficou por marcar ou não existe como linha. Não-IA pelo motivo do [D-043] — alarme feito por
+agente é silenciado pela mesma falha que deveria denunciar. **Sinal e não gate** por
+`.claude/rules/right-sizing.md`: reprovar o `ci` de um PR de código por causa de marcação de
+documento é atrito desproporcional ao risco, que é de planejamento, não de correção nem de dado
+de usuário. Nenhuma allow-list de agente foi ampliada — o `gh` roda no shell do runner, com o
+`GITHUB_TOKEN` do job, como no [D-043].
+
+**Falso-positivo conhecido e aceito:** issue fechada como duplicada ou substituída (#26, #27, #29)
+aparece na lista. Uma linha a mais no relatório contra deixar de enxergar a deriva real — e some
+assim que o item for marcado. Registrado no próprio workflow e na nota do relatório.
+
+**Verificado antes do commit, não presumido.** O extrator foi rodado contra as issues reais do
+repositório: extrai os doze códigos `Fx-yy` corretamente (inclusive os sufixos `F1-05a2` e
+`F1-08b`), ignora `FU-xx` como pretendido, acusa **zero** deriva contra o ROADMAP reconciliado
+deste PR e, rodado contra a versão anterior do arquivo (`git show HEAD:docs/ROADMAP.md`),
+reproduz exatamente as doze linhas de deriva — nos dois modos de falha ("continua `[ ]`" e
+"código não existe"). O limite de sempre continua valendo para o `implement.yml`: mudança nele só
+se valida **depois** do merge ([D-019], 3ª rodada).
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)

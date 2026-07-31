@@ -27,7 +27,8 @@ e múltiplos tamanhos**.
    Gate aprovado (pode propor). **Acrescentar uma entrada NOVA em `docs/DECISIONS.md`**
    registrando a decisão da própria tarefa não é alteração — é exigido por `docs/AUTONOMY.md`
    §3 ("toda decisão relevante vira entrada em DECISIONS.md"). Ver D-019.
-5. Todo trabalho vira uma issue e um PR pequeno e revisável.
+5. Todo trabalho vira uma issue e um PR pequeno e revisável. Se a issue tem código `Fx-yy`,
+   o **mesmo PR** marca a linha dela em `docs/ROADMAP.md` (D-045). `FU-xx` não entra no ROADMAP.
 
 ## Papéis — mesmo Claude, contextos diferentes → `.claude/agents/`
 - **Supervisor:** lê specs/issues, escolhe tarefas, cria issues, registra decisões.
