@@ -17,10 +17,19 @@ class PedidoNaoEditavelError extends Error {
 	}
 }
 
+/** Mesma classe do módulo real: o handler distingue por `instanceof` para responder 429. */
+class LimiteDeRascunhosError extends Error {
+	constructor() {
+		super('Limite de rascunhos atingido para esta sessão.');
+		this.name = 'LimiteDeRascunhosError';
+	}
+}
+
 vi.mock('$lib/server/orders', () => ({
 	salvarRascunho: (...args: unknown[]) => salvarRascunhoMock(...args),
 	carregarRascunho: (...args: unknown[]) => carregarRascunhoMock(...args),
-	PedidoNaoEditavelError
+	PedidoNaoEditavelError,
+	LimiteDeRascunhosError
 }));
 
 const { GET, POST } = await import('./+server');
@@ -76,6 +85,9 @@ beforeEach(() => {
 	carregarRascunhoMock.mockReset();
 });
 
+// Cada teste usa um uid próprio: `rate-limit.ts` mantém estado em módulo, e POST/GET
+// compartilham a mesma chave `rascunho:${uid}` — uids repetidos vazariam contagem de um
+// teste para o outro (mesmo padrão de `url-de-upload/server.test.ts`).
 describe('POST /api/pedidos/rascunho', () => {
 	it('deve responder 401 sem sessão', async () => {
 		const resposta = status(
@@ -92,21 +104,37 @@ describe('POST /api/pedidos/rascunho', () => {
 		salvarRascunhoMock.mockRejectedValue(new PedidoNaoEditavelError());
 
 		const resposta = status(
-			POST(eventoPost({ orderId: 'pedido-1', questionnaire: QUESTIONARIO_VALIDO }, 'uid-alice'))
+			POST(eventoPost({ orderId: 'pedido-1', questionnaire: QUESTIONARIO_VALIDO }, 'uid-409-1'))
 		);
 
 		expect(await resposta).toBe(409);
 	});
 
+	// Issue #74: `salvarRascunho` recusa criar um rascunho novo acima do teto por uid. O
+	// handler distingue por `instanceof`, como já faz com `PedidoNaoEditavelError`/409.
+	it('deve responder 429 quando o uid estourou o teto de rascunhos distintos', async () => {
+		salvarRascunhoMock.mockRejectedValue(new LimiteDeRascunhosError());
+
+		const resposta = status(
+			POST(
+				eventoPost({ orderId: 'pedido-novo', questionnaire: QUESTIONARIO_VALIDO }, 'uid-limite-1')
+			)
+		);
+
+		expect(await resposta).toBe(429);
+	});
+
 	it('deve responder 400 e não escrever nada quando o corpo não é JSON', async () => {
-		expect(await status(POST(eventoPost('{ isso não é json', 'uid-alice')))).toBe(400);
+		expect(await status(POST(eventoPost('{ isso não é json', 'uid-400-json')))).toBe(400);
 		expect(salvarRascunhoMock).not.toHaveBeenCalled();
 	});
 
 	it('deve responder 400 e não escrever nada quando o corpo foge do schema', async () => {
 		expect(
 			await status(
-				POST(eventoPost({ orderId: 'pedido-1', questionnaire: { howTheyMet: 123 } }, 'uid-alice'))
+				POST(
+					eventoPost({ orderId: 'pedido-1', questionnaire: { howTheyMet: 123 } }, 'uid-400-schema')
+				)
 			)
 		).toBe(400);
 		expect(salvarRascunhoMock).not.toHaveBeenCalled();
@@ -114,7 +142,7 @@ describe('POST /api/pedidos/rascunho', () => {
 
 	it('deve responder 400 quando orderId tem caracteres fora da allow-list', async () => {
 		expect(
-			await status(POST(eventoPost({ orderId: '../outro', questionnaire: {} }, 'uid-alice')))
+			await status(POST(eventoPost({ orderId: '../outro', questionnaire: {} }, 'uid-400-orderid')))
 		).toBe(400);
 		expect(salvarRascunhoMock).not.toHaveBeenCalled();
 	});
@@ -123,12 +151,12 @@ describe('POST /api/pedidos/rascunho', () => {
 		salvarRascunhoMock.mockResolvedValue(undefined);
 
 		const resposta = await POST(
-			eventoPost({ orderId: 'pedido-1', questionnaire: QUESTIONARIO_VALIDO }, 'uid-alice')
+			eventoPost({ orderId: 'pedido-1', questionnaire: QUESTIONARIO_VALIDO }, 'uid-200-post')
 		);
 
 		expect(resposta.status).toBe(200);
 		expect(salvarRascunhoMock).toHaveBeenCalledWith(
-			expect.objectContaining({ uid: 'uid-alice', orderId: 'pedido-1' })
+			expect.objectContaining({ uid: 'uid-200-post', orderId: 'pedido-1' })
 		);
 	});
 
@@ -138,14 +166,27 @@ describe('POST /api/pedidos/rascunho', () => {
 		await POST(
 			eventoPost(
 				{ orderId: 'pedido-1', ownerId: 'uid-bob', userId: 'uid-bob', questionnaire: {} },
-				'uid-alice'
+				'uid-ownerid-post'
 			)
 		);
 
 		const chamada = salvarRascunhoMock.mock.calls[0][0];
-		expect(chamada.uid).toBe('uid-alice');
+		expect(chamada.uid).toBe('uid-ownerid-post');
 		expect(chamada).not.toHaveProperty('ownerId');
 		expect(chamada).not.toHaveProperty('userId');
+	});
+
+	it('deve responder 429 quando o uid estoura o rate limit', async () => {
+		salvarRascunhoMock.mockResolvedValue(undefined);
+		const uid = 'uid-429-post';
+
+		for (let i = 0; i < 10; i++) {
+			await POST(eventoPost({ orderId: `pedido-${i}`, questionnaire: {} }, uid));
+		}
+
+		expect(await status(POST(eventoPost({ orderId: 'pedido-10', questionnaire: {} }, uid)))).toBe(
+			429
+		);
 	});
 });
 
@@ -156,7 +197,7 @@ describe('GET /api/pedidos/rascunho', () => {
 	});
 
 	it('deve responder 400 quando falta o orderId', async () => {
-		expect(await status(GET(eventoGet(null, 'uid-alice')))).toBe(400);
+		expect(await status(GET(eventoGet(null, 'uid-400-get-missing')))).toBe(400);
 		expect(carregarRascunhoMock).not.toHaveBeenCalled();
 	});
 
@@ -165,8 +206,8 @@ describe('GET /api/pedidos/rascunho', () => {
 	// o mesmo id com Zod e responde 400.
 	it.each(['../outro', '../../etc/passwd', 'pedido com espaco', 'a'.repeat(129)])(
 		'deve responder 400 (não 500) quando o orderId é malformado: %j',
-		async (orderId) => {
-			expect(await status(GET(eventoGet(orderId, 'uid-alice')))).toBe(400);
+		async (orderId, indice) => {
+			expect(await status(GET(eventoGet(orderId, `uid-400-malformado-${indice}`)))).toBe(400);
 			expect(carregarRascunhoMock).not.toHaveBeenCalled();
 		}
 	);
@@ -174,25 +215,42 @@ describe('GET /api/pedidos/rascunho', () => {
 	it('deve devolver o rascunho do dono quando ele existe', async () => {
 		carregarRascunhoMock.mockResolvedValue({
 			id: 'pedido-1',
-			ownerId: 'uid-alice',
+			ownerId: 'uid-200-get',
 			status: 'rascunho',
 			createdAt: '2026-07-29T12:00:00.000Z',
 			updatedAt: '2026-07-29T12:00:00.000Z',
 			questionnaire: { howTheyMet: 'oi' }
 		});
 
-		const resposta = await GET(eventoGet('pedido-1', 'uid-alice'));
+		const resposta = await GET(eventoGet('pedido-1', 'uid-200-get'));
 
 		expect(resposta.status).toBe(200);
-		expect(await resposta.json()).toMatchObject({ ownerId: 'uid-alice' });
-		expect(carregarRascunhoMock).toHaveBeenCalledWith({ uid: 'uid-alice', orderId: 'pedido-1' });
+		expect(await resposta.json()).toMatchObject({ ownerId: 'uid-200-get' });
+		expect(carregarRascunhoMock).toHaveBeenCalledWith({ uid: 'uid-200-get', orderId: 'pedido-1' });
 	});
 
 	it('deve responder 404 (nunca o documento) quando o rascunho não existe para o uid pedido', async () => {
 		carregarRascunhoMock.mockResolvedValue(null);
 
-		const resposta = status(GET(eventoGet('pedido-de-outro', 'uid-bob')));
+		const resposta = status(GET(eventoGet('pedido-de-outro', 'uid-404-bob')));
 
 		expect(await resposta).toBe(404);
+	});
+
+	it('deve responder 429 quando o uid estoura o rate limit', async () => {
+		carregarRascunhoMock.mockResolvedValue({
+			id: 'pedido-1',
+			ownerId: 'uid-429-get',
+			status: 'rascunho',
+			createdAt: '2026-07-29T12:00:00.000Z',
+			updatedAt: '2026-07-29T12:00:00.000Z'
+		});
+		const uid = 'uid-429-get';
+
+		for (let i = 0; i < 10; i++) {
+			await GET(eventoGet('pedido-1', uid));
+		}
+
+		expect(await status(GET(eventoGet('pedido-1', uid)))).toBe(429);
 	});
 });

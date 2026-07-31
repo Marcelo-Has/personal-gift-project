@@ -1242,6 +1242,32 @@ Pro em repositório privado, e é a origem de todo o `merge-manual` e dos guard-
 deixar de existir — vira issue própria, porque desmontar os guard-rails que hoje substituem a
 proteção de branch é decisão de desenho, não ajuste de config.
 
+## D-040 | 2026-07-31 | ACEITA
+**`POST`/`GET` de `/api/pedidos/rascunho` ganharam `checkRateLimit` (janela deslizante,
+`rascunho:${uid}`) e um teto de 10 rascunhos distintos por uid** — item de baseline
+(`.claude/rules/security.md`: "rate limiting e limites de upload em rotas públicas") adiado do
+PR #67 e cobrado pela issue #74 (achado MÉDIO #4 da revisão daquele PR).
+
+**O problema.** A sessão é anônima (`signInAnonymously`): qualquer um obtém quantos `uid`
+quiser, de graça, e cada um cria documentos ilimitados em `users/<uid>/orders/<qualquer-uuid>`.
+Não é vazamento — a autorização por uid já está correta, ninguém alcança dado de outro — é vetor
+de **custo e enchimento de base**.
+
+**Dois mecanismos, complementares, sem inventar nada novo:**
+- **Rate limit por janela** (`checkRateLimit`, já introduzido no PR #66 para a rota de fotos):
+  fecha rajada. Mesma chave `rascunho:${uid}` para os dois verbos, porque `POST` e `GET` aqui
+  operam sobre o mesmo recurso (o rascunho de quem chama) — diferente do par
+  `upload:`/`download:` das fotos, que são ações distintas sobre arquivos distintos.
+- **Teto de rascunhos distintos por uid** (novo: `LimiteDeRascunhosError` em `orders.ts`, contagem
+  via `collection('users/<uid>/orders').count()`): fecha acúmulo. Só entra na criação de um
+  `orderId` **novo** — atualizar um rascunho já existente nunca esbarra no teto, mesmo com o uid
+  no limite.
+
+**Fora de escopo, como já registrado na issue:** rate limit distribuído (o `Map` em memória de
+`rate-limit.ts` não é compartilhado entre instâncias; endurecer isso é backlog de Fase 5 se o
+volume real justificar, `.claude/rules/right-sizing.md`) e limite por IP (`uid` é o eixo natural
+de abuso aqui; IP atrás de CDN serverless não é confiável).
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
