@@ -1,8 +1,15 @@
 <script lang="ts">
 	import { setContext } from 'svelte';
+	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { getEtapaIndex, questionarioEtapas } from '$lib/questionario-etapas';
 	import type { CoupleQuestionnaire } from '$lib/order';
+	import {
+		obterOuCriarOrderId,
+		carregarRascunhoCliente,
+		salvarRascunhoCliente
+	} from '$lib/client/order-draft';
+	import { getSessionIdToken } from '$lib/firebase/session';
 
 	let { children } = $props();
 
@@ -25,6 +32,40 @@
 	});
 
 	setContext<CoupleQuestionnaire>('questionario', questionario);
+
+	// Rascunho pré-pagamento (F1-05c, issue #33). Sessão anônima e chamada ao
+	// servidor são best-effort: sem Firebase configurado ou sem rede, o
+	// questionário segue funcionando só em memória, como antes desta issue.
+	let orderId = '';
+
+	$effect(() => {
+		if (!browser) return;
+
+		(async () => {
+			try {
+				orderId = obterOuCriarOrderId(localStorage);
+				const idToken = await getSessionIdToken();
+				const rascunho = await carregarRascunhoCliente(orderId, idToken);
+				if (rascunho?.questionnaire) {
+					Object.assign(questionario, rascunho.questionnaire);
+				}
+			} catch {
+				// Sem sessão/Firebase configurado ou sem rede: mantém o estado em memória.
+			}
+		})();
+	});
+
+	async function salvarProgresso(): Promise<void> {
+		if (!browser || !orderId) return;
+		try {
+			const idToken = await getSessionIdToken();
+			await salvarRascunhoCliente(orderId, { questionnaire: questionario }, idToken);
+		} catch {
+			// Melhor esforço: falha ao persistir não deve travar o preenchimento.
+		}
+	}
+
+	setContext('salvarRascunhoQuestionario', salvarProgresso);
 
 	const totalEtapas = questionarioEtapas.length;
 	const etapaSlug = $derived((page.params as Record<string, string>).etapa ?? '');

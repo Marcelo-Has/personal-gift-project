@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RequestHandler } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
 
 /**
  * `orders.ts` fala com o Firestore de verdade — dependência externa
@@ -38,9 +38,9 @@ function eventoGet(orderId: string | null, uid: string | null): Evento {
 	} as unknown as Evento;
 }
 
-async function status(promessa: Promise<Response>): Promise<number> {
+async function status(respostaOuPromessa: Response | Promise<Response>): Promise<number> {
 	try {
-		const resposta = await promessa;
+		const resposta = await respostaOuPromessa;
 		return resposta.status;
 	} catch (erro) {
 		return (erro as { status: number }).status;
