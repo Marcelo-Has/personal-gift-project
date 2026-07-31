@@ -28,6 +28,21 @@ export class PedidoNaoEditavelError extends Error {
 	}
 }
 
+/**
+ * Teto de rascunhos distintos por uid (issue #74, achado MÉDIO #4 da revisão do PR #67).
+ * Sessão é anônima (`signInAnonymously`): sem isto, um uid cria documentos ilimitados em
+ * `users/<uid>/orders`. Complementar ao rate limit por janela — um fecha rajada, este fecha
+ * acúmulo. Erro tipado, como `PedidoNaoEditavelError`, para o handler responder 429 e não 500.
+ */
+export class LimiteDeRascunhosError extends Error {
+	constructor() {
+		super('Limite de rascunhos atingido para esta sessão.');
+		this.name = 'LimiteDeRascunhosError';
+	}
+}
+
+const MAX_RASCUNHOS_POR_UID = 10;
+
 function assertSafeOrderId(orderId: string): void {
 	if (!SAFE_ID.test(orderId)) {
 		throw new Error(
@@ -45,6 +60,9 @@ export interface OrderStore {
 	doc(path: string): {
 		get(): Promise<{ exists: boolean; data(): unknown }>;
 		set(data: unknown, options?: { merge: boolean }): Promise<unknown>;
+	};
+	collection(path: string): {
+		count(): { get(): Promise<{ data(): { count: number } }> };
 	};
 }
 
@@ -93,6 +111,16 @@ export async function salvarRascunho(
 	const statusAtual = (existente.data() as { status?: OrderStatus } | undefined)?.status;
 	if (existente.exists && statusAtual && statusAtual !== 'rascunho') {
 		throw new PedidoNaoEditavelError();
+	}
+
+	// Teto só entra na criação de um rascunho NOVO — atualizar um dos já existentes (etapa a
+	// etapa, como este mesmo endpoint faz) nunca deve travar por causa de um limite que ele
+	// respeitou ao ser criado.
+	if (!existente.exists) {
+		const contagem = await store.collection(`users/${uid}/orders`).count().get();
+		if (contagem.data().count >= MAX_RASCUNHOS_POR_UID) {
+			throw new LimiteDeRascunhosError();
+		}
 	}
 
 	const payload: Record<string, unknown> = {

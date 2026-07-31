@@ -1,7 +1,13 @@
 import { error, json } from '@sveltejs/kit';
 import { requireUid } from '$lib/server/auth';
 import { orderIdSchema, salvarRascunhoSchema } from '$lib/order-schema';
-import { carregarRascunho, PedidoNaoEditavelError, salvarRascunho } from '$lib/server/orders';
+import {
+	carregarRascunho,
+	LimiteDeRascunhosError,
+	PedidoNaoEditavelError,
+	salvarRascunho
+} from '$lib/server/orders';
+import { checkRateLimit } from '$lib/server/rate-limit';
 import type { RequestHandler } from './$types';
 
 /**
@@ -13,10 +19,29 @@ import type { RequestHandler } from './$types';
  * `orderId` vem do corpo/query, mas o caminho do documento é sempre
  * `users/<uid>/orders/<orderId>` com o `uid` da sessão: nada no corpo (nem um
  * `ownerId` de outro usuário) altera de quem é o rascunho.
+ *
+ * Primeira rota pública de ESCRITA do repositório com sessão anônima — sem rate limit,
+ * qualquer um cria `uid`s de graça e enche `users/<uid>/orders` sem custo (issue #74,
+ * achado MÉDIO #4 da revisão do PR #67). Mesma chave `rascunho:${uid}` para `POST` e
+ * `GET`, e mesmo `checkRateLimit` que a rota de fotos (PR #66) já usa — sem mecanismo
+ * novo. O teto de rascunhos distintos por uid (complementar: fecha acúmulo, não rajada)
+ * vive em `salvarRascunho` (`orders.ts`), perto da contagem que ele exige.
  */
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 10;
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const uid = requireUid(locals);
+
+	if (
+		!checkRateLimit(`rascunho:${uid}`, {
+			windowMs: RATE_LIMIT_WINDOW_MS,
+			maxRequests: RATE_LIMIT_MAX_REQUESTS
+		})
+	) {
+		error(429, 'Muitas requisições. Aguarde um pouco antes de tentar de novo.');
+	}
 
 	let corpo: unknown;
 	try {
@@ -39,6 +64,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (erro instanceof PedidoNaoEditavelError) {
 			error(409, erro.message);
 		}
+		// 429 e não 500: teto de acúmulo, não erro — mesmo código do rate limit por janela.
+		if (erro instanceof LimiteDeRascunhosError) {
+			error(429, erro.message);
+		}
 		throw erro;
 	}
 
@@ -47,6 +76,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 export const GET: RequestHandler = async ({ locals, url }) => {
 	const uid = requireUid(locals);
+
+	if (
+		!checkRateLimit(`rascunho:${uid}`, {
+			windowMs: RATE_LIMIT_WINDOW_MS,
+			maxRequests: RATE_LIMIT_MAX_REQUESTS
+		})
+	) {
+		error(429, 'Muitas requisições. Aguarde um pouco antes de tentar de novo.');
+	}
 
 	// Valida a FORMA aqui, com o mesmo schema do `POST`. Antes, o parâmetro cru descia até
 	// `assertSafeOrderId`, que lança `Error` comum — e `orderId` malformado virava 500 em vez

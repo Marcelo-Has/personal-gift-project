@@ -1242,7 +1242,97 @@ Pro em repositório privado, e é a origem de todo o `merge-manual` e dos guard-
 deixar de existir — vira issue própria, porque desmontar os guard-rails que hoje substituem a
 proteção de branch é decisão de desenho, não ajuste de config.
 
+## D-040 | 2026-07-31 | ACEITA
+**`POST`/`GET` de `/api/pedidos/rascunho` ganharam `checkRateLimit` (janela deslizante,
+`rascunho:${uid}`) e um teto de 10 rascunhos distintos por uid** — item de baseline
+(`.claude/rules/security.md`: "rate limiting e limites de upload em rotas públicas") adiado do
+PR #67 e cobrado pela issue #74 (achado MÉDIO #4 da revisão daquele PR).
+
+**O problema.** A sessão é anônima (`signInAnonymously`): qualquer um obtém quantos `uid`
+quiser, de graça, e cada um cria documentos ilimitados em `users/<uid>/orders/<qualquer-uuid>`.
+Não é vazamento — a autorização por uid já está correta, ninguém alcança dado de outro — é vetor
+de **custo e enchimento de base**.
+
+**Dois mecanismos, complementares, sem inventar nada novo:**
+- **Rate limit por janela** (`checkRateLimit`, já introduzido no PR #66 para a rota de fotos):
+  fecha rajada. Mesma chave `rascunho:${uid}` para os dois verbos, porque `POST` e `GET` aqui
+  operam sobre o mesmo recurso (o rascunho de quem chama) — diferente do par
+  `upload:`/`download:` das fotos, que são ações distintas sobre arquivos distintos.
+- **Teto de rascunhos distintos por uid** (novo: `LimiteDeRascunhosError` em `orders.ts`, contagem
+  via `collection('users/<uid>/orders').count()`): fecha acúmulo. Só entra na criação de um
+  `orderId` **novo** — atualizar um rascunho já existente nunca esbarra no teto, mesmo com o uid
+  no limite.
+
+**Fora de escopo, como já registrado na issue:** rate limit distribuído (o `Map` em memória de
+`rate-limit.ts` não é compartilhado entre instâncias; endurecer isso é backlog de Fase 5 se o
+volume real justificar, `.claude/rules/right-sizing.md`) e limite por IP (`uid` é o eixo natural
+de abuso aqui; IP atrás de CDN serverless não é confiável).
+
 ## D-041 | 2026-07-31 | ACEITA
+**[FU-15] Branch protection aplicada na `main`. O impasse do [D-014] encolhe pela metade — e os
+guard-rails que o substituíam FICAM.** É a issue própria que o [D-039] pediu.
+
+**O impasse tinha duas causas, e só uma morre com o repositório público.**
+
+1. *Branch protection exigia GitHub Pro em repo privado.* Era a razão de existir da ponte (c) do
+   [D-014], e o próprio D-014 já registrava o limite dela: *"é convenção, não bloqueio — sem
+   branch protection, ainda é possível mergear por cima de um check vermelho"*. **Morre.**
+2. *A `claude-code-action` se recusa a rodar em PR que altera o workflow que a invoca*
+   (`Skipping action due to workflow validation: the workflow file must have identical content to
+   the version on the default branch`) **e sai com exit 0**. É guard-rail da própria action contra
+   workflow modificado por PR — não tem relação com Pro nem com visibilidade. **NÃO morre.** É a
+   origem da exceção de 2026-07-29 do [D-014] e da label `merge-manual`, que **continuam válidas
+   sem alteração**.
+
+**Por que os guard-rails ficam — o D-039 supôs o contrário, e a avaliação inverteu isso.** Um
+skip por *workflow validation* sai **verde** aos olhos do Actions; `steps.claude.outcome` não o
+detecta ([D-019], 3ª rodada). Branch protection não enxerga skip nenhum — ela só lê a conclusão do
+check. Quem transforma o skip em vermelho é o step não-IA "Publicar veredito no PR" de
+`review.yml`/`security.yml` ([D-034]): ou existe arquivo de veredito, ou o job falha. A divisão é
+**o guard-rail produz o vermelho; a branch protection faz o vermelho bloquear**. Sem o primeiro
+não há vermelho para bloquear; sem a segunda o vermelho é opinião. Desmontá-los seria regressão
+de segurança disfarçada de simplificação.
+
+**Config aplicada** (`PUT /branches/main/protection`, verificada pela API depois):
+- `required_status_checks.contexts`: `ci`, `regras-firebase`, `scans`, `review`,
+  `ai-security-review`. O D-014 pedia três; `scans` e `regras-firebase` não existiam em
+  2026-07-28 e entram porque são gate de segurança real (segredos/`npm audit` e regras do
+  Firebase).
+- `strict: true` ("require branches to be up to date"), como o D-014 pede — foi o merge ref
+  defasado que causou o skip original. **Custo aceito:** cada merge obriga os outros PRs abertos
+  a atualizar a branch. Com a fábrica rodando em paralelo isso gera rodada extra de CI; é o preço
+  de não mergear contra uma base que ninguém testou.
+- `required_pull_request_reviews.required_approving_review_count: 0` — exige **PR** (sem push
+  direto na `main`), sem exigir **aprovação**. Aprovação obrigatória travaria a fábrica: não há
+  humano aprovando PR no fluxo, e o merge já é humano por [D-012]. Verificado antes de ligar que
+  nenhum workflow empurra direto na `main` — `implement.yml` empurra branch de feature e
+  `fix.yml` empurra a branch do PR.
+- `enforce_admins: false`, como o [D-014] já previa: é o bypass que a exceção `merge-manual`
+  precisa. O `merge-manual` deixa de ser *"o dono ignora um check vermelho"* e passa a ser *"o
+  dono usa o bypass de admin"* — mesma ação, agora auditável no log do repositório. Ganho real,
+  não cosmético.
+- `allow_force_pushes: false`, `allow_deletions: false`.
+
+**Erro conhecido, ainda não corrigido: falta o `e2e` na lista.** O job `e2e` de `ci.yml` é gate de
+PR e deveria estar entre os obrigatórios; ficou de fora porque a enumeração inicial dos jobs foi
+feita com um padrão que não casava nome com dígito. Registrado aqui em vez de silenciado: enquanto
+não entrar, um PR que quebre só o E2E não é barrado pela proteção — barrado continua sendo pelo
+[D-012] (merge é humano).
+
+**Ressalva conhecida, registrada e não corrigida:** job pulado por `if:` de nível de job reporta
+conclusão `skipped`, e a branch protection trata `skipped` como satisfeito. Ou seja, um PR com
+`entrega:incompleta` (que pula `review`/`ai-security-review` por [D-019]) não fica travado pela
+proteção. Não é regressão — é o comportamento de hoje, e o que impede o merge desses PRs continua
+sendo o [D-012] (merge é humano) mais o veredito do `verdict.yml`.
+
+**ADIAR** (`.claude/rules/right-sizing.md`): `required_conversation_resolution`,
+`required_signatures` e `required_linear_history` — atrito sem superfície de risco atual.
+
+**Nota de execução:** config de repositório, não arquivo versionado — aplicada por `gh api` numa
+sessão local com a credencial pessoal do dono, o mesmo caminho dos [D-030]/[D-031]/[D-032]/
+[D-033], aqui não por falta de escopo `workflows` e sim porque não existe arquivo a empurrar.
+
+## D-042 | 2026-07-31 | ACEITA
 **[FU-12] O revisor julga o DIFF, nunca o disco do runner — e o [D-033] transformou isso de
 higiene em correção.** Fecha a issue #64, aberta porque o `ai-security-review` publicou no PR #57
 um veredito **inteiramente invertido**: 5 bloqueantes acusando o PR de *remover* os hooks
@@ -1318,9 +1408,10 @@ de acreditar nele.
 **Merge manual, exceção do [D-014]:** o PR toca `review.yml` e `security.yml`, então a
 `claude-code-action` recusa rodar (`workflow validation`) e os checks `review` e
 `ai-security-review` saem vermelhos por falta de arquivo de veredito. Vermelho estrutural, não
-achado. Com o [D-040] esses dois checks passaram a ser obrigatórios na `main`, então o merge
+achado. Com o [D-041] esses dois checks passaram a ser obrigatórios na `main`, então o merge
 exige o bypass de admin do dono (`enforce_admins: false`) — que é exatamente o caminho previsto
 lá.
+
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
