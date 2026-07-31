@@ -1125,10 +1125,41 @@ publicado") transforma o silêncio em job vermelho, o que é correto, mas ningu�
 Virou issue própria — é decisão de desenho (quem observa o observador), maior que este ajuste
 de parâmetro.
 
+## D-036 | 2026-07-31 | ACEITA
+**Modelo de preço da V1: preço só por TAMANHO — estilo não altera preço.** Opção **B** da
+issue #69, que desmembrou o gate [D-101] em duas perguntas com prazos diferentes: **(a)** qual é
+o *modelo* de preço (caro de reverter: define o modelo de dados do Pedido, o catálogo e a forma
+dos `Price` no Stripe) e **(b)** quais são os *números* por SKU (barato de trocar depois, é dado).
+Esta entrada responde **(a)**.
+
+**Decisão.** O mini livro "Nossa História" tem um preço por tamanho (P/M/G). O estilo escolhido
+pelo cliente **não** entra no cálculo do preço, e o modelo de dados **não** carrega campo de
+acréscimo por estilo. Motivo: enquanto o catálogo de produtos é pequeno — um produto só, e a
+mesma pipeline de geração para todos os estilos — não há custo diferencial que justifique cobrar
+diferente por estilo, e um estilo novo entra no catálogo sem exigir decisão de preço.
+
+**Por que não A nem C.** A (preço por estilo × tamanho) faz o catálogo crescer
+multiplicativamente e obriga a definir N preços a cada estilo novo, sem ganho comercial hoje. C
+(campo de acréscimo por estilo nascendo zerado) é precaução sem segundo caso concreto — o que o
+`.claude/rules/right-sizing.md` manda adiar; o Pedido já guarda o estilo escolhido, então
+acrescentar o campo depois é migração pequena.
+
+**Reabrir quando.** Se um estilo passar a ter custo de produção materialmente diferente dos
+outros (pipeline de imagem própria, acabamento diferente) ou se o catálogo deixar de ser
+pequeno, esta decisão volta ao gate — a mudança prevista é ir para C, não para A.
+
+**O que destrava.** O **F1-07** (Stripe modo teste: checkout + webhook com assinatura
+verificada) deixa de estar bloqueado: ele usa três `Price` de teste, um por tamanho, com valores
+de mentira. Os números reais são o item **(b)**, que continua PENDENTE em [D-101] e depende do
+custo por SKU ([D-102] geração de imagem, [D-104]/F3-01 print-on-demand) — portanto entra na
+FASE 3 e **não** bloqueia mais o fechamento da FASE 1. Não afeta #32 nem #33.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
-- **D-101** | Preço da V1 por estilo e tamanho (depende do custo real por SKU).
+- **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
+  por SKU). O *modelo* de preço já foi decidido em [D-036] (só por tamanho; estilo não altera
+  preço), e não bloqueia mais a FASE 1.
 - **D-102** | Provedor de geração de imagem (qual, custo por livro, qualidade).
 - **D-103** | Prévia antes ou depois do pagamento?
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
