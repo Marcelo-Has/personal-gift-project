@@ -73,5 +73,11 @@ jobs:
           # dono escrever "@claude resolve isso" num PR com texto plantado para instrução de
           # terceiro chegar até aqui. Lista generosa, para não estorvar o uso interativo, mas
           # sem a cauda pior: rede fora (`curl`/`wget`) e `gh pr merge` fora (merge é humano).
-          claude_args: '--allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(gh api:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(echo:*),Bash(find:*),Bash(grep:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+          # `cat`/`grep`/`head`/`tail`/`wc`/`find` saíram (FU-09, issue #58): `Read`/`Grep` já
+          # cobrem a leitura e respeitam a `deny` do `.claude/settings.json`; `find -exec` é
+          # execução arbitrária. Aqui, como no `implement.yml`, isso estreita e não fecha —
+          # `Bash(node:*)`/`Bash(npx:*)`/`Bash(git:*)` continuam necessários. Este workflow
+          # mantém `gh pr comment`/`gh issue` porque é interativo por desenho: o dono pede
+          # diretamente e espera resposta no PR/issue — não é o caso do item 1 desta issue.
+          claude_args: '--allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(gh api:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(echo:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 

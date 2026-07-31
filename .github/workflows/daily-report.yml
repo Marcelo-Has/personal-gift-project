@@ -29,6 +29,30 @@ jobs:
             Gere um resumo do progresso das últimas 24h: commits, PRs abertos/mergeados,
             issues concluídas, itens do docs/ROADMAP.md que avançaram, decisões pendentes
             (label decision-needed) e quaisquer bloqueios. Seja conciso.
-            Publique o resumo como uma nova issue com o título "Relatório diário — <data>"
-            e o label `report`.
-          claude_args: '--max-turns 15 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Bash(git log:*),Bash(gh issue:*),Bash(gh pr list:*),TodoWrite,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*)"'
+
+            Você NÃO tem capacidade de publicar no GitHub (FU-09, issue #58): ESCREVA o
+            resumo no arquivo ${{ runner.temp }}/relatorio.md. Um step separado, sem IA,
+            abre a issue com esse conteúdo. `Write` serve só para esse arquivo.
+          # `Bash(gh issue:*)` saiu: era o curinga mais largo da fábrica — autorizava
+          # `gh issue create/edit/comment/close` em qualquer issue. Quem publica agora é o step
+          # não-IA abaixo. Leitura continua por `gh issue list`, e os utilitários de leitura por
+          # Bash saíram pelo motivo já registrado no [D-031]: não respeitam a `deny`.
+          claude_args: '--max-turns 15 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(git log:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh pr list:*),Bash(ls:*)"'
+
+      # Publica o relatório (FU-09, issue #58): sem `Bash(gh issue:*)` no agente, quem abre a
+      # issue é este step, não-IA, a partir do arquivo. Se o agente não escreveu nada, o job
+      # falha em vez de terminar verde sem relatório nenhum.
+      - name: Abrir a issue do relatório (step não-IA)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          F: ${{ runner.temp }}/relatorio.md
+        run: |
+          set -euo pipefail
+          if [ ! -s "$F" ]; then
+            echo "::error::O agente não escreveu o relatório em $F."
+            exit 1
+          fi
+          data=$(date -u +%Y-%m-%d)
+          gh issue create --title "Relatório diário — ${data}" --body-file "$F" --label report
+          echo "Relatório do dia ${data} publicado."

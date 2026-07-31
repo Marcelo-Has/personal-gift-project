@@ -1042,6 +1042,51 @@ resolver o mesmo conflito três vezes. Ordem de merge: #57 → #61 → #63. O di
 PR não foi aplicado literalmente — o contexto dele era a `main` anterior ao #57 e teria
 revertido as allow-lists apertadas lá; só os steps novos foram portados.
 
+## D-034 | 2026-07-31 | ACEITA
+**[FU-09] Publicar deixa de ser capacidade do agente que só relata.** Fecha o que o [D-031]
+registrou como limite reconhecido: o hook `PreToolUse` da FU-08 barra a *sintaxe*
+(`--body-file`/`-F`/`--input`), mas `gh pr comment --body "$(cat segredo)"` publicava o mesmo
+byte sem casar com padrão nenhum, e mascarar o token `gh` também escapava. Denylist sobre shell
+livre não fecha canal; allow-list fecha.
+
+**Desenho.** Em `review.yml`, `security.yml`, `verdict.yml` e `daily-report.yml`,
+`Bash(gh pr comment:*)`/`Bash(gh issue:*)` saem da allow-list. O agente **escreve** o veredito
+num arquivo sob `${{ runner.temp }}` (por isso ganha `Write`, e o prompt diz que é só para esse
+arquivo), e um step `run:` sem IA publica. O agente passa a não ter como publicar texto no
+GitHub, nem por substituição de comando, nem por flag mascarada — não é mais questão de padrão
+de regex.
+
+**Efeito colateral bom: o guard-rail do [D-014] ficou mais forte e mais simples.** Ele inferia
+que a revisão acontecera contando comentários do `claude[bot]` posteriores a um timestamp —
+heurística que já precisou de conserto uma vez, porque o `netlify[bot]` edita um comentário fixo
+a cada deploy e quase fez um *skip* da action sair verde (achado do PR #48). Agora não há
+inferência: ou existe arquivo de veredito, ou o job falha. Um skip por *workflow validation* não
+escreve arquivo nenhum. Os dois steps antigos (`id: inicio` + "Exigir veredito publicado")
+foram substituídos por um só.
+
+**Quem NÃO perdeu a capacidade, e por quê.** `implement.yml` (Developer), `fix.yml` (Fix),
+`supervisor.yml` (Supervisor) e `claude.yml` (interativo) mantêm `gh pr create`/`gh pr comment`/
+`gh issue`: publicar é o **trabalho** deles, não relatar sobre trabalho alheio. O item 1 desta
+issue mira quem só julga. No `verdict.yml`, `gh pr edit` fica pelo mesmo motivo — trocar
+label/título *é* o veredito, não texto livre.
+
+**Poda de leitores, continuando o [D-031].** `cat`/`grep`/`head`/`tail`/`wc`/`find` saíram de
+todas as allow-lists restantes (`claude`, `implement`, `supervisor`, `daily-report`, além de
+`review`/`security`, que também perderam `git diff`). Nenhum é o tool `Read`, logo nenhum
+respeita a `deny` do `.claude/settings.json`; `find -exec` ainda executa comando arbitrário.
+**Onde isso fecha e onde só estreita:** em `supervisor.yml`, `daily-report.yml`, `review.yml` e
+`security.yml` fecha, porque não há `node`/`npx`/`git` genérico sobrando. Em `implement.yml`,
+`claude.yml` e `fix.yml` apenas estreita — os três precisam de `Bash(node:*)`/`Bash(npx:*)`/
+`Bash(git:*)` para rodar teste, commitar e empurrar, e os três leem qualquer byte do runner.
+Está escrito em cada arquivo, para nenhum auditor futuro concluir o contrário.
+
+**Nota de execução.** Mesmo bloqueio de plataforma do [D-030]/[D-031]/[D-032]/[D-033]: o runner
+não tem escopo `workflows`. O conteúdo pronto ficou como comentário no PR #60 e foi aplicado
+numa sessão local com a credencial pessoal do dono. Não foi aplicado literalmente: o conteúdo do
+comentário era um arquivo inteiro por workflow, escrito sobre a `main` anterior ao PR #57, e
+teria revertido as allow-lists que o FU-08 e as FU-10/FU-11 apertaram. O desenho foi portado
+sobre o estado atual. PR empilhado — ordem de merge #57 → #61 → #63 → #60.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

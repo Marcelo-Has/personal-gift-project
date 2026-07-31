@@ -83,10 +83,6 @@ jobs:
 
           echo "Config de agente restaurada de ${BASE}; credencial do checkout descartada."
 
-      # Guard-rail D-014 (parte 1/2): marca o instante antes da revisão.
-      - id: inicio
-        run: echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         with:
           # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
@@ -102,11 +98,21 @@ jobs:
             exposição de PII, segredos hardcoded, URLs de foto não assinadas, webhooks
             Stripe sem verificação de assinatura, regras de acesso do Firebase frouxas.
             Reporte com severidade e correção concreta. Marque riscos altos como bloqueantes.
-            Ao final, SEMPRE publique um comentário no PR com o veredito (via gh pr
-            comment), mesmo que seja "Nenhum problema encontrado", para deixar registro
-            auditável.
+
+            Você NÃO tem capacidade de publicar no GitHub (FU-09, issue #58): em vez de
+            comentar no PR, ESCREVA o veredito completo — mesmo que seja "Nenhum problema
+            encontrado" — no arquivo ${{ runner.temp }}/security-veredito.md. Um step
+            separado, sem IA, publica esse arquivo como comentário no PR. `Write` serve só
+            para esse arquivo; não altere nada no repositório.
           # Tarefa de alto risco → modelo mais forte.
-          claude_args: '--max-turns 50 --model opus --allowed-tools "Read,Glob,Grep,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),TodoWrite"'
+          #
+          # Allow-list cortada pelos mesmos dois argumentos do `review.yml`: `gh pr comment`
+          # saiu porque publicar deixou de ser capacidade do agente (FU-09), e os utilitários de
+          # leitura por Bash (`cat`/`grep`/`head`/`tail`/`wc`/`find`/`git diff`) saíram porque
+          # nenhum deles respeita a `deny` do `.claude/settings.json` — que vale para o tool
+          # `Read`, não para `Bash`. Vale a pena aqui em particular: foi neste job que a
+          # credencial do runner foi lida ao vivo de `.git/config` (ver [D-032]).
+          claude_args: '--max-turns 50 --model opus --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*)"'
 
       # FU-10 (issue #59): mesma limpeza e mesmo limite reconhecido do `review.yml` — e foi
       # justamente NESTE job (`ai-security-review`, run do PR #57, sem mudança de workflow em
@@ -118,26 +124,21 @@ jobs:
           git config --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
 
-      # Guard-rail D-014 (parte 2/2): ver a explicação em review.yml. Revisão de
-      # segurança que não deixa veredito escrito no PR não conta como revisão.
-      - name: Exigir veredito publicado no PR
+      # Publica o veredito E faz as vezes do guard-rail D-014 — ver a explicação no
+      # `review.yml`. Substitui o antigo "Exigir veredito publicado no PR", que inferia a
+      # revisão contando comentários do `claude[bot]` depois de um timestamp; aqui não há
+      # inferência: ou existe arquivo de veredito, ou o job falha.
+      - name: Publicar veredito no PR (step não-IA)
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
-          DESDE: ${{ steps.inicio.outputs.ts }}
+          F: ${{ runner.temp }}/security-veredito.md
         run: |
           set -euo pipefail
-          # Filtra por `claude[bot]`, NÃO por `.user.type == "Bot"` — mesmo motivo do `review.yml`:
-          # o `netlify[bot]` comenta em todo PR e edita o comentário fixo a cada deploy, batendo
-          # no `updated_at >= DESDE`. Com o filtro genérico, um skip por *workflow validation*
-          # sairia VERDE sem revisão de segurança nenhuma.
-          novos=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
-            --jq "[.[] | select(.user.login == \"claude[bot]\")
-                       | select(.created_at >= \"${DESDE}\" or .updated_at >= \"${DESDE}\")]
-                  | length")
-          if [ "${novos}" -eq 0 ]; then
-            echo "::error::A revisão de segurança não publicou veredito no PR #${PR}. Tratar como reprovado, não como verde."
+          if [ ! -s "$F" ]; then
+            echo "::error::A revisão de segurança não escreveu veredito em $F. Tratar como reprovado, não como verde."
             exit 1
           fi
-          echo "Veredito publicado (${novos} comentário(s) do claude[bot] desde ${DESDE})."
+          gh pr comment "${PR}" --body-file "$F"
+          echo "Veredito de segurança publicado no PR #${PR}."
