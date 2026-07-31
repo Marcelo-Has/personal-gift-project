@@ -149,7 +149,12 @@ describe('enviarArquivoParaUrlAssinada', () => {
 		const fetchFn = vi.fn(async () => new Response(null, { status: 403 }));
 
 		await expect(
-			enviarArquivoParaUrlAssinada('https://storage.googleapis.com/x', criarArquivo(1024), 'image/jpeg', fetchFn)
+			enviarArquivoParaUrlAssinada(
+				'https://storage.googleapis.com/x',
+				criarArquivo(1024),
+				'image/jpeg',
+				fetchFn
+			)
 		).rejects.toThrow(/[Ff]alha ao enviar/);
 	});
 });

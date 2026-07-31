@@ -35,7 +35,9 @@ describe('CSP configurada em svelte.config.js', () => {
 		const imgSrc = csp?.directives?.['img-src'] ?? [];
 
 		it('deve liberar self, data: e o host do Storage quando o app exibe preview de foto', () => {
-			expect(imgSrc).toEqual(expect.arrayContaining(['self', 'data:', 'https://storage.googleapis.com']));
+			expect(imgSrc).toEqual(
+				expect.arrayContaining(['self', 'data:', 'https://storage.googleapis.com'])
+			);
 		});
 
 		it('deve usar allow-list de hosts específicos, sem curinga, ao liberar terceiros', () => {

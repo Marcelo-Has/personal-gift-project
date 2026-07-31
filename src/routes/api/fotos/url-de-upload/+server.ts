@@ -30,12 +30,11 @@ const RATE_LIMIT_MAX_REQUESTS = 10;
 
 function isPhotoContentType(value: unknown): value is PhotoContentType {
 	return (
-		typeof value === 'string' &&
-		(ALLOWED_PHOTO_CONTENT_TYPES as readonly string[]).includes(value)
+		typeof value === 'string' && (ALLOWED_PHOTO_CONTENT_TYPES as readonly string[]).includes(value)
 	);
 }
 
-export async function handleUrlDeUpload(
+export async function _handleUrlDeUpload(
 	event: Pick<RequestEvent, 'request' | 'locals'>,
 	bucket: SignableBucket = getPhotoBucket(),
 	gerarPhotoId: () => string = () => crypto.randomUUID().replace(/-/g, '')
@@ -76,9 +75,9 @@ export async function handleUrlDeUpload(
 	}
 }
 
-export const POST: RequestHandler = (event) => handleUrlDeUpload(event);
+export const POST: RequestHandler = (event) => _handleUrlDeUpload(event);
 
-export async function handleUrlDeDownload(
+export async function _handleUrlDeDownload(
 	event: Pick<RequestEvent, 'url' | 'locals'>,
 	bucket: SignableBucket = getPhotoBucket()
 ): Promise<Response> {
@@ -108,4 +107,4 @@ export async function handleUrlDeDownload(
 	}
 }
 
-export const GET: RequestHandler = (event) => handleUrlDeDownload(event);
+export const GET: RequestHandler = (event) => _handleUrlDeDownload(event);

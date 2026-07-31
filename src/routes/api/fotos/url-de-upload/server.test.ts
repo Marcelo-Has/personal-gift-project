@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SignableBucket } from '$lib/server/signed-url';
-import { handleUrlDeDownload, handleUrlDeUpload } from './+server';
+import {
+	_handleUrlDeDownload as handleUrlDeDownload,
+	_handleUrlDeUpload as handleUrlDeUpload
+} from './+server';
 
 /**
  * Bucket falso no mesmo padrão de `signed-url.test.ts`: dependência externa (Storage)
