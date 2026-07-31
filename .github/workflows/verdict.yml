@@ -136,7 +136,8 @@ jobs:
           fi
           echo "run=true" >> "$GITHUB_OUTPUT"
           echo "pr=${pr}" >> "$GITHUB_OUTPUT"
-          echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          # `ts` saiu junto do guard-rail por contagem de comentário: o novo guard-rail olha
+          # label e arquivo, não janela de tempo, então não há mais consumidor.
 
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         id: claude
@@ -188,6 +189,18 @@ jobs:
             `Write` serve só para o arquivo do veredito acima — nenhum outro arquivo. Publique
             sempre um veredito — label trocada OU arquivo de comentário escrito — nunca em
             silêncio.
+
+            ORÇAMENTO E FERRAMENTAS — leia antes de começar, porque tentar o que não existe
+            queima turno à toa. Você tem 40 turnos e SÓ estas ferramentas:
+
+              Read, Glob, Grep, Write, TodoWrite
+              Bash: ls, git log, git show, gh issue view, gh pr view, gh pr diff, gh pr edit
+
+            NÃO existem aqui, e cada tentativa é um turno perdido: `cat`, `grep`, `head`,
+            `tail`, `wc`, `find`, `git diff` (use o tool `Read`/`Grep`/`Glob` e o `gh pr diff`)
+            e `gh pr comment` (o veredito vai para o ARQUIVO acima; quem publica é o step
+            não-IA). Leia o diff UMA vez pelo `gh pr diff` e trabalhe em cima dele; só abra
+            arquivo no disco quando precisar conferir algo que o diff não mostra.
           # ADIAR (2ª rodada, BAIXO): `Bash(gh pr edit:*)` é mais largo que o papel — o Verdict
           # só precisa de `--title`, `--remove-label` e `--add-label`, mas o curinga também
           # autoriza `--base` (trocar a branch de destino) e `--body`. Sem impacto hoje, porque
@@ -214,31 +227,49 @@ jobs:
           # `Bash(gh pr comment:*)` SAIU (FU-09, issue #58): publicar texto no PR deixou de ser
           # capacidade do agente — quem comenta é o step não-IA abaixo, a partir do arquivo. O
           # `gh pr edit` fica, porque trocar label/título É o veredito, não um texto livre.
-          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*)"'
+          # `--max-turns` subiu de 20 para 40: com 20, o Verdict estourou o teto (`num_turns:
+          # 21`, `error_max_turns`) nos PRs #66 e #67 — 11 arquivos e ~850 linhas cada — e não
+          # publicou nada, deixando os dois travados em `entrega:incompleta` para sempre. Ler
+          # PR + issue + diff e conferir critério de aceite não cabe em 20 turnos num PR desse
+          # tamanho, e a poda de allow-list das FU-08/FU-09 tornou isso pior: 6 negações de
+          # permissão naquele run, cada uma um turno queimado. O prompt agora lista as
+          # ferramentas que existem, para o agente não tentar `cat`/`git diff`/`gh pr comment`.
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*)"'
 
       # Publica a explicação do que falta (FU-09, issue #58): sem `Bash(gh pr comment:*)` no
       # agente, quem comenta é este step, não-IA, a partir do arquivo estruturado. Quando o
       # Verdict marca `entrega:completa` ele mesmo (via `gh pr edit`, mantido na allow-list),
       # não há nada a publicar — o teste de label cobre esse caso sem erro.
-      - name: Publicar comentário do Verdict (step não-IA)
+      #
+      # ESTE STEP É TAMBÉM O GUARD-RAIL DE SAÍDA. Ele substituiu um step separado que contava
+      # comentários do `claude[bot]` posteriores a um timestamp. Aquele desenho parou de
+      # funcionar no momento em que a FU-09 tirou `gh pr comment` do agente: quem publica agora
+      # é este step, com o `GITHUB_TOKEN` do workflow, ou seja como **`github-actions[bot]`** e
+      # não como `claude[bot]`. O resultado era o pior tipo de falso-vermelho — o Verdict
+      # julgava certo, o comentário saía, e o job reprovava assim mesmo (PRs #66 e #67).
+      # Aqui não há inferência por autor nem por janela de tempo: ou a label mudou, ou existe
+      # arquivo de veredito, ou o job falha.
+      - name: Publicar veredito do Verdict (step não-IA, também guard-rail de saída)
         if: always() && steps.checar.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ steps.checar.outputs.pr }}
           F: ${{ runner.temp }}/verdict-comentario.md
+          AGENTE: ${{ steps.claude.outcome }}
         run: |
           set -euo pipefail
           completa=$(gh pr view "${PR}" --json labels --jq '(.labels // []) | map(.name) | index("entrega:completa") != null')
           if [ "${completa}" = "true" ]; then
-            echo "Entrega marcada completa no PR #${PR}; nada a comentar."
+            echo "Veredito: entrega marcada completa no PR #${PR}."
             exit 0
           fi
           if [ -s "$F" ]; then
             gh pr comment "${PR}" --body-file "$F"
-            echo "Comentário publicado no PR #${PR} explicando o que falta."
+            echo "Veredito: comentário publicado no PR #${PR} explicando o que falta."
             exit 0
           fi
-          echo "::warning::Nem label trocada, nem arquivo de veredito escrito no PR #${PR}."
+          echo "::error::O Verdict rodou e não publicou julgamento (nem label, nem arquivo de veredito) no PR #${PR} (step do agente: ${AGENTE})."
+          exit 1
 
       # FU-10 (issue #59): o `unset-all` lá de cima roda ANTES do agente e cobre só o
       # extraheader que o `actions/checkout` grava — não a URL do remote, que a própria
@@ -276,39 +307,3 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      # Guard-rail de saída: sem ele, um skip da action por "workflow validation" (D-014) ou um
-      # no-op silencioso do agente sairia verde sem julgamento nenhum.
-      - name: Exigir veredito publicado (label trocada ou comentário)
-        if: always() && steps.checar.outputs.run == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ steps.checar.outputs.pr }}
-          DESDE: ${{ steps.checar.outputs.ts }}
-          AGENTE: ${{ steps.claude.outcome }}
-        run: |
-          set -euo pipefail
-
-          completa=$(gh pr view "${PR}" --json labels --jq '(.labels // []) | map(.name) | index("entrega:completa") != null')
-          if [ "${completa}" = "true" ]; then
-            echo "Veredito: entrega marcada completa no PR #${PR}."
-            exit 0
-          fi
-
-          # ADIAR (revisão de segurança do PR #55, 2ª rodada, BAIXO): o `or .updated_at` existe
-          # em `review.yml`/`security.yml` porque lá o comentário de progresso da action é
-          # editado durante o run. AQUI o desfecho esperado é sempre um comentário novo, então
-          # ele só abre a porta para um comentário ANTIGO do `claude[bot]`, editado dentro da
-          # janela, satisfazer o guard-rail sem julgamento nenhum. Estreito hoje (o `fix.yml`
-          # comenta antes de DESDE, e `review`/`security` ficam pulados enquanto o PR é
-          # `entrega:incompleta`). Ao mexer, restringir a `created_at >= DESDE` só neste arquivo.
-          novos=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
-            --jq "[.[] | select(.user.login == \"claude[bot]\")
-                       | select(.created_at >= \"${DESDE}\" or .updated_at >= \"${DESDE}\")]
-                  | length")
-          if [ "${novos}" -gt 0 ]; then
-            echo "Veredito: sem troca de label, mas comentário publicado no PR #${PR} explicando o que falta."
-            exit 0
-          fi
-
-          echo "::error::O Verdict rodou e não publicou julgamento (nem label, nem comentário) no PR #${PR} (step do agente: ${AGENTE})."
-          exit 1

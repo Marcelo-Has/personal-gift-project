@@ -66,7 +66,7 @@ describe('peopleSchema', () => {
 });
 
 describe('photosSchema', () => {
-	it('deve aceitar lista vazia (upload chega em issue futura, F1-05b)', () => {
+	it('deve aceitar lista vazia (exigir ao menos 1 foto é decisão de produto ainda não tomada)', () => {
 		expect(photosSchema.safeParse([]).success).toBe(true);
 	});
 
@@ -80,7 +80,8 @@ describe('photosSchema', () => {
 	});
 
 	// O `photoId` vira segmento de caminho no Storage quando a URL de leitura é remontada no
-	// servidor. Sem a allow-list, `../` escaparia da pasta do dono.
+	// servidor. Sem a allow-list, `../` escaparia da pasta do dono — mesmo motivo do
+	// `SAFE_ID` em `signed-url.ts` (achado MÉDIO da revisão de segurança do PR #67).
 	it.each(['../outro', 'users/uid/orders/x/photos/y', 'foto 3', 'a'.repeat(129)])(
 		'deve rejeitar photoId fora da allow-list: %s',
 		(photoId) => {

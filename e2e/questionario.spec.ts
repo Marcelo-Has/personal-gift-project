@@ -1,4 +1,17 @@
 import { expect, test } from '@playwright/test';
+import {
+	abrirEtapa,
+	interceptarRascunhoVazio,
+	interceptarSessaoFirebase
+} from './support/questionario';
+
+// A F1-05c (issue #33) somou uma busca de rascunho na montagem do layout, e com ela a
+// hidratação passou a depender da sessão do Firebase. Sem dublar as duas, os cliques deste
+// arquivo caem em botão ainda inerte — ver `abrirEtapa` no módulo de apoio.
+test.beforeEach(async ({ page }) => {
+	await interceptarSessaoFirebase(page);
+	await interceptarRascunhoVazio(page);
+});
 
 test('deve redirecionar /questionario para a primeira etapa e mostrar o passo atual', async ({
 	page
@@ -12,7 +25,7 @@ test('deve redirecionar /questionario para a primeira etapa e mostrar o passo at
 test('deve bloquear o avanço e mostrar erro em português quando a etapa está inválida', async ({
 	page
 }) => {
-	await page.goto('/questionario/pessoas');
+	await abrirEtapa(page, '/questionario/pessoas');
 
 	await page.getByRole('button', { name: 'Avançar' }).click();
 
@@ -28,7 +41,7 @@ test('deve responder 404 quando o slug da etapa não existe', async ({ page }) =
 });
 
 test('deve preservar o preenchimento ao voltar para uma etapa anterior', async ({ page }) => {
-	await page.goto('/questionario/pessoas');
+	await abrirEtapa(page, '/questionario/pessoas');
 
 	await page.getByRole('group', { name: 'Pessoa 1' }).getByLabel('Nome').fill('Ana');
 	await page
@@ -53,7 +66,7 @@ test('deve preservar o preenchimento ao voltar para uma etapa anterior', async (
 test('deve completar o fluxo feliz até o resumo, com o CTA apontando para /estilo-e-tamanho', async ({
 	page
 }) => {
-	await page.goto('/questionario/pessoas');
+	await abrirEtapa(page, '/questionario/pessoas');
 
 	await page.getByRole('group', { name: 'Pessoa 1' }).getByLabel('Nome').fill('Ana');
 	await page

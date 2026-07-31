@@ -895,7 +895,12 @@ fechado pelo hook: só as formas em que o token `gh` aparece inteiro estão barr
 
 Dois registros menores da mesma rodada: (a) o padrão bloqueia junto o uso legítimo de
 `gh api … -F campo=valor` (campo tipado, não leitura de arquivo) — não há esse padrão em nenhum
-workflow do repo hoje, mas quem adicionar vai apanhar sem saber por quê; (b) `claude.yml`,
+workflow do repo hoje, mas quem adicionar vai apanhar sem saber por quê. **A variante minúscula
+disso era pior e foi corrigida:** com `grep -i`, o padrão de `-F` casava também com **`-f`**, que
+é `--raw-field` e não lê arquivo nenhum — um `gh workflow run implement.yml -f issue=32`
+perfeitamente legítimo era bloqueado (aconteceu de fato, ao disparar a implementação das issues
+#32/#33). Nome de flag é case-sensitive, então o hook do `gh` deixou de usar `-i`. O hook de
+segredo mantém `-i`, que ali é necessário (`BEGIN … PRIVATE KEY`, `AUTHORIZATION: basic`); (b) `claude.yml`,
 `daily-report.yml`, `implement.yml` e `supervisor.yml` seguem com `cat`/`grep`/`head`/`tail`/
 `wc`/`find` nas allow-lists — mesma classe, e estão no escopo da issue do canal de publicação,
 não esquecidos. O que fecha de verdade é tirar `Bash(gh pr comment:*)` do agente e
@@ -1087,10 +1092,130 @@ comentário era um arquivo inteiro por workflow, escrito sobre a `main` anterior
 teria revertido as allow-lists que o FU-08 e as FU-10/FU-11 apertaram. O desenho foi portado
 sobre o estado atual. PR empilhado — ordem de merge #57 → #61 → #63 → #60.
 
+## D-035 | 2026-07-31 | ACEITA
+**O Verdict estourou o teto de turnos e travou a fábrica em silêncio — teto vai a 40 e o prompt
+passa a listar as ferramentas que existem.**
+
+**O que aconteceu.** Os PRs #66 (F1-05b) e #67 (F1-05c) foram implementados até o fim: 11
+arquivos e ~850 linhas cada, `ci`/`e2e`/`scans`/`regras-firebase` verdes. Mesmo assim ficaram
+parados. O Developer entregou; quem não concluiu foi o **Verdict** — os dois runs terminaram com
+`"subtype": "error_max_turns"`, `num_turns: 21` contra `--max-turns 20`. Sem publicar veredito,
+a label `entrega:incompleta` nunca virou, e como `review.yml`/`security.yml` são gateados por
+ela ([D-019]), a cadeia inteira depois disso ficou congelada.
+
+**Duas causas, ambas do nosso lado.**
+1. **Teto pequeno para o tamanho do PR.** Os 20 turnos foram calibrados em PRs de infra, de
+   poucos arquivos. Ler PR + issue + diff e conferir critério de aceite num PR de 11 arquivos
+   não cabe ali.
+2. **A poda de allow-list das [D-031]/[D-034] piorou o consumo.** Aquele run registra
+   `permission_denials_count: 6` — o agente tentou ferramentas que acabaram de sair
+   (`cat`/`grep`/`git diff`/`gh pr comment`) e cada tentativa negada é um turno perdido. Apertar
+   allow-list sem dizer ao agente o que sobrou cobra esse preço.
+
+**Decisão.** `--max-turns` de 20 para 40, e o prompt do `verdict.yml` passa a trazer um bloco
+"ORÇAMENTO E FERRAMENTAS" que lista o que existe e nomeia o que **não** existe, para o agente
+não gastar turno tentando. O custo extra é aceitável: o Verdict roda Sonnet, uma vez por PR
+quando o CI fica verde.
+
+**Buraco de desenho que isto expôs, e que NÃO é fechado aqui.** Nada na fábrica reage a um
+Verdict que falha. O `fix.yml` dispara em `workflows: ["CI"]` com `conclusion == 'failure'` — só
+observa o CI. `verdict.yml` vermelho não tem observador: os PRs simplesmente param, sem alarme,
+e só um humano olhando a lista percebe. O guard-rail interno do Verdict ("Exigir veredito
+publicado") transforma o silêncio em job vermelho, o que é correto, mas ninguém está escutando.
+Virou issue própria — é decisão de desenho (quem observa o observador), maior que este ajuste
+de parâmetro.
+
+## D-036 | 2026-07-31 | ACEITA
+**Modelo de preço da V1: preço só por TAMANHO — estilo não altera preço.** Opção **B** da
+issue #69, que desmembrou o gate [D-101] em duas perguntas com prazos diferentes: **(a)** qual é
+o *modelo* de preço (caro de reverter: define o modelo de dados do Pedido, o catálogo e a forma
+dos `Price` no Stripe) e **(b)** quais são os *números* por SKU (barato de trocar depois, é dado).
+Esta entrada responde **(a)**.
+
+**Decisão.** O mini livro "Nossa História" tem um preço por tamanho (P/M/G). O estilo escolhido
+pelo cliente **não** entra no cálculo do preço, e o modelo de dados **não** carrega campo de
+acréscimo por estilo. Motivo: enquanto o catálogo de produtos é pequeno — um produto só, e a
+mesma pipeline de geração para todos os estilos — não há custo diferencial que justifique cobrar
+diferente por estilo, e um estilo novo entra no catálogo sem exigir decisão de preço.
+
+**Por que não A nem C.** A (preço por estilo × tamanho) faz o catálogo crescer
+multiplicativamente e obriga a definir N preços a cada estilo novo, sem ganho comercial hoje. C
+(campo de acréscimo por estilo nascendo zerado) é precaução sem segundo caso concreto — o que o
+`.claude/rules/right-sizing.md` manda adiar; o Pedido já guarda o estilo escolhido, então
+acrescentar o campo depois é migração pequena.
+
+**Reabrir quando.** Se um estilo passar a ter custo de produção materialmente diferente dos
+outros (pipeline de imagem própria, acabamento diferente) ou se o catálogo deixar de ser
+pequeno, esta decisão volta ao gate — a mudança prevista é ir para C, não para A.
+
+**O que destrava.** O **F1-07** (Stripe modo teste: checkout + webhook com assinatura
+verificada) deixa de estar bloqueado: ele usa três `Price` de teste, um por tamanho, com valores
+de mentira. Os números reais são o item **(b)**, que continua PENDENTE em [D-101] e depende do
+custo por SKU ([D-102] geração de imagem, [D-104]/F3-01 print-on-demand) — portanto entra na
+FASE 3 e **não** bloqueia mais o fechamento da FASE 1. Não afeta #32 nem #33.
+
+## D-037 | 2026-07-31 | ACEITA
+**O guard-rail do Verdict reprovava justamente quando o Verdict acertava.** Defeito introduzido
+pela [D-034] (FU-09) e só visível depois que a [D-035] destravou o teto de turnos.
+
+**O que acontecia.** O guard-rail de saída do `verdict.yml` conferia o julgamento contando
+comentários do **`claude[bot]`** posteriores a um timestamp. Esse desenho parou de valer no
+instante em que a FU-09 tirou `gh pr comment` do agente: quem publica passou a ser o step não-IA,
+com o `GITHUB_TOKEN` do workflow, ou seja **`github-actions[bot]`**. Nos PRs #66 e #67 o Verdict
+leu, julgou, escreveu o arquivo, o step publicou o veredito no PR — e o job reprovou assim mesmo,
+porque procurava o autor errado. Falso-vermelho do pior tipo: o sistema funcionando, reportado
+como quebrado, com o veredito correto escondido atrás de um job vermelho.
+
+**Correção.** O guard-rail separado saiu; quem cumpre o papel agora é o próprio step de
+publicação: ou a label virou `entrega:completa`, ou existe arquivo de veredito e ele é publicado,
+ou o job falha. Sem inferência por autor nem por janela de tempo — o mesmo desenho que a [D-034]
+já tinha aplicado a `review.yml`/`security.yml`, e que aqui ficou pela metade. A saída `ts` do
+step `checar` saiu junto, por não ter mais consumidor.
+
+**Lição de processo, que vale mais que a correção.** A FU-09 trocou o autor dos comentários da
+fábrica e eu atualizei o guard-rail em dois dos três arquivos. O terceiro só apareceu em
+produção, e ainda assim mascarado — o run parecia falha do agente. **Quando uma mudança troca
+QUEM executa uma ação, todo controle que identifica o ator por nome precisa ser revisto junto**;
+grep por `claude[bot]` teria achado isto em segundos.
+
+## D-038 | 2026-07-31 | ACEITA
+**Os tetos de turnos dos agentes foram calibrados antes da poda de allow-list — todos sobem,
+e cada prompt passa a listar as ferramentas que existem.** Continuação direta do [D-035], que
+tratou só o `verdict.yml`.
+
+**O que aconteceu de novo.** Com o Verdict destravado, o `review.yml` estourou o teto no PR #67:
+`error_max_turns`, `num_turns: 51` contra `--max-turns 50`, e
+**`permission_denials_count: 12`** — doze dos cinquenta e um turnos gastos tentando ferramenta
+que a [D-034] tinha acabado de remover. É o mesmo defeito do D-035, no arquivo seguinte, porque
+lá eu corrigi o sintoma num arquivo em vez da classe.
+
+**Decisão.** Onde a [D-034] podou allow-list, o prompt passa a trazer um bloco "ORÇAMENTO E
+FERRAMENTAS" que lista o que existe e **nomeia o que não existe**, e o teto sobe:
+
+| workflow | antes | depois | motivo |
+|---|---|---|---|
+| `review.yml` | 50 | 80 | estourou no PR #67 |
+| `security.yml` | 50 | 80 | mesmo teto, mesma poda, diff maior — **por prevenção** |
+| `verdict.yml` | 20 | 40 | [D-035] |
+| `daily-report.yml` | 15 | 25 | ganhou a exigência de escrever arquivo e perdeu ferramentas |
+| `supervisor.yml` | 20 | 30 | lê cinco documentos de `docs/` antes de decidir |
+
+`security.yml` sobe **sem ter falhado**, de propósito: tem o mesmo teto, a mesma poda e um
+escopo maior. Deixar os dois diferentes só garantiria descobrir o problema uma segunda vez, em
+produção — que foi exatamente o erro do D-035.
+
+Teto é limite, não orçamento gasto: subir não custa nada em run que termina antes.
+
+**Os prompts também passaram a dizer o que fazer quando o orçamento acaba:** escrever o arquivo
+do veredito com o que já se tem. Revisão parcial publicada vale mais que job vermelho sem nada —
+e o guard-rail da [D-037] transforma "sem nada" em vermelho, corretamente.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
-- **D-101** | Preço da V1 por estilo e tamanho (depende do custo real por SKU).
+- **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
+  por SKU). O *modelo* de preço já foi decidido em [D-036] (só por tamanho; estilo não altera
+  preço), e não bloqueia mais a FASE 1.
 - **D-102** | Provedor de geração de imagem (qual, custo por livro, qualidade).
 - **D-103** | Prévia antes ou depois do pagamento?
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de

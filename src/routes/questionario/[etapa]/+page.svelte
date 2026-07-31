@@ -4,6 +4,16 @@
 	import { resolve } from '$app/paths';
 	import { getEtapaIndex, questionarioEtapas } from '$lib/questionario-etapas';
 	import { questionarioSchema } from '$lib/order-schema';
+	import { getSessionIdToken } from '$lib/firebase/session';
+	import {
+		ALLOWED_PHOTO_CONTENT_TYPES,
+		enviarArquivoParaUrlAssinada,
+		extrairPhotoId,
+		solicitarUrlDeDownload,
+		solicitarUrlDeUpload,
+		validarArquivoFoto,
+		type PhotoContentType
+	} from '$lib/upload-foto';
 	import type { CoupleQuestionnaire } from '$lib/order';
 	import type { PageData } from './$types';
 
@@ -74,6 +84,104 @@
 	function atualizarTraits(indice: 0 | 1, valor: string) {
 		questionario.people[indice].traits = valor.split('\n');
 	}
+
+	/**
+	 * Fotos são enviadas direto do navegador ao Storage por URL assinada (F1-05b,
+	 * issue #32); o servidor nunca vê o arquivo. `orderIdRascunho` só agrupa as fotos
+	 * desta sessão de questionário no mesmo "pedido" do Storage — não é o id do pedido
+	 * de verdade, que só passa a existir quando o pedido é persistido (#33).
+	 */
+	interface ItemFoto {
+		id: string;
+		nome: string;
+		status: 'enviando' | 'concluida' | 'erro';
+		erro?: string;
+	}
+
+	const orderIdRascunho = crypto.randomUUID().replace(/-/g, '');
+	let itensFoto = $state<ItemFoto[]>([]);
+
+	async function enviarFoto(arquivo: File) {
+		const id = crypto.randomUUID();
+		const erroValidacao = validarArquivoFoto(arquivo);
+
+		if (erroValidacao) {
+			itensFoto.push({ id, nome: arquivo.name, status: 'erro', erro: erroValidacao });
+			return;
+		}
+
+		itensFoto.push({ id, nome: arquivo.name, status: 'enviando' });
+		const contentType = arquivo.type as PhotoContentType;
+
+		try {
+			const idToken = await getSessionIdToken();
+			const upload = await solicitarUrlDeUpload({
+				contentType,
+				orderId: orderIdRascunho,
+				idToken
+			});
+			await enviarArquivoParaUrlAssinada(upload.url, arquivo, contentType);
+
+			const download = await solicitarUrlDeDownload({
+				orderId: orderIdRascunho,
+				photoId: extrairPhotoId(upload.path),
+				idToken
+			});
+			// `photoId` é o que fica; `url` é só o preview desta sessão e expira em 10 min.
+			questionario.photos.push({ photoId: extrairPhotoId(upload.path), url: download.url });
+
+			const item = itensFoto.find((item) => item.id === id);
+			if (item) item.status = 'concluida';
+		} catch (erro) {
+			const item = itensFoto.find((item) => item.id === id);
+			if (item) {
+				item.status = 'erro';
+				item.erro = erro instanceof Error ? erro.message : 'Falha ao enviar a foto.';
+			}
+		}
+	}
+
+	/**
+	 * Renova as URLs de preview ao entrar na etapa de fotos. Elas expiram em 10 minutos e o
+	 * questionário tem 9 etapas: sem isto, quem envia as fotos cedo e volta depois vê `<img>`
+	 * quebrado (achado da revisão do PR #66). O `photoId` é durável e é o que permite renovar,
+	 * Melhor esforço, como o resto do fluxo: falhar aqui não trava o preenchimento.
+	 */
+	$effect(() => {
+		if (etapa.key !== 'photos') return;
+		const semPreview = questionario.photos.filter((foto) => !foto.url);
+		if (semPreview.length === 0) return;
+
+		(async () => {
+			try {
+				const idToken = await getSessionIdToken();
+				for (const foto of semPreview) {
+					const download = await solicitarUrlDeDownload({
+						orderId: orderIdRascunho,
+						photoId: foto.photoId,
+						idToken
+					});
+					foto.url = download.url;
+				}
+			} catch {
+				// Sem sessão/rede: preview sem imagem, mas o `photoId` continua guardado.
+			}
+		})();
+	});
+
+	async function selecionarFotos(evento: Event) {
+		const input = evento.currentTarget as HTMLInputElement;
+		const arquivos = Array.from(input.files ?? []);
+		input.value = '';
+
+		for (const arquivo of arquivos) {
+			await enviarFoto(arquivo);
+		}
+	}
+
+	function removerFotoEnviada(indice: number) {
+		questionario.photos.splice(indice, 1);
+	}
 </script>
 
 <section aria-labelledby="titulo-etapa">
@@ -97,9 +205,48 @@
 			</fieldset>
 		{/each}
 	{:else if etapa.key === 'photos'}
-		<p>Em breve você poderá enviar fotos do casal aqui.</p>
-		<!-- F1-05b: componente de upload de fotos entra aqui -->
-		<button type="button" disabled>Selecionar fotos (em breve)</button>
+		<label>
+			Selecionar fotos
+			<input
+				type="file"
+				accept={ALLOWED_PHOTO_CONTENT_TYPES.join(',')}
+				multiple
+				onchange={selecionarFotos}
+			/>
+		</label>
+
+		{#if itensFoto.length > 0}
+			<ul class="itens-foto">
+				{#each itensFoto as item (item.id)}
+					<li>
+						{item.nome} —
+						{#if item.status === 'enviando'}
+							enviando…
+						{:else if item.status === 'concluida'}
+							enviada
+						{:else}
+							<span role="alert">{item.erro}</span>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		{#if questionario.photos.length > 0}
+			<!-- Chave é o `photoId`, não a `url`: a url é renovada e trocaria a identidade do item. -->
+			<ul class="preview-fotos">
+				{#each questionario.photos as foto, indice (foto.photoId)}
+					<li>
+						{#if foto.url}
+							<img src={foto.url} alt="Foto enviada do casal" />
+						{:else}
+							<span>Prévia indisponível — a foto continua salva.</span>
+						{/if}
+						<button type="button" onclick={() => removerFotoEnviada(indice)}>Remover</button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 	{:else if etapa.key === 'howTheyMet'}
 		<label>
 			{etapa.fields?.text}
@@ -236,6 +383,33 @@
 
 	.erros {
 		color: #a30000;
+	}
+
+	.itens-foto {
+		padding-left: 0;
+		list-style: none;
+	}
+
+	.preview-fotos {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1rem;
+		padding-left: 0;
+		list-style: none;
+	}
+
+	.preview-fotos li {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.preview-fotos img {
+		width: 8rem;
+		height: 8rem;
+		object-fit: cover;
+		border-radius: 0.5rem;
 	}
 
 	.navegacao-etapas {

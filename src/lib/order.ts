@@ -21,7 +21,9 @@ export interface Person {
  *
  * `url` é assinada e EXPIRA em 10 min (`.claude/rules/security.md`: foto nunca fica
  * pública), então é estado efêmero de UI — opcional, renovada sob demanda a partir do
- * `photoId`, e sem valor algum depois de persistida.
+ * `photoId`, e sem valor algum depois de persistida. Guardá-la como identificador daria
+ * `<img>` quebrado em qualquer fluxo que passe de 10 minutos — e o questionário tem 9 etapas
+ * (achado da revisão do PR #66).
  */
 export interface PhotoReference {
 	photoId: string;

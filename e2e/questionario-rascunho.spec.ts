@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { abrirEtapa, interceptarSessaoFirebase } from './support/questionario';
 import type { OrderDraft } from '../src/lib/order';
 
 /**
@@ -14,43 +15,6 @@ import type { OrderDraft } from '../src/lib/order';
  * comportamento que a hidratação depende. Um mock que devolvesse sempre o mesmo objeto fixo
  * passaria mesmo se o `POST` nunca acontecesse.
  */
-
-/**
- * Sessão anônima falsa. São dois endpoints com formatos diferentes: `accounts:signUp`
- * devolve o token e `accounts:lookup` — chamado logo depois para montar o `User` — espera
- * `{ users: [...] }`; responder o mesmo corpo aos dois estoura o SDK em `users.length`.
- */
-async function interceptarSessaoFirebase(page: Page) {
-	await page.route('**identitytoolkit.googleapis.com**', async (route) => {
-		const ehLookup = route.request().url().includes('accounts:lookup');
-
-		await route.fulfill({
-			status: 200,
-			contentType: 'application/json',
-			body: JSON.stringify(
-				ehLookup
-					? {
-							kind: 'identitytoolkit#GetAccountInfoResponse',
-							users: [
-								{
-									localId: 'uid-de-teste',
-									providerUserInfo: [],
-									lastLoginAt: `${Date.now()}`,
-									createdAt: `${Date.now()}`
-								}
-							]
-						}
-					: {
-							kind: 'identitytoolkit#SignupNewUserResponse',
-							idToken: 'id-token-de-teste',
-							refreshToken: 'refresh-token-de-teste',
-							expiresIn: '3600',
-							localId: 'uid-de-teste'
-						}
-			)
-		});
-	});
-}
 
 test('deve recuperar o preenchimento ao recarregar no meio do questionário', async ({ page }) => {
 	await interceptarSessaoFirebase(page);
@@ -84,7 +48,9 @@ test('deve recuperar o preenchimento ao recarregar no meio do questionário', as
 		});
 	});
 
-	await page.goto('/questionario/pessoas');
+	// Espera a hidratação antes de clicar — sem isso o clique cai num botão ainda inerte e o
+	// rascunho nunca é salvo. Ver `abrirEtapa` em `support/questionario.ts`.
+	await abrirEtapa(page, '/questionario/pessoas');
 
 	const pessoa1 = page.getByRole('group', { name: 'Pessoa 1' });
 	const pessoa2 = page.getByRole('group', { name: 'Pessoa 2' });

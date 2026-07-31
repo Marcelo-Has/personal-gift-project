@@ -87,6 +87,21 @@ jobs:
             encontrado" — no arquivo ${{ runner.temp }}/review-veredito.md. Um step
             separado, sem IA, publica esse arquivo como comentário no PR. `Write` serve só
             para esse arquivo; não altere nada no repositório.
+
+            ORÇAMENTO E FERRAMENTAS — leia antes de começar, porque tentar o que não existe
+            queima turno à toa. Você tem 80 turnos e SÓ estas ferramentas:
+
+              Read, Glob, Grep, Write, TodoWrite
+              Bash: ls, git log, git show, gh pr view, gh pr diff
+
+            NÃO existem aqui, e cada tentativa é um turno perdido: `cat`, `grep`, `head`,
+            `tail`, `wc`, `find`, `git diff` (use os tools `Read`/`Grep`/`Glob` e o
+            `gh pr diff`) e `gh pr comment` (o veredito vai para o ARQUIVO acima; quem
+            publica é o step não-IA). Leia o diff UMA vez pelo `gh pr diff` e trabalhe em
+            cima dele; só abra arquivo no disco quando precisar conferir algo que o diff não
+            mostra. Se o orçamento estiver acabando, PARE de investigar e escreva o arquivo
+            do veredito com o que já tem — revisão parcial publicada vale mais que job
+            vermelho sem nada.
           # `Bash(gh pr comment:*)` saiu (FU-09, issue #58): publicar texto no PR deixou de ser
           # capacidade do agente — quem publica é o step não-IA abaixo, a partir do arquivo. É a
           # diferença entre fechar o CANAL e fechar a sintaxe: o hook `PreToolUse` da FU-08
@@ -99,7 +114,14 @@ jobs:
           # .git/config` imprimem o que `Read(./.git/**)` nega, e `find -exec` executa comando
           # arbitrário. `Read`/`Grep`/`Glob` cobrem a leitura e respeitam a `deny`;
           # `gh pr diff`/`git show`/`git log` cobrem o diff.
-          claude_args: '--max-turns 50 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*)"'
+          #
+          # `--max-turns` subiu de 50 para 80, mesmo motivo do [D-035] no `verdict.yml`: com 50,
+          # o Reviewer estourou o teto no PR #67 (`num_turns: 51`, `error_max_turns`) e não
+          # publicou veredito nenhum. Duas causas somadas — PR de 11 arquivos, e a poda de
+          # allow-list acima, que naquele run custou `permission_denials_count: 12`, ou seja 12
+          # turnos gastos tentando ferramenta que não existe mais. O bloco "ORÇAMENTO E
+          # FERRAMENTAS" no prompt ataca a segunda causa; este teto, a primeira.
+          claude_args: '--max-turns 80 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*)"'
 
       # FU-10 (issue #59): descarta a credencial que a `claude-code-action` grava em
       # `.git/config` durante o próprio step acima. Achado real da revisão de segurança do

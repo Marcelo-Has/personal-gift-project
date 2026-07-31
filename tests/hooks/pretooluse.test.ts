@@ -167,7 +167,13 @@ describe('hooks PreToolUse (.claude/settings.json)', () => {
 			['comando do projeto', 'npm run lint && npm run build'],
 			['git commit -F com prosa sobre gh', 'git commit -F - <<EOF\nremove -F do gh\nEOF'],
 			['-F de outro comando', 'grep -F "--body-file" docs/DECISIONS.md'],
-			['gh depois de um -F alheio', 'git commit -F msg.txt && gh pr view 57']
+			['gh depois de um -F alheio', 'git commit -F msg.txt && gh pr view 57'],
+			// `-f` minúsculo é `--raw-field` do `gh`: manda um campo na linha de comando, não lê
+			// arquivo nenhum. Com `grep -i` no hook, ele casava com o padrão de `-F` e era
+			// bloqueado — falso-positivo que travou um `gh workflow run -f issue=32` legítimo.
+			// Nome de flag é case-sensitive de verdade, então o hook deixou de usar `-i`.
+			['gh workflow run com -f', 'gh workflow run implement.yml -f issue=32'],
+			['gh api com -f', 'gh api repos/o/r/issues -f title=teste']
 		])('libera %s', (_caso, comando) => {
 			expect(bloqueado(comando)).toBe(false);
 		});
