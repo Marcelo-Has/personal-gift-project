@@ -1092,6 +1092,39 @@ comentário era um arquivo inteiro por workflow, escrito sobre a `main` anterior
 teria revertido as allow-lists que o FU-08 e as FU-10/FU-11 apertaram. O desenho foi portado
 sobre o estado atual. PR empilhado — ordem de merge #57 → #61 → #63 → #60.
 
+## D-035 | 2026-07-31 | ACEITA
+**O Verdict estourou o teto de turnos e travou a fábrica em silêncio — teto vai a 40 e o prompt
+passa a listar as ferramentas que existem.**
+
+**O que aconteceu.** Os PRs #66 (F1-05b) e #67 (F1-05c) foram implementados até o fim: 11
+arquivos e ~850 linhas cada, `ci`/`e2e`/`scans`/`regras-firebase` verdes. Mesmo assim ficaram
+parados. O Developer entregou; quem não concluiu foi o **Verdict** — os dois runs terminaram com
+`"subtype": "error_max_turns"`, `num_turns: 21` contra `--max-turns 20`. Sem publicar veredito,
+a label `entrega:incompleta` nunca virou, e como `review.yml`/`security.yml` são gateados por
+ela ([D-019]), a cadeia inteira depois disso ficou congelada.
+
+**Duas causas, ambas do nosso lado.**
+1. **Teto pequeno para o tamanho do PR.** Os 20 turnos foram calibrados em PRs de infra, de
+   poucos arquivos. Ler PR + issue + diff e conferir critério de aceite num PR de 11 arquivos
+   não cabe ali.
+2. **A poda de allow-list das [D-031]/[D-034] piorou o consumo.** Aquele run registra
+   `permission_denials_count: 6` — o agente tentou ferramentas que acabaram de sair
+   (`cat`/`grep`/`git diff`/`gh pr comment`) e cada tentativa negada é um turno perdido. Apertar
+   allow-list sem dizer ao agente o que sobrou cobra esse preço.
+
+**Decisão.** `--max-turns` de 20 para 40, e o prompt do `verdict.yml` passa a trazer um bloco
+"ORÇAMENTO E FERRAMENTAS" que lista o que existe e nomeia o que **não** existe, para o agente
+não gastar turno tentando. O custo extra é aceitável: o Verdict roda Sonnet, uma vez por PR
+quando o CI fica verde.
+
+**Buraco de desenho que isto expôs, e que NÃO é fechado aqui.** Nada na fábrica reage a um
+Verdict que falha. O `fix.yml` dispara em `workflows: ["CI"]` com `conclusion == 'failure'` — só
+observa o CI. `verdict.yml` vermelho não tem observador: os PRs simplesmente param, sem alarme,
+e só um humano olhando a lista percebe. O guard-rail interno do Verdict ("Exigir veredito
+publicado") transforma o silêncio em job vermelho, o que é correto, mas ninguém está escutando.
+Virou issue própria — é decisão de desenho (quem observa o observador), maior que este ajuste
+de parâmetro.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
