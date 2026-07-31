@@ -18,7 +18,9 @@
       "Read(./.env.*)",
       "Read(**/*.pem)",
       "Read(**/secrets*)",
-      "Read(**/serviceAccount*.json)"
+      "Read(**/serviceAccount*.json)",
+      "Read(./.git/**)",
+      "Read(/proc/**)"
     ]
   },
   "hooks": {
@@ -28,7 +30,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "printf '%s' \"$CLAUDE_TOOL_INPUT\" | grep -qiE 'sk-ant-|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|STRIPE_SECRET|AKIA[0-9A-Z]{16}' && { echo 'Bloqueado: possível segredo no comando' >&2; exit 2; }; exit 0"
+            "command": "grep -qiE 'sk-ant-|sk_live_|sk_test_|rk_live_|whsec_|ghp_|gho_|ghs_|github_pat_|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|STRIPE_SECRET|AKIA[0-9A-Z]{16}|AUTHORIZATION: basic' && { echo 'Bloqueado: possível segredo no comando' >&2; exit 2; }; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "grep -qiE '\\bgh\\b[^|;&]*(--body-file|--input|[[:space:]]-F)' && { echo 'Bloqueado: --body-file/-F/--input em comando gh publica conteudo de arquivo sem passar pelo filtro de segredo do comando; publique com --body com o texto revisado' >&2; exit 2; }; exit 0"
           }
         ]
       }

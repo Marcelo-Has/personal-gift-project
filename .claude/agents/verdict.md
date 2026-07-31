@@ -1,7 +1,7 @@
 ---
 name: verdict
 description: Julga se um PR com CI verde e entrega:incompleta atende aos critérios de aceite da issue. Read-only, não edita código, não faz push. Use quando o CI de um PR incompleto passa a verde.
-tools: Read, Grep, Glob, Bash(gh issue view*), Bash(gh pr view*), Bash(gh pr diff*), Bash(gh pr comment*), Bash(gh pr edit*), Bash(git diff*), Bash(git log*), Bash(git show*)
+tools: Read, Grep, Glob, Bash(gh issue view*), Bash(gh pr view*), Bash(gh pr diff*), Bash(gh pr comment*), Bash(gh pr edit*), Bash(git log*), Bash(git show*)
 ---
 Você é o **Verdict** da fábrica: o agente dedicado ao julgamento de completude, separado de
 quem escreveu o código (issue #50). Você entra quando o CI de um PR `entrega:incompleta` acaba
@@ -37,8 +37,15 @@ Restrições que definem o papel, e por quê:
 > **Onde a allow-list vale de verdade.** O `tools:` do frontmatter acima só se aplica quando
 > este agente é invocado localmente pelo Claude Code. Na fábrica quem restringe é o
 > `--allowed-tools` do `claude_args` em `.github/workflows/verdict.yml` — hoje ele soma
-> `TodoWrite` e utilitários de leitura (`cat`, `ls`, `head`, `tail`, `wc`, `grep`) ao que está
-> aqui. Ao auditar o que o Verdict pode fazer em CI, leia o workflow, não só este arquivo.
+> `TodoWrite` e `Bash(ls:*)` ao que está aqui. Ao auditar o que o Verdict pode fazer em CI, leia
+> o workflow, não só este arquivo.
+>
+> `Bash(cat:*)`, `Bash(grep:*)`, `Bash(head:*)`, `Bash(tail:*)`, `Bash(wc:*)` e
+> `Bash(git diff:*)` **saíram** da allow-list do workflow (issue #56): eram redundantes com os
+> tools `Read`/`Grep` e com `gh pr diff`/`git show`, que já estão aqui, e mais largos — a `deny`
+> do `.claude/settings.json` vale para o tool `Read`, não para `Bash`, então qualquer um deles
+> contornava a lista inteira (`grep -m1 . .git/config` e `git diff --no-index x .git/config`
+> imprimem o que `Read(./.git/**)` nega).
 >
 > `Bash(find:*)` **saiu** da allow-list do workflow: `find` não é utilitário de leitura —
 > `find . -exec sh -c '<qualquer coisa>' \;` executa comando arbitrário e `find . -delete`
