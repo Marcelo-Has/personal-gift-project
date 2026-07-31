@@ -895,7 +895,12 @@ fechado pelo hook: só as formas em que o token `gh` aparece inteiro estão barr
 
 Dois registros menores da mesma rodada: (a) o padrão bloqueia junto o uso legítimo de
 `gh api … -F campo=valor` (campo tipado, não leitura de arquivo) — não há esse padrão em nenhum
-workflow do repo hoje, mas quem adicionar vai apanhar sem saber por quê; (b) `claude.yml`,
+workflow do repo hoje, mas quem adicionar vai apanhar sem saber por quê. **A variante minúscula
+disso era pior e foi corrigida:** com `grep -i`, o padrão de `-F` casava também com **`-f`**, que
+é `--raw-field` e não lê arquivo nenhum — um `gh workflow run implement.yml -f issue=32`
+perfeitamente legítimo era bloqueado (aconteceu de fato, ao disparar a implementação das issues
+#32/#33). Nome de flag é case-sensitive, então o hook do `gh` deixou de usar `-i`. O hook de
+segredo mantém `-i`, que ali é necessário (`BEGIN … PRIVATE KEY`, `AUTHORIZATION: basic`); (b) `claude.yml`,
 `daily-report.yml`, `implement.yml` e `supervisor.yml` seguem com `cat`/`grep`/`head`/`tail`/
 `wc`/`find` nas allow-lists — mesma classe, e estão no escopo da issue do canal de publicação,
 não esquecidos. O que fecha de verdade é tirar `Bash(gh pr comment:*)` do agente e
