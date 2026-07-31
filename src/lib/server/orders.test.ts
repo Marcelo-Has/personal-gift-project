@@ -105,7 +105,11 @@ describe('salvarRascunho', () => {
 			store
 		);
 		await salvarRascunho(
-			{ uid: 'uid-alice', orderId: 'pedido-1', dados: { questionnaire: { specialMessage: 'te amo' } } },
+			{
+				uid: 'uid-alice',
+				orderId: 'pedido-1',
+				dados: { questionnaire: { specialMessage: 'te amo' } }
+			},
 			store
 		);
 
