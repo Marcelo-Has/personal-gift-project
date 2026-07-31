@@ -162,6 +162,14 @@ jobs:
                na issue explicando o bloqueio. Terminar em silêncio, sem nenhum dos três, é
                a falha que este contrato existe para impedir.
 
+               No desfecho (b), o PR WIP que você já abriu no item 1 NÃO pode ficar para
+               trás se passando por implementação em andamento. Marque que ele parou:
+                 gh pr edit --title "[BLOQUEADO] <título, sem o [WIP]>"
+                 gh pr comment --body "Parado no Decision Gate: #<n da decision-needed>."
+               Mantenha `entrega:incompleta` — a entrega está mesmo incompleta. Sem isso o
+               PR fica na lista indistinguível de um WIP andando, e ninguém descobre que
+               está esperando decisão humana.
+
             5. Se o orçamento de turnos estiver acabando, PARE de codar e garanta o desfecho
                (a) com o que já existe: deixe `entrega:incompleta`, mantenha o `[WIP]` no
                título e liste no corpo do PR exatamente o que falta.

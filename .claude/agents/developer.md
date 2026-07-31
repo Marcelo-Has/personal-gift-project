@@ -19,6 +19,17 @@ verde e nada existia. O guard-rail de `implement.yml` (D-019) hoje reprova o job
    `docs/AUTONOMY.md` — com Opções + Recomendação + o que bloqueia. Não adivinhe.
 3. **Comentário na issue** explicando o bloqueio, quando nem (1) nem (2) forem possíveis.
 
+No desfecho 2, o PR WIP que você já abriu (veja abaixo: o PR vem primeiro) **não pode ficar
+para trás se passando por implementação em andamento**:
+
+```sh
+gh pr edit --title "[BLOQUEADO] <título, sem o [WIP]>"
+gh pr comment --body "Parado no Decision Gate: #<n da decision-needed>."
+```
+
+Mantenha `entrega:incompleta` — a entrega está mesmo incompleta. Sem isso o PR fica na lista
+indistinguível de um WIP andando, e ninguém descobre que está esperando decisão humana.
+
 **Abra o PR PRIMEIRO, antes de escrever código.** Não é o último passo do fluxo, é o primeiro
 depois de ler a issue. Commit vazio serve — o objetivo é o PR existir:
 

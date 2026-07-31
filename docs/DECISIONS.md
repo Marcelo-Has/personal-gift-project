@@ -1242,6 +1242,42 @@ Pro em repositório privado, e é a origem de todo o `merge-manual` e dos guard-
 deixar de existir — vira issue própria, porque desmontar os guard-rails que hoje substituem a
 proteção de branch é decisão de desenho, não ajuste de config.
 
+## D-043 | 2026-07-31 | ACEITA
+**[FU-06] Ao pivotar para `decision-needed`, o Developer marca o PR WIP como `[BLOQUEADO]`.**
+Fecha a issue #39, achado de processo da revisão do PR #37, não bloqueante, deixado como
+acompanhamento.
+
+O cenário nasceu do [D-019] (4ª rodada): desde que o Developer abre o PR **antes** de codar, um
+Decision Gate descoberto no meio da implementação — ambiguidade que só aparece ao escrever o
+código — deixa para trás um PR WIP aberto, com `Closes #N` e `entrega:incompleta`, idêntico a um
+PR que ainda está sendo trabalhado. O guard-rail já não pune esse caso (a checagem de
+`decision-needed` passou a ser avaliada antes do ramo de PR, no #37). O que faltava era higiene:
+esses PRs acumulam abertos e ninguém sabe, ao olhar a lista, que estão parados esperando decisão
+humana.
+
+**O que muda**, no contrato de saída de `.github/workflows/implement.yml` e no espelho de
+`.claude/agents/developer.md`: no desfecho (b), `gh pr edit --title "[BLOQUEADO] ..."` e
+`gh pr comment` apontando a `decision-needed`. `entrega:incompleta` **fica** — a entrega está
+mesmo incompleta, e a label é o que impede `review.yml`/`security.yml` de gastarem IA num PR que
+não vai andar ([D-019]).
+
+**Sem ampliação de privilégio:** `Bash(gh pr edit:*)` e `Bash(gh pr comment:*)` já estavam na
+allow-list do `implement.yml` — conferido na linha do `claude_args`, não presumido. `gh pr close`
+continua **fora**, por decisão: fechar PR é ação humana, e acrescentá-lo ampliaria o poder de
+escrita do Developer sem necessidade ([D-012], menor privilégio).
+
+**Interação boa com o [D-042], que estava sendo escrito na mesma sessão:** o alarme da FU-13 lista
+"PRs parados em `entrega:incompleta` há mais de 6h" imprimindo o **título** do PR. Com esta
+mudança, um PR parado por Decision Gate se identifica sozinho na linha do relatório — `[BLOQUEADO]
+...` aparece ali —, distinguindo "esperando humano" de "fábrica travada" sem nenhum código a mais
+dos dois lados.
+
+**Não testável de ponta a ponta antes do merge, limite já conhecido e registrado** ([D-019], 3ª
+rodada): disparar `implement.yml` contra a branch faz a `claude-code-action` responder
+`Skipping action due to workflow validation` e sair com exit 0. Mudança em `implement.yml` só se
+valida **depois** do merge. O que dá para verificar antes — e foi verificado — é que o YAML
+continua válido e que os dois comandos já estavam autorizados.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
