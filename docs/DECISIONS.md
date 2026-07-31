@@ -881,12 +881,17 @@ a issue de endurecimento do canal de publicação, junto com o limite reconhecid
 
 **Limite reconhecido — isto mitiga, não fecha a classe.** Denylist por regex sobre shell livre
 barra uma *sintaxe*, não o *canal*: `gh pr comment --body "$(cat segredo)"` publica o mesmo byte
-sem casar com nenhum padrão. A 4ª rodada de revisão somou uma variante mais direta: basta
-**mascarar o token `gh`** para a âncora não casar, sem mudar o que o bash executa —
-`"gh" pr comment … --body-file x` (o payload JSON escapa as aspas, então o caractere após `gh`
-é `\`, não espaço), `g\h pr comment …`, ou indireção por variável (`c=gh; $c pr comment …`, em
-que o literal `gh` nunca aparece junto da flag). Ou seja: **só o caso direto ficou bloqueado.**
-Nenhum leitor futuro deve concluir que `--body-file` foi de fato fechado pelo hook.
+sem casar com nenhum padrão. A 4ª rodada de revisão somou uma variante mais direta: **mascarar o
+token `gh`**, sem mudar o que o bash executa. A causa é sempre a mesma — o payload é JSON, então
+aspas, TAB e newline chegam ao `grep` **escapados** (`\"`, `\t`, `\n`), e o caractere depois de
+`gh` deixa de ser espaço. A 7ª rodada fechou a parte fechável trocando a exigência de espaço por
+limite de palavra (`\bgh\b`), o que passou a barrar `"gh" pr comment …`, `gh<TAB>pr comment …` e
+`gh<newline>pr comment …` sem soltar nenhum caso legítimo (verificado caso a caso).
+
+**Continuam escapando, e por construção:** `g\h pr comment …` (o literal `gh` não existe no
+texto) e indireção por variável (`c=gh; $c pr comment …`, em que o `;` corta o segmento e o
+literal nunca aparece junto da flag). Nenhum leitor futuro deve concluir que `--body-file` foi
+fechado pelo hook: só as formas em que o token `gh` aparece inteiro estão barradas.
 
 Dois registros menores da mesma rodada: (a) o padrão bloqueia junto o uso legítimo de
 `gh api … -F campo=valor` (campo tipado, não leitura de arquivo) — não há esse padrão em nenhum

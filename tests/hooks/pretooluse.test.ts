@@ -138,6 +138,14 @@ describe('hooks PreToolUse (.claude/settings.json)', () => {
 			// no `gh`, estas duas formas passavam direto.
 			['flag global -R antes do subcomando', 'gh -R o/r pr comment 57 --body-file .git/config'],
 			['flag global --repo antes do subcomando', 'gh --repo o/r issue comment 56 --body-file x'],
+			// Mascarar o separador logo depois do `gh` escapava enquanto o padrão exigia
+			// `[[:space:]]` ali: no payload JSON, TAB e newline viram `\t`/`\n` ESCAPADOS, e a
+			// aspa vira `\"`, então o caractere seguinte a `gh` no texto grepado é `\`, não
+			// espaço. Trocar a exigência de espaço por limite de palavra (`\b`) fecha os três
+			// sem soltar nenhum caso legítimo.
+			['separador TAB depois do gh', 'gh\tpr comment 57 --body-file x'],
+			['newline depois do gh', 'gh\npr comment 57 --body-file x'],
+			['aspas em volta do gh', '"gh" pr comment 57 --body-file x'],
 			['gh issue comment', 'gh issue comment 56 --body-file segredo.txt'],
 			['gh pr edit', 'gh pr edit 57 --body-file segredo.txt'],
 			['gh api --input', 'gh api --input corpo.json /repos/o/r/issues/57/comments'],
