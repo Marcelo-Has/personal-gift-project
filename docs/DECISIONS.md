@@ -1154,8 +1154,29 @@ de mentira. Os números reais são o item **(b)**, que continua PENDENTE em [D-1
 custo por SKU ([D-102] geração de imagem, [D-104]/F3-01 print-on-demand) — portanto entra na
 FASE 3 e **não** bloqueia mais o fechamento da FASE 1. Não afeta #32 nem #33.
 
----
-## PENDENTES (Decision Gates antes do lançamento)
+## D-037 | 2026-07-31 | ACEITA
+**O guard-rail do Verdict reprovava justamente quando o Verdict acertava.** Defeito introduzido
+pela [D-034] (FU-09) e só visível depois que a [D-035] destravou o teto de turnos.
+
+**O que acontecia.** O guard-rail de saída do `verdict.yml` conferia o julgamento contando
+comentários do **`claude[bot]`** posteriores a um timestamp. Esse desenho parou de valer no
+instante em que a FU-09 tirou `gh pr comment` do agente: quem publica passou a ser o step não-IA,
+com o `GITHUB_TOKEN` do workflow, ou seja **`github-actions[bot]`**. Nos PRs #66 e #67 o Verdict
+leu, julgou, escreveu o arquivo, o step publicou o veredito no PR — e o job reprovou assim mesmo,
+porque procurava o autor errado. Falso-vermelho do pior tipo: o sistema funcionando, reportado
+como quebrado, com o veredito correto escondido atrás de um job vermelho.
+
+**Correção.** O guard-rail separado saiu; quem cumpre o papel agora é o próprio step de
+publicação: ou a label virou `entrega:completa`, ou existe arquivo de veredito e ele é publicado,
+ou o job falha. Sem inferência por autor nem por janela de tempo — o mesmo desenho que a [D-034]
+já tinha aplicado a `review.yml`/`security.yml`, e que aqui ficou pela metade. A saída `ts` do
+step `checar` saiu junto, por não ter mais consumidor.
+
+**Lição de processo, que vale mais que a correção.** A FU-09 trocou o autor dos comentários da
+fábrica e eu atualizei o guard-rail em dois dos três arquivos. O terceiro só apareceu em
+produção, e ainda assim mascarado — o run parecia falha do agente. **Quando uma mudança troca
+QUEM executa uma ação, todo controle que identifica o ator por nome precisa ser revisto junto**;
+grep por `claude[bot]` teria achado isto em segundos.
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
   por SKU). O *modelo* de preço já foi decidido em [D-036] (só por tamanho; estilo não altera
