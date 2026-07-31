@@ -41,4 +41,12 @@ jobs:
             aceite verificáveis, fora de escopo explícito, arquivos prováveis e
             dependências. Se a tarefa tocar uma decisão PENDENTE (D-100..D-106), crie
             como decision-needed, não status:ready.
-          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Bash(git log:*),Bash(git status:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),TodoWrite,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*)"'
+          # `cat`/`grep`/`head`/`tail`/`wc`/`find` saíram da allow-list (FU-09, issue #58):
+          # `Read`/`Grep`/`Glob` cobrem a mesma leitura e respeitam a `deny` do
+          # `.claude/settings.json`, que nenhum deles respeita — e `find -exec` é execução de
+          # comando arbitrário. Aqui a poda vale de verdade, porque este workflow NÃO tem
+          # `node`/`npx`/`git` genérico: sem eles, tirar os leitores fecha o caminho em vez de
+          # só estreitá-lo (ao contrário de `fix.yml`/`implement.yml`, ver [D-031]).
+          # `Bash(gh issue:*)` fica: criar issue é o trabalho do Supervisor, não "relatar"
+          # sobre trabalho alheio — fora do escopo do item 1 desta issue.
+          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git status:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
