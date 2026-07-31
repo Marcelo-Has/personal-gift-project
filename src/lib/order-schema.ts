@@ -24,6 +24,9 @@ export const peopleSchema = z.tuple([personSchema, personSchema]);
 
 export const photoSchema = z.object({
 	url: z.string().trim().min(1, 'URL da foto é obrigatória.'),
+	// Aditivo (F1-05c, issue #33): caminho no Storage, persistido no lugar da URL
+	// assinada (que expira). Ver `PhotoReference` em `src/lib/order.ts`.
+	path: z.string().trim().min(1, 'Caminho da foto inválido.').optional(),
 	caption: z.string().trim().max(200, 'Legenda muito longa.').optional()
 });
 
@@ -104,3 +107,49 @@ export type QuestionarioInput = z.infer<typeof questionarioSchema>;
 export const questionarioInputAssignableToModel: QuestionarioInput extends CoupleQuestionnaire
 	? true
 	: false = true;
+
+/**
+ * Schema do rascunho (F1-05c, issue #33): reusa os schemas de etapa acima, mas
+ * cada etapa é opcional — o rascunho é salvo aos pedaços, etapa a etapa, então
+ * nunca chega completo antes da última tela do questionário.
+ */
+export const rascunhoQuestionarioSchema = z
+	.object({
+		people: peopleSchema,
+		photos: photosSchema,
+		howTheyMet: howTheyMetSchema,
+		milestones: milestonesSchema,
+		insideJokes: insideJokesSchema,
+		trips: tripsSchema,
+		challenges: challengesSchema,
+		futurePlans: futurePlansSchema,
+		specialMessage: specialMessageSchema
+	})
+	.partial();
+
+/** Sem schema próprio ainda (#30 cobriu só o questionário) — mínimo para o rascunho. */
+export const rascunhoChoiceSchema = z
+	.object({
+		narrativeStyleId: z.string().trim().min(1, 'Selecione um estilo de narrativa.'),
+		photoStyleId: z.string().trim().min(1, 'Selecione um estilo de foto.'),
+		sizeId: z.string().trim().min(1, 'Selecione um tamanho.')
+	})
+	.partial();
+
+/**
+ * Id seguro para virar caminho de documento/foto — mesma allow-list de
+ * `SAFE_ID`/`assertSafeId` em `src/lib/server/signed-url.ts:41`, para os dois
+ * concordarem sobre o mesmo `orderId`.
+ */
+export const orderIdSchema = z
+	.string()
+	.regex(/^[A-Za-z0-9_-]{1,128}$/, 'ID de pedido inválido: use apenas letras, números, "-" e "_".');
+
+/** Corpo aceito por `POST /api/pedidos/rascunho`. `ownerId`/`userId` não entram — o dono vem sempre de `locals.uid`. */
+export const salvarRascunhoSchema = z.object({
+	orderId: orderIdSchema,
+	questionnaire: rascunhoQuestionarioSchema.optional(),
+	choice: rascunhoChoiceSchema.optional()
+});
+
+export type SalvarRascunhoInput = z.infer<typeof salvarRascunhoSchema>;
