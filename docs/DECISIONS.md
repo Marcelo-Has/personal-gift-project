@@ -961,18 +961,20 @@ DENTRO do seu próprio step opaco, antes do primeiro turno do agente — não h�
   o próprio step do agente é aceita como resíduo inevitável enquanto o push depender dessa forma
   de autenticação.
 
-**Bloqueio de entrega — mesma classe do [D-030]/D-031 (PR #57).** `git push` desta sessão foi
-recusado pelo GitHub: `refusing to allow a GitHub App to create or update workflow
-.github/workflows/{review,security,verdict,fix}.yml without 'workflows' permission`. A
-credencial do runner não tem escopo `workflows`; só a credencial pessoal do dono do repositório
-tem (mesmo caminho dos commits `1406043`/`4b50749` dos D-030/D-031). O diff pronto dos quatro
-arquivos foi deixado como comentário no PR #61 para aplicação manual. PR permanece
-`entrega:incompleta` até isso acontecer.
+**Nota de execução — o mesmo bloqueio de plataforma do [D-030]/[D-031], resolvido do mesmo
+jeito.** `git push` da sessão do runner foi recusado: `refusing to allow a GitHub App to create
+or update workflow .github/workflows/{review,security,verdict,fix}.yml without 'workflows'
+permission`. O diff pronto ficou como comentário no PR #61 e **foi aplicado numa sessão local
+com a credencial pessoal do dono do repositório**, mesmo caminho dos commits `1406043` (D-030) e
+`4b50749` (D-031). Confirma-se o padrão: mudança de workflow proposta por agente da fábrica
+precisa de uma passada local para chegar ao remoto.
 
-**Dependência declarada na própria issue #59:** o merge deste PR pode colidir com o PR #57 (FU-08,
-também `entrega:incompleta`/merge manual) na mesma linha do `claude_args` de `verdict.yml` e
-`fix.yml` (um remove `Bash(cat:*)`, o outro soma um step novo depois) — resolução de conflito é
-trabalho de quem aplicar os dois manualmente, em qualquer ordem.
+**Sobre a colisão prevista com o PR #57 (FU-08):** ela aconteceu, como a issue #59 antecipava —
+os dois mexem na mesma região do `claude_args` de `verdict.yml`/`fix.yml`. Resolvida empilhando:
+este PR foi rebaseado sobre o #57, e o diff do comentário **não** foi aplicado literalmente (o
+contexto dele era a `main` anterior ao #57, então `git apply` teria reintroduzido as allow-lists
+largas que o FU-08 acabara de apertar). Só os steps novos foram portados, sobre o estado atual
+dos arquivos.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
