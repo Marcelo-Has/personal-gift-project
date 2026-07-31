@@ -1412,6 +1412,57 @@ achado. Com o [D-041] esses dois checks passaram a ser obrigatórios na `main`, 
 exige o bypass de admin do dono (`enforce_admins: false`) — que é exatamente o caminho previsto
 lá.
 
+## D-043 | 2026-07-31 | ACEITA
+**[FU-13] Falha de agente da fábrica passa a produzir sinal. Caminho escolhido: (c) alarme, sem
+automação — e o alarme é NÃO-IA.** Fecha a issue #71, aberta porque os PRs #66 e #67 ficaram
+prontos e congelados por horas sem ninguém saber: o Verdict estourou o teto de turnos, não
+publicou veredito, `entrega:incompleta` nunca virou `entrega:completa`, e como
+`review.yml`/`security.yml` são gateados por essa label ([D-019]) os PRs também nunca foram
+revisados. Só se descobriu porque o dono olhou a lista e perguntou.
+
+**A decisão que mais importa não estava entre as três opções da issue: o alarme não pode ser
+feito por agente.** Um alarme por IA é silenciado pela própria falha que ele existe para
+denunciar — foi literalmente o caso aqui. Por isso o levantamento é um step de bash, roda ANTES
+do agente do relatório, e o step que abre a issue publica esse levantamento **mesmo quando o
+agente não escreveu nada**. Antes, `relatorio.md` vazio dava `exit 1` e nada publicado: a falha
+do agente apagava o único canal por onde ela seria vista. Agora a issue sai com um bloco
+`> [!CAUTION]` no topo **e** o job continua vermelho — sinal visível e check vermelho não são
+alternativas, e o buraco da #71 era ter só o segundo.
+
+**O que o step levanta**, em `daily-report.yml`:
+- **PRs parados em `entrega:incompleta`** há mais de 6h sem atividade (6h = mais que uma rodada
+  normal de implementação, menos que meio dia de silêncio).
+- **Runs de agente ainda vermelhos**: `Verdict`, `Review`, `Security`, `Implement`, `Supervisor`,
+  `Fix`, `Daily Report`.
+
+**Ajuste feito por medição, não por gosto.** A issue pedia "runs de agente vermelhos nas últimas
+24h". Rodando esse filtro contra o repo real: **15+ linhas em 24h**, quase todas já superadas por
+um push posterior que passou. Alarme que grita todo dia é alarme que ninguém lê — e a #71 é
+exatamente sobre um sinal que não chegou. O filtro agrupa por workflow+branch e fica só com o run
+**mais recente** de cada grupo: as mesmas 24h caem de 15+ para **2 linhas**, e as duas eram
+vermelho real. O relatório também explica que `Review`/`Security` vermelho em PR `merge-manual` é
+o impasse do [D-014], não falha de agente.
+
+**Opção (b) — redisparo automático do `verdict.yml` em `error_max_turns` — ADIADA, não
+descartada.** Filtro do `.claude/rules/right-sizing.md`: não afeta correção nem dado de usuário, e
+é barato de adicionar depois. A causa direta daquela falha já foi tratada no [D-035] (teto de
+turnos), aconteceu **uma vez**, e o conserto manual é reexecutar o workflow — um clique, agora que
+o alarme diz que é preciso. Em troca, (b) pede guarda de laço por SHA, ou seja máquina de estado
+nova num workflow privilegiado, para um caso que hoje não tem frequência conhecida. Se voltar a
+acontecer com o alarme já no ar, aí existe evidência para justificar a automação.
+
+**Opção (a) — ampliar o gatilho do `fix.yml` — DESCARTADA.** A própria issue já suspeitava, e se
+confirma: o `fix.yml` conserta *código* que quebrou o CI; relançar agente que estourou turnos não
+é isso, e ele roda com `contents: write`. Resposta errada para o problema certo.
+
+**Critério "nenhum agente ganha permissão nova": cumprido.** O `gh` do step novo roda no shell do
+runner com o `GITHUB_TOKEN` do job (`actions`/`pull-requests`/`issues` que o workflow já tinha),
+não pela allow-list de nenhum agente.
+
+**Limite aceito:** o `daily-report.yml` roda 1x/dia, então o pior caso de atraso do sinal é ~24h.
+Melhor que "até alguém reparar", que era o estado anterior. Encurtar a cadência é ajuste de `cron`
+quando/se doer.
+
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
