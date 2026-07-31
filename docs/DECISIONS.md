@@ -1242,7 +1242,228 @@ Pro em repositório privado, e é a origem de todo o `merge-manual` e dos guard-
 deixar de existir — vira issue própria, porque desmontar os guard-rails que hoje substituem a
 proteção de branch é decisão de desenho, não ajuste de config.
 
+## D-040 | 2026-07-31 | ACEITA
+**`POST`/`GET` de `/api/pedidos/rascunho` ganharam `checkRateLimit` (janela deslizante,
+`rascunho:${uid}`) e um teto de 10 rascunhos distintos por uid** — item de baseline
+(`.claude/rules/security.md`: "rate limiting e limites de upload em rotas públicas") adiado do
+PR #67 e cobrado pela issue #74 (achado MÉDIO #4 da revisão daquele PR).
+
+**O problema.** A sessão é anônima (`signInAnonymously`): qualquer um obtém quantos `uid`
+quiser, de graça, e cada um cria documentos ilimitados em `users/<uid>/orders/<qualquer-uuid>`.
+Não é vazamento — a autorização por uid já está correta, ninguém alcança dado de outro — é vetor
+de **custo e enchimento de base**.
+
+**Dois mecanismos, complementares, sem inventar nada novo:**
+- **Rate limit por janela** (`checkRateLimit`, já introduzido no PR #66 para a rota de fotos):
+  fecha rajada. Mesma chave `rascunho:${uid}` para os dois verbos, porque `POST` e `GET` aqui
+  operam sobre o mesmo recurso (o rascunho de quem chama) — diferente do par
+  `upload:`/`download:` das fotos, que são ações distintas sobre arquivos distintos.
+- **Teto de rascunhos distintos por uid** (novo: `LimiteDeRascunhosError` em `orders.ts`, contagem
+  via `collection('users/<uid>/orders').count()`): fecha acúmulo. Só entra na criação de um
+  `orderId` **novo** — atualizar um rascunho já existente nunca esbarra no teto, mesmo com o uid
+  no limite.
+
+**Fora de escopo, como já registrado na issue:** rate limit distribuído (o `Map` em memória de
+`rate-limit.ts` não é compartilhado entre instâncias; endurecer isso é backlog de Fase 5 se o
+volume real justificar, `.claude/rules/right-sizing.md`) e limite por IP (`uid` é o eixo natural
+de abuso aqui; IP atrás de CDN serverless não é confiável).
+
+## D-041 | 2026-07-31 | ACEITA
+**[FU-15] Branch protection aplicada na `main`. O impasse do [D-014] encolhe pela metade — e os
+guard-rails que o substituíam FICAM.** É a issue própria que o [D-039] pediu.
+
+**O impasse tinha duas causas, e só uma morre com o repositório público.**
+
+1. *Branch protection exigia GitHub Pro em repo privado.* Era a razão de existir da ponte (c) do
+   [D-014], e o próprio D-014 já registrava o limite dela: *"é convenção, não bloqueio — sem
+   branch protection, ainda é possível mergear por cima de um check vermelho"*. **Morre.**
+2. *A `claude-code-action` se recusa a rodar em PR que altera o workflow que a invoca*
+   (`Skipping action due to workflow validation: the workflow file must have identical content to
+   the version on the default branch`) **e sai com exit 0**. É guard-rail da própria action contra
+   workflow modificado por PR — não tem relação com Pro nem com visibilidade. **NÃO morre.** É a
+   origem da exceção de 2026-07-29 do [D-014] e da label `merge-manual`, que **continuam válidas
+   sem alteração**.
+
+**Por que os guard-rails ficam — o D-039 supôs o contrário, e a avaliação inverteu isso.** Um
+skip por *workflow validation* sai **verde** aos olhos do Actions; `steps.claude.outcome` não o
+detecta ([D-019], 3ª rodada). Branch protection não enxerga skip nenhum — ela só lê a conclusão do
+check. Quem transforma o skip em vermelho é o step não-IA "Publicar veredito no PR" de
+`review.yml`/`security.yml` ([D-034]): ou existe arquivo de veredito, ou o job falha. A divisão é
+**o guard-rail produz o vermelho; a branch protection faz o vermelho bloquear**. Sem o primeiro
+não há vermelho para bloquear; sem a segunda o vermelho é opinião. Desmontá-los seria regressão
+de segurança disfarçada de simplificação.
+
+**Config aplicada** (`PUT /branches/main/protection`, verificada pela API depois):
+- `required_status_checks.contexts`: `ci`, `regras-firebase`, `scans`, `review`,
+  `ai-security-review`. O D-014 pedia três; `scans` e `regras-firebase` não existiam em
+  2026-07-28 e entram porque são gate de segurança real (segredos/`npm audit` e regras do
+  Firebase).
+- `strict: true` ("require branches to be up to date"), como o D-014 pede — foi o merge ref
+  defasado que causou o skip original. **Custo aceito:** cada merge obriga os outros PRs abertos
+  a atualizar a branch. Com a fábrica rodando em paralelo isso gera rodada extra de CI; é o preço
+  de não mergear contra uma base que ninguém testou.
+- `required_pull_request_reviews.required_approving_review_count: 0` — exige **PR** (sem push
+  direto na `main`), sem exigir **aprovação**. Aprovação obrigatória travaria a fábrica: não há
+  humano aprovando PR no fluxo, e o merge já é humano por [D-012]. Verificado antes de ligar que
+  nenhum workflow empurra direto na `main` — `implement.yml` empurra branch de feature e
+  `fix.yml` empurra a branch do PR.
+- `enforce_admins: false`, como o [D-014] já previa: é o bypass que a exceção `merge-manual`
+  precisa. O `merge-manual` deixa de ser *"o dono ignora um check vermelho"* e passa a ser *"o
+  dono usa o bypass de admin"* — mesma ação, agora auditável no log do repositório. Ganho real,
+  não cosmético.
+- `allow_force_pushes: false`, `allow_deletions: false`.
+
+**Erro conhecido, ainda não corrigido: falta o `e2e` na lista.** O job `e2e` de `ci.yml` é gate de
+PR e deveria estar entre os obrigatórios; ficou de fora porque a enumeração inicial dos jobs foi
+feita com um padrão que não casava nome com dígito. Registrado aqui em vez de silenciado: enquanto
+não entrar, um PR que quebre só o E2E não é barrado pela proteção — barrado continua sendo pelo
+[D-012] (merge é humano).
+
+**Ressalva conhecida, registrada e não corrigida:** job pulado por `if:` de nível de job reporta
+conclusão `skipped`, e a branch protection trata `skipped` como satisfeito. Ou seja, um PR com
+`entrega:incompleta` (que pula `review`/`ai-security-review` por [D-019]) não fica travado pela
+proteção. Não é regressão — é o comportamento de hoje, e o que impede o merge desses PRs continua
+sendo o [D-012] (merge é humano) mais o veredito do `verdict.yml`.
+
+**ADIAR** (`.claude/rules/right-sizing.md`): `required_conversation_resolution`,
+`required_signatures` e `required_linear_history` — atrito sem superfície de risco atual.
+
+**Nota de execução:** config de repositório, não arquivo versionado — aplicada por `gh api` numa
+sessão local com a credencial pessoal do dono, o mesmo caminho dos [D-030]/[D-031]/[D-032]/
+[D-033], aqui não por falta de escopo `workflows` e sim porque não existe arquivo a empurrar.
+
+## D-042 | 2026-07-31 | ACEITA
+**[FU-12] O revisor julga o DIFF, nunca o disco do runner — e o [D-033] transformou isso de
+higiene em correção.** Fecha a issue #64, aberta porque o `ai-security-review` publicou no PR #57
+um veredito **inteiramente invertido**: 5 bloqueantes acusando o PR de *remover* os hooks
+`PreToolUse` e as entradas de `deny` que ele **adicionava**.
+
+**A causa deixou de ser mistério — e virou permanente.** Quando a issue #64 foi escrita, ela
+registrava que nada em `security.yml` explicava o `.claude/settings.json` modificado no workspace
+("o step de restaurar config de agente da base existe só no `verdict.yml`"). Isso era verdade
+naquele momento e **deixou de ser no mesmo dia**: o [D-033] (issue #62, PR #63) levou o step
+"Usar a config de agente da base" para `review.yml` e `security.yml` também. Esse step apaga
+`CLAUDE.md`/`AGENTS.md`/`.mcp.json`/`.claude/` da branch e restaura a versão da base — **de
+propósito**, e essa parte fica: é ela que impede um PR de reescrever as instruções do próprio
+revisor.
+
+O efeito colateral, porém, agora é **garantido por desenho**: em todo PR que toque esses
+caminhos, o disco mostra a versão BASE, e qualquer leitura de disco produz a frase "este PR
+removeu X" sobre algo que o PR adiciona. Ou seja, o modo de falha que no PR #57 foi acidente
+passou a ser o comportamento normal do job. Por isso o item 2 da issue (revisar a partir do
+diff) foi tratado como **correção**, filtro nº 1 do `.claude/rules/right-sizing.md`, e não como
+robustez adiável.
+
+**O que foi feito, em `review.yml` e `security.yml`:**
+
+1. **Bloco "DE ONDE VEM A VERDADE" no prompt dos dois revisores.** Diz o que diverge, por que
+   diverge e qual é a regra operacional: a fonte é `gh pr diff`/`git show <sha>:<caminho>`;
+   `Read`/`Grep`/`Glob` servem para contexto e **nunca** para concluir que uma linha entrou ou
+   saiu; antes de afirmar que o PR remove/reverte/enfraquece algo, confirmar o `-` no diff. No
+   `security.yml` vai com um parágrafo a mais, porque ali o achado mais grave possível ("este PR
+   enfraquece a proteção X") é exatamente o que a leitura de disco fabrica sozinha.
+2. **Linha de base da divergência esperada.** O step de restauração passou a gravar
+   `git status --porcelain` logo depois de divergir o disco de propósito.
+3. **Guard-rail (item 3 da issue).** Um step novo, `if: always()`, compara o `git status` do fim
+   do job com essa linha de base. O que sobrar é divergência de origem **desconhecida**: vira
+   `::warning::` no run **e** um bloco `> [!WARNING]` no topo do próprio comentário de veredito,
+   listando os caminhos. Diagnóstico e alarme no mesmo step de propósito — um `git status` que só
+   existisse no log dependeria de alguém ir olhar, e a issue #64 nasceu justamente de ninguém ter
+   olhado.
+4. **Espelho em `.claude/agents/reviewer.md`**, para valer também fora do CI.
+
+**Item 1 da issue ("achar a origem da reversão"): respondido com evidência de run, e o run foi o
+deste próprio PR.** O critério de aceite pedia evidência; o job `review` do PR #79
+(run `30662067972`) produziu:
+
+```
+##[group]Workspace após a restauração (divergência esperada)
+M  .claude/agents/reviewer.md
+##[endgroup]
+...
+##[group]Workspace ao fim do job
+M  .claude/agents/reviewer.md
+##[endgroup]
+Workspace sem divergência inesperada.
+```
+
+Leia o que isso diz. Este PR **acrescenta** uma seção a `.claude/agents/reviewer.md`; o disco do
+runner mostra o arquivo **modificado de volta para a versão da base**. É o mecanismo do veredito
+invertido do PR #57 reproduzido ao vivo: um revisor que lesse o disco reportaria que este PR
+*remove* a seção que ele *adiciona*. E o estado do fim do job é idêntico ao da restauração —
+**nenhum mutador desconhecido** acrescentou nada.
+
+**O que este run NÃO prova, e é preciso dizer:** a `claude-code-action` foi *pulada* nele
+(`workflow validation`, impasse [D-014]), então ela não teve chance de mexer em nada. A hipótese
+de que ela era a mutadora no run do PR #57 — plausível, já que se sabe que ela reescreve
+`.git/config` na bootstrap ([D-032]) — continua **não testada**. O guard-rail do item 3 responde
+a isso no primeiro job em que a action de fato rodar: se a divergência inesperada nunca aparecer,
+a resposta é "era o [D-033] esperando para acontecer".
+
+**Limite aceito:** nada disso *impede* o revisor de ler o disco — a instrução é prompt, e prompt
+é convenção. O que muda é que (a) a instrução agora existe e é específica, e (b) quando a
+divergência for de origem desconhecida, quem lê o veredito é avisado no mesmo comentário, antes
+de acreditar nele.
+
+**Merge manual, exceção do [D-014]:** o PR toca `review.yml` e `security.yml`, então a
+`claude-code-action` recusa rodar (`workflow validation`) e os checks `review` e
+`ai-security-review` saem vermelhos por falta de arquivo de veredito. Vermelho estrutural, não
+achado. Com o [D-041] esses dois checks passaram a ser obrigatórios na `main`, então o merge
+exige o bypass de admin do dono (`enforce_admins: false`) — que é exatamente o caminho previsto
+lá.
+
 ## D-043 | 2026-07-31 | ACEITA
+**[FU-13] Falha de agente da fábrica passa a produzir sinal. Caminho escolhido: (c) alarme, sem
+automação — e o alarme é NÃO-IA.** Fecha a issue #71, aberta porque os PRs #66 e #67 ficaram
+prontos e congelados por horas sem ninguém saber: o Verdict estourou o teto de turnos, não
+publicou veredito, `entrega:incompleta` nunca virou `entrega:completa`, e como
+`review.yml`/`security.yml` são gateados por essa label ([D-019]) os PRs também nunca foram
+revisados. Só se descobriu porque o dono olhou a lista e perguntou.
+
+**A decisão que mais importa não estava entre as três opções da issue: o alarme não pode ser
+feito por agente.** Um alarme por IA é silenciado pela própria falha que ele existe para
+denunciar — foi literalmente o caso aqui. Por isso o levantamento é um step de bash, roda ANTES
+do agente do relatório, e o step que abre a issue publica esse levantamento **mesmo quando o
+agente não escreveu nada**. Antes, `relatorio.md` vazio dava `exit 1` e nada publicado: a falha
+do agente apagava o único canal por onde ela seria vista. Agora a issue sai com um bloco
+`> [!CAUTION]` no topo **e** o job continua vermelho — sinal visível e check vermelho não são
+alternativas, e o buraco da #71 era ter só o segundo.
+
+**O que o step levanta**, em `daily-report.yml`:
+- **PRs parados em `entrega:incompleta`** há mais de 6h sem atividade (6h = mais que uma rodada
+  normal de implementação, menos que meio dia de silêncio).
+- **Runs de agente ainda vermelhos**: `Verdict`, `Review`, `Security`, `Implement`, `Supervisor`,
+  `Fix`, `Daily Report`.
+
+**Ajuste feito por medição, não por gosto.** A issue pedia "runs de agente vermelhos nas últimas
+24h". Rodando esse filtro contra o repo real: **15+ linhas em 24h**, quase todas já superadas por
+um push posterior que passou. Alarme que grita todo dia é alarme que ninguém lê — e a #71 é
+exatamente sobre um sinal que não chegou. O filtro agrupa por workflow+branch e fica só com o run
+**mais recente** de cada grupo: as mesmas 24h caem de 15+ para **2 linhas**, e as duas eram
+vermelho real. O relatório também explica que `Review`/`Security` vermelho em PR `merge-manual` é
+o impasse do [D-014], não falha de agente.
+
+**Opção (b) — redisparo automático do `verdict.yml` em `error_max_turns` — ADIADA, não
+descartada.** Filtro do `.claude/rules/right-sizing.md`: não afeta correção nem dado de usuário, e
+é barato de adicionar depois. A causa direta daquela falha já foi tratada no [D-035] (teto de
+turnos), aconteceu **uma vez**, e o conserto manual é reexecutar o workflow — um clique, agora que
+o alarme diz que é preciso. Em troca, (b) pede guarda de laço por SHA, ou seja máquina de estado
+nova num workflow privilegiado, para um caso que hoje não tem frequência conhecida. Se voltar a
+acontecer com o alarme já no ar, aí existe evidência para justificar a automação.
+
+**Opção (a) — ampliar o gatilho do `fix.yml` — DESCARTADA.** A própria issue já suspeitava, e se
+confirma: o `fix.yml` conserta *código* que quebrou o CI; relançar agente que estourou turnos não
+é isso, e ele roda com `contents: write`. Resposta errada para o problema certo.
+
+**Critério "nenhum agente ganha permissão nova": cumprido.** O `gh` do step novo roda no shell do
+runner com o `GITHUB_TOKEN` do job (`actions`/`pull-requests`/`issues` que o workflow já tinha),
+não pela allow-list de nenhum agente.
+
+**Limite aceito:** o `daily-report.yml` roda 1x/dia, então o pior caso de atraso do sinal é ~24h.
+Melhor que "até alguém reparar", que era o estado anterior. Encurtar a cadência é ajuste de `cron`
+quando/se doer.
+
+## D-044 | 2026-07-31 | ACEITA
 **[FU-06] Ao pivotar para `decision-needed`, o Developer marca o PR WIP como `[BLOQUEADO]`.**
 Fecha a issue #39, achado de processo da revisão do PR #37, não bloqueante, deixado como
 acompanhamento.
@@ -1266,7 +1487,7 @@ allow-list do `implement.yml` — conferido na linha do `claude_args`, não pres
 continua **fora**, por decisão: fechar PR é ação humana, e acrescentá-lo ampliaria o poder de
 escrita do Developer sem necessidade ([D-012], menor privilégio).
 
-**Interação boa com o [D-042], que estava sendo escrito na mesma sessão:** o alarme da FU-13 lista
+**Interação boa com o [D-043], que estava sendo escrito na mesma sessão:** o alarme da FU-13 lista
 "PRs parados em `entrega:incompleta` há mais de 6h" imprimindo o **título** do PR. Com esta
 mudança, um PR parado por Decision Gate se identifica sozinho na linha do relatório — `[BLOQUEADO]
 ...` aparece ali —, distinguindo "esperando humano" de "fábrica travada" sem nenhum código a mais
@@ -1277,6 +1498,7 @@ rodada): disparar `implement.yml` contra a branch faz a `claude-code-action` res
 `Skipping action due to workflow validation` e sair com exit 0. Mudança em `implement.yml` só se
 valida **depois** do merge. O que dá para verificar antes — e foi verificado — é que o YAML
 continua válido e que os dois comandos já estavam autorizados.
+
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)

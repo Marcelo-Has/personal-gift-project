@@ -17,6 +17,91 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # FU-13 (issue #71). Este step é NÃO-IA e roda ANTES do agente, de propósito — os dois
+      # detalhes são a decisão, não acaso.
+      #
+      # Não-IA porque um alarme feito por agente é silenciado pela própria falha que ele existe
+      # para denunciar: foi exatamente assim que os PRs #66 e #67 ficaram congelados por horas
+      # (Verdict estourou turnos, não publicou veredito, `entrega:incompleta` nunca virou
+      # `entrega:completa`, e como `review.yml`/`security.yml` são gateados por essa label
+      # ([D-019]) os PRs também nunca foram revisados). Antes do agente porque o levantamento
+      # precisa existir mesmo que o agente morra no turno seguinte — o step de publicação abaixo
+      # abre a issue com ele de qualquer jeito.
+      #
+      # `gh` aqui roda no shell do runner com o `GITHUB_TOKEN` do job, não pelo agente: nenhuma
+      # allow-list de agente é ampliada (critério de aceite da issue).
+      - name: Levantar sinais de fábrica parada (step não-IA)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SINAIS: ${{ runner.temp }}/sinais.md
+          # Horas sem atividade a partir das quais um PR `entrega:incompleta` conta como parado.
+          # 6h: mais que uma rodada normal de implementação, menos que meio dia de silêncio.
+          HORAS_PARADO: "6"
+        run: |
+          set -euo pipefail
+          limite=$(date -u -d "${HORAS_PARADO} hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          desde=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+
+          gh pr list --state open --limit 50 \
+            --json number,title,url,updatedAt,labels > "${RUNNER_TEMP}/prs.json"
+          jq -r --arg limite "$limite" '
+            .[]
+            | select(any(.labels[]; .name == "entrega:incompleta"))
+            | select(.updatedAt < $limite)
+            | "- #\(.number) \(.title) — sem atividade desde \(.updatedAt) — \(.url)"
+          ' "${RUNNER_TEMP}/prs.json" > "${RUNNER_TEMP}/prs-parados.txt"
+
+          # Sem `--status failure` de propósito: precisamos de TODOS os runs para saber se o
+          # vermelho ainda vale. Filtrar por falha direto dá 15+ linhas por dia neste repo
+          # (medido), quase todas já superadas por um push posterior que passou — e alarme que
+          # grita todo dia é alarme que ninguém lê. Agrupando por workflow+branch e ficando só
+          # com o run MAIS RECENTE de cada grupo, sobra o que continua vermelho agora.
+          gh run list --limit 100 --created ">${desde}" \
+            --json workflowName,headBranch,conclusion,createdAt,displayTitle,url \
+            > "${RUNNER_TEMP}/runs.json"
+          jq -r '
+            [ .[]
+              | select(.workflowName
+                       | test("Verdict|Review|Security|Implement|Supervisor|Fix|Daily Report")) ]
+            | group_by(.workflowName + "@" + .headBranch)
+            | map(max_by(.createdAt))
+            | .[]
+            | select(.conclusion == "failure")
+            | "- **\(.workflowName)** em `\(.headBranch)` — \(.displayTitle) (\(.createdAt)) — \(.url)"
+          ' "${RUNNER_TEMP}/runs.json" > "${RUNNER_TEMP}/runs-vermelhos.txt"
+
+          : > "$SINAIS"
+          if [ -s "${RUNNER_TEMP}/prs-parados.txt" ] || [ -s "${RUNNER_TEMP}/runs-vermelhos.txt" ]; then
+            {
+              echo "## ⚠️ Sinais de fábrica parada (FU-13)"
+              echo
+              if [ -s "${RUNNER_TEMP}/prs-parados.txt" ]; then
+                echo "**PRs parados em \`entrega:incompleta\` há mais de ${HORAS_PARADO}h.**"
+                echo "Sem veredito, a label nunca vira \`entrega:completa\`, e o PR some do fluxo"
+                echo "sem sair da lista:"
+                echo
+                cat "${RUNNER_TEMP}/prs-parados.txt"
+                echo
+              fi
+              if [ -s "${RUNNER_TEMP}/runs-vermelhos.txt" ]; then
+                echo "**Runs de agente ainda vermelhos** (o mais recente de cada workflow+branch"
+                echo "nas últimas 24h):"
+                echo
+                cat "${RUNNER_TEMP}/runs-vermelhos.txt"
+                echo
+                echo "> \`Review\`/\`Security\` vermelho em PR com a label \`merge-manual\` é o"
+                echo "> impasse do [D-014] (a \`claude-code-action\` recusa rodar em PR que altera"
+                echo "> o workflow que a invoca), não falha de agente."
+                echo
+              fi
+            } > "$SINAIS"
+            echo "::warning::Há sinais de fábrica parada — ver a issue do relatório de hoje."
+          else
+            echo "Nenhum PR parado e nenhum run de agente vermelho nas últimas 24h."
+          fi
+
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         with:
           # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
@@ -49,19 +134,47 @@ jobs:
           claude_args: '--max-turns 25 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(git log:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh pr list:*),Bash(ls:*)"'
 
       # Publica o relatório (FU-09, issue #58): sem `Bash(gh issue:*)` no agente, quem abre a
-      # issue é este step, não-IA, a partir do arquivo. Se o agente não escreveu nada, o job
-      # falha em vez de terminar verde sem relatório nenhum.
+      # issue é este step, não-IA, a partir do arquivo.
+      #
+      # FU-13 (issue #71) mudou o que acontece quando o agente falha. Antes: `exit 1` e nada
+      # publicado — ou seja, a falha do agente apagava também o único canal por onde ela seria
+      # vista. Agora a issue é aberta de qualquer forma, com os sinais não-IA levantados lá em
+      # cima e um aviso no topo, E o job continua vermelho. Sinal visível e check vermelho não
+      # são alternativas; o buraco da #71 era ter só o segundo.
       - name: Abrir a issue do relatório (step não-IA)
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           F: ${{ runner.temp }}/relatorio.md
+          SINAIS: ${{ runner.temp }}/sinais.md
+          OUT: ${{ runner.temp }}/issue.md
         run: |
           set -euo pipefail
+          data=$(date -u +%Y-%m-%d)
+          # `touch` porque o step de sinais pode não ter rodado (falha anterior, `always()`).
+          touch "$SINAIS"
+
+          falhou=0
+          : > "$OUT"
           if [ ! -s "$F" ]; then
-            echo "::error::O agente não escreveu o relatório em $F."
+            falhou=1
+            {
+              echo "> [!CAUTION]"
+              echo "> **O agente do relatório não escreveu nada.** O resumo do dia não existe;"
+              echo "> o que vai abaixo é só o levantamento não-IA (FU-13, issue #71). O job"
+              echo "> ficou vermelho — vale olhar o run antes de confiar nesta issue como"
+              echo "> retrato do dia."
+              echo
+            } > "$OUT"
+          fi
+          cat "$SINAIS" >> "$OUT"
+          if [ "$falhou" -eq 0 ]; then
+            cat "$F" >> "$OUT"
+          fi
+
+          gh issue create --title "Relatório diário — ${data}" --body-file "$OUT" --label report
+          if [ "$falhou" -eq 1 ]; then
+            echo "::error::O agente não escreveu o relatório em $F. A issue do dia saiu só com os sinais não-IA."
             exit 1
           fi
-          data=$(date -u +%Y-%m-%d)
-          gh issue create --title "Relatório diário — ${data}" --body-file "$F" --label report
           echo "Relatório do dia ${data} publicado."
