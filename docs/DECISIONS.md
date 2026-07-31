@@ -1177,6 +1177,41 @@ fábrica e eu atualizei o guard-rail em dois dos três arquivos. O terceiro só 
 produção, e ainda assim mascarado — o run parecia falha do agente. **Quando uma mudança troca
 QUEM executa uma ação, todo controle que identifica o ator por nome precisa ser revisto junto**;
 grep por `claude[bot]` teria achado isto em segundos.
+
+## D-038 | 2026-07-31 | ACEITA
+**Os tetos de turnos dos agentes foram calibrados antes da poda de allow-list — todos sobem,
+e cada prompt passa a listar as ferramentas que existem.** Continuação direta do [D-035], que
+tratou só o `verdict.yml`.
+
+**O que aconteceu de novo.** Com o Verdict destravado, o `review.yml` estourou o teto no PR #67:
+`error_max_turns`, `num_turns: 51` contra `--max-turns 50`, e
+**`permission_denials_count: 12`** — doze dos cinquenta e um turnos gastos tentando ferramenta
+que a [D-034] tinha acabado de remover. É o mesmo defeito do D-035, no arquivo seguinte, porque
+lá eu corrigi o sintoma num arquivo em vez da classe.
+
+**Decisão.** Onde a [D-034] podou allow-list, o prompt passa a trazer um bloco "ORÇAMENTO E
+FERRAMENTAS" que lista o que existe e **nomeia o que não existe**, e o teto sobe:
+
+| workflow | antes | depois | motivo |
+|---|---|---|---|
+| `review.yml` | 50 | 80 | estourou no PR #67 |
+| `security.yml` | 50 | 80 | mesmo teto, mesma poda, diff maior — **por prevenção** |
+| `verdict.yml` | 20 | 40 | [D-035] |
+| `daily-report.yml` | 15 | 25 | ganhou a exigência de escrever arquivo e perdeu ferramentas |
+| `supervisor.yml` | 20 | 30 | lê cinco documentos de `docs/` antes de decidir |
+
+`security.yml` sobe **sem ter falhado**, de propósito: tem o mesmo teto, a mesma poda e um
+escopo maior. Deixar os dois diferentes só garantiria descobrir o problema uma segunda vez, em
+produção — que foi exatamente o erro do D-035.
+
+Teto é limite, não orçamento gasto: subir não custa nada em run que termina antes.
+
+**Os prompts também passaram a dizer o que fazer quando o orçamento acaba:** escrever o arquivo
+do veredito com o que já se tem. Revisão parcial publicada vale mais que job vermelho sem nada —
+e o guard-rail da [D-037] transforma "sem nada" em vermelho, corretamente.
+
+---
+## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
   por SKU). O *modelo* de preço já foi decidido em [D-036] (só por tamanho; estilo não altera
