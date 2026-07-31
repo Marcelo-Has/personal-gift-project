@@ -1242,6 +1242,67 @@ Pro em repositório privado, e é a origem de todo o `merge-manual` e dos guard-
 deixar de existir — vira issue própria, porque desmontar os guard-rails que hoje substituem a
 proteção de branch é decisão de desenho, não ajuste de config.
 
+## D-041 | 2026-07-31 | ACEITA
+**[FU-12] O revisor julga o DIFF, nunca o disco do runner — e o [D-033] transformou isso de
+higiene em correção.** Fecha a issue #64, aberta porque o `ai-security-review` publicou no PR #57
+um veredito **inteiramente invertido**: 5 bloqueantes acusando o PR de *remover* os hooks
+`PreToolUse` e as entradas de `deny` que ele **adicionava**.
+
+**A causa deixou de ser mistério — e virou permanente.** Quando a issue #64 foi escrita, ela
+registrava que nada em `security.yml` explicava o `.claude/settings.json` modificado no workspace
+("o step de restaurar config de agente da base existe só no `verdict.yml`"). Isso era verdade
+naquele momento e **deixou de ser no mesmo dia**: o [D-033] (issue #62, PR #63) levou o step
+"Usar a config de agente da base" para `review.yml` e `security.yml` também. Esse step apaga
+`CLAUDE.md`/`AGENTS.md`/`.mcp.json`/`.claude/` da branch e restaura a versão da base — **de
+propósito**, e essa parte fica: é ela que impede um PR de reescrever as instruções do próprio
+revisor.
+
+O efeito colateral, porém, agora é **garantido por desenho**: em todo PR que toque esses
+caminhos, o disco mostra a versão BASE, e qualquer leitura de disco produz a frase "este PR
+removeu X" sobre algo que o PR adiciona. Ou seja, o modo de falha que no PR #57 foi acidente
+passou a ser o comportamento normal do job. Por isso o item 2 da issue (revisar a partir do
+diff) foi tratado como **correção**, filtro nº 1 do `.claude/rules/right-sizing.md`, e não como
+robustez adiável.
+
+**O que foi feito, em `review.yml` e `security.yml`:**
+
+1. **Bloco "DE ONDE VEM A VERDADE" no prompt dos dois revisores.** Diz o que diverge, por que
+   diverge e qual é a regra operacional: a fonte é `gh pr diff`/`git show <sha>:<caminho>`;
+   `Read`/`Grep`/`Glob` servem para contexto e **nunca** para concluir que uma linha entrou ou
+   saiu; antes de afirmar que o PR remove/reverte/enfraquece algo, confirmar o `-` no diff. No
+   `security.yml` vai com um parágrafo a mais, porque ali o achado mais grave possível ("este PR
+   enfraquece a proteção X") é exatamente o que a leitura de disco fabrica sozinha.
+2. **Linha de base da divergência esperada.** O step de restauração passou a gravar
+   `git status --porcelain` logo depois de divergir o disco de propósito.
+3. **Guard-rail (item 3 da issue).** Um step novo, `if: always()`, compara o `git status` do fim
+   do job com essa linha de base. O que sobrar é divergência de origem **desconhecida**: vira
+   `::warning::` no run **e** um bloco `> [!WARNING]` no topo do próprio comentário de veredito,
+   listando os caminhos. Diagnóstico e alarme no mesmo step de propósito — um `git status` que só
+   existisse no log dependeria de alguém ir olhar, e a issue #64 nasceu justamente de ninguém ter
+   olhado.
+4. **Espelho em `.claude/agents/reviewer.md`**, para valer também fora do CI.
+
+**Sobre o item 1 da issue ("achar a origem da reversão"), com honestidade sobre o que ficou em
+aberto.** A origem da divergência **de hoje em diante** está identificada e registrada: é o step
+do [D-033], intencional. O que **não** está provado é o que mexeu no workspace no run do PR #57,
+*antes* de o [D-033] existir — o candidato natural é a própria `claude-code-action`, que já se
+sabe reescrever `.git/config` na sua bootstrap ([D-032]). Não foi gasto um run descartável para
+provar isso: o guard-rail do item 3 responde a pergunta na primeira vez que o caso reaparecer, e
+a correção do item 2 já não depende da resposta. Se a divergência inesperada nunca mais aparecer,
+a resposta é "era o [D-033] esperando para acontecer".
+
+**Limite aceito:** nada disso *impede* o revisor de ler o disco — a instrução é prompt, e prompt
+é convenção. O que muda é que (a) a instrução agora existe e é específica, e (b) quando a
+divergência for de origem desconhecida, quem lê o veredito é avisado no mesmo comentário, antes
+de acreditar nele.
+
+**Merge manual, exceção do [D-014]:** o PR toca `review.yml` e `security.yml`, então a
+`claude-code-action` recusa rodar (`workflow validation`) e os checks `review` e
+`ai-security-review` saem vermelhos por falta de arquivo de veredito. Vermelho estrutural, não
+achado. Com o [D-040] esses dois checks passaram a ser obrigatórios na `main`, então o merge
+exige o bypass de admin do dono (`enforce_admins: false`) — que é exatamente o caminho previsto
+lá.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
