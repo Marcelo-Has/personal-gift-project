@@ -67,6 +67,15 @@ jobs:
 
           echo "Config de agente restaurada de ${BASE}; credencial do checkout descartada."
 
+          # FU-12 (issue #64): o step ACABOU de divergir o disco do commit sob revisão, de
+          # propósito. Registrar o estado aqui dá a linha de base do que é divergência
+          # ESPERADA; o que aparecer ALÉM disso ao fim do job é mutação de origem
+          # desconhecida — que é justamente o que ninguém sabia explicar no PR #57.
+          git status --porcelain > "${RUNNER_TEMP}/ws-esperado.txt"
+          echo "::group::Workspace após a restauração (divergência esperada)"
+          cat "${RUNNER_TEMP}/ws-esperado.txt"
+          echo "::endgroup::"
+
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         with:
           # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
@@ -87,6 +96,22 @@ jobs:
             encontrado" — no arquivo ${{ runner.temp }}/review-veredito.md. Um step
             separado, sem IA, publica esse arquivo como comentário no PR. `Write` serve só
             para esse arquivo; não altere nada no repositório.
+
+            DE ONDE VEM A VERDADE — leia antes de abrir qualquer arquivo (FU-12, issue #64).
+            O que você julga é o COMMIT deste PR, não o disco deste runner. Os dois DIVERGEM de
+            propósito: um step anterior deste job apagou `CLAUDE.md`, `AGENTS.md`, `.mcp.json` e
+            `.claude/` da branch e pôs no lugar a versão da branch BASE ([D-033]), para que um PR
+            não consiga reescrever as instruções do revisor que vai julgá-lo. Consequência
+            direta: se este PR alterar qualquer um desses caminhos, o DISCO mostra a versão BASE,
+            e ler o disco faz você reportar que o PR "removeu" exatamente o que ele ADICIONA.
+            Isso já aconteceu — veredito inteiramente invertido no PR #57.
+
+            Portanto:
+            - A fonte do que o PR faz é `gh pr diff` e `git show <sha>:<caminho>`. Manda o diff.
+            - `Read`/`Grep`/`Glob` leem o DISCO. Sirva-se deles para entender contexto que o diff
+              não mostra, NUNCA para concluir que uma linha foi adicionada ou removida.
+            - Antes de afirmar que este PR remove, reverte ou enfraquece qualquer coisa, confirme
+              no `gh pr diff` que a linha aparece com `-`. Não viu o `-`? Não afirme.
 
             ORÇAMENTO E FERRAMENTAS — leia antes de começar, porque tentar o que não existe
             queima turno à toa. Você tem 80 turnos e SÓ estas ferramentas:
@@ -142,6 +167,34 @@ jobs:
           git config --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
 
+      # FU-12 (issue #64), itens 1 e 3. O item 1 pedia descobrir QUEM mexe no workspace durante
+      # o job; parte da resposta já é conhecida e está registrada ([D-033]: o step de restauração
+      # de config faz isso de propósito, e depois dele o disco NÃO é o commit do PR). O que este
+      # step acrescenta é o resto: qualquer divergência ALÉM da esperada aparece no log do run e
+      # vira aviso no próprio veredito, em vez de virar um veredito invertido que ninguém
+      # consegue explicar — que foi o que aconteceu no PR #57.
+      #
+      # Diagnóstico e guard-rail no mesmo step de propósito: um `git status` que só existisse no
+      # log dependeria de alguém ir olhar, e a issue #64 nasceu justamente de ninguém ter olhado.
+      - name: Conferir divergência do workspace (FU-12)
+        if: always()
+        run: |
+          set -euo pipefail
+          # `touch` porque o step de restauração pode não ter rodado (falha anterior, `always()`).
+          touch "${RUNNER_TEMP}/ws-esperado.txt"
+          git status --porcelain > "${RUNNER_TEMP}/ws-final.txt"
+          echo "::group::Workspace ao fim do job"
+          cat "${RUNNER_TEMP}/ws-final.txt"
+          echo "::endgroup::"
+          # `|| true`: `grep` sai 1 quando nada sobra, que é o caso BOM e não pode matar o job.
+          grep -Fxv -f "${RUNNER_TEMP}/ws-esperado.txt" "${RUNNER_TEMP}/ws-final.txt" \
+            > "${RUNNER_TEMP}/ws-inesperado.txt" || true
+          if [ -s "${RUNNER_TEMP}/ws-inesperado.txt" ]; then
+            echo "::warning::O workspace divergiu do commit revisado além da restauração de config de agente. O veredito pode descrever o disco, não o diff — ver o aviso no comentário do PR."
+          else
+            echo "Workspace sem divergência inesperada."
+          fi
+
       # Publica o veredito E faz as vezes do guard-rail D-014 (ponte até o branch protection,
       # bloqueado por exigir GitHub Pro em repo privado). Sem `Bash(gh pr comment:*)` no agente,
       # quem comenta é este step, não-IA, a partir do arquivo que o Reviewer escreveu.
@@ -158,11 +211,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           F: ${{ runner.temp }}/review-veredito.md
+          DIVERGENCIA: ${{ runner.temp }}/ws-inesperado.txt
+          OUT: ${{ runner.temp }}/review-comentario.md
         run: |
           set -euo pipefail
           if [ ! -s "$F" ]; then
             echo "::error::O Reviewer não escreveu veredito em $F. A revisão não aconteceu — tratar como reprovado, não como verde."
             exit 1
           fi
-          gh pr comment "${PR}" --body-file "$F"
+          # FU-12 (issue #64), item 3: se o workspace divergiu além do esperado, o leitor do
+          # veredito precisa saber ANTES de agir sobre ele. Aviso no topo do próprio comentário,
+          # não só no log — o veredito invertido do PR #57 foi lido e acreditado.
+          if [ -s "$DIVERGENCIA" ]; then
+            {
+              echo "> [!WARNING]"
+              echo "> **O workspace do runner divergiu do commit revisado** (FU-12, issue #64)."
+              echo "> Estes caminhos mudaram fora da restauração de config de agente ([D-033]):"
+              sed 's/^/> - `/; s/$/`/' "$DIVERGENCIA"
+              echo ">"
+              echo "> O veredito abaixo pode descrever o DISCO, não o diff. Confira contra"
+              echo "> \`gh pr diff ${PR}\` antes de agir sobre qualquer achado."
+              echo
+              cat "$F"
+            } > "$OUT"
+          else
+            cp "$F" "$OUT"
+          fi
+          gh pr comment "${PR}" --body-file "$OUT"
           echo "Veredito publicado no PR #${PR}."

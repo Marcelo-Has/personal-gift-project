@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	carregarRascunho,
+	LimiteDeRascunhosError,
 	PedidoNaoEditavelError,
 	salvarRascunho,
 	type OrderStore
@@ -55,6 +56,22 @@ function fakeStore(seed: Record<string, Record<string, unknown>> = {}) {
 							? mesclarProfundo(anterior, data as Record<string, unknown>)
 							: (data as Record<string, unknown>)
 					);
+				}
+			};
+		},
+		collection(path: string) {
+			return {
+				count() {
+					return {
+						async get() {
+							calls.push({ method: 'get', path: `${path}#count` });
+							const prefixo = `${path}/`;
+							const quantidade = Array.from(docs.keys()).filter((chave) =>
+								chave.startsWith(prefixo)
+							).length;
+							return { data: () => ({ count: quantidade }) };
+						}
+					};
 				}
 			};
 		}
@@ -200,6 +217,47 @@ describe('salvarRascunho', () => {
 		);
 
 		expect(calls.every((c) => c.path.startsWith('users/uid-alice/'))).toBe(true);
+	});
+
+	// Issue #74: sessão anônima sem teto vira vetor de custo/enchimento — qualquer uid cria
+	// documentos ilimitados em `users/<uid>/orders`. Complementar ao rate limit por janela.
+	it('deve recusar criar um rascunho NOVO quando o uid já tem 10 rascunhos', async () => {
+		const seed = Object.fromEntries(
+			Array.from({ length: 10 }, (_, i) => [`users/uid-alice/orders/pedido-${i}`, {}])
+		);
+		const { store, calls } = fakeStore(seed);
+
+		await expect(
+			salvarRascunho({ uid: 'uid-alice', orderId: 'pedido-novo', dados: {} }, store)
+		).rejects.toThrow(LimiteDeRascunhosError);
+
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	it('não deve aplicar o teto ao atualizar um rascunho já existente, mesmo com o uid no limite', async () => {
+		const seed: Record<string, Record<string, unknown>> = Object.fromEntries(
+			Array.from({ length: 10 }, (_, i) => [`users/uid-alice/orders/pedido-${i}`, {}])
+		);
+		const { store, docs } = fakeStore(seed);
+
+		await salvarRascunho(
+			{ uid: 'uid-alice', orderId: 'pedido-0', dados: { questionnaire: { howTheyMet: 'novo' } } },
+			store
+		);
+
+		const doc = docs.get('users/uid-alice/orders/pedido-0');
+		expect((doc?.questionnaire as { howTheyMet?: string })?.howTheyMet).toBe('novo');
+	});
+
+	it('não deve aplicar o teto do uid a outro uid com muitos rascunhos', async () => {
+		const seed = Object.fromEntries(
+			Array.from({ length: 10 }, (_, i) => [`users/uid-bob/orders/pedido-${i}`, {}])
+		);
+		const { store, docs } = fakeStore(seed);
+
+		await salvarRascunho({ uid: 'uid-alice', orderId: 'pedido-1', dados: {} }, store);
+
+		expect(docs.get('users/uid-alice/orders/pedido-1')).toBeDefined();
 	});
 });
 
