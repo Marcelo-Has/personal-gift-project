@@ -66,7 +66,7 @@ describe('peopleSchema', () => {
 });
 
 describe('photosSchema', () => {
-	it('deve aceitar lista vazia (upload chega em issue futura, F1-05b)', () => {
+	it('deve aceitar lista vazia (exigir ao menos 1 foto é decisão de produto ainda não tomada)', () => {
 		expect(photosSchema.safeParse([]).success).toBe(true);
 	});
 

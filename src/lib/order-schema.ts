@@ -27,8 +27,8 @@ export const photoSchema = z.object({
 	caption: z.string().trim().max(200, 'Legenda muito longa.').optional()
 });
 
-// F1-05b: exigir ao menos 1 foto quando o upload existir. Sem upload nesta issue, o
-// array vazio é válido para não travar o fluxo.
+// O upload existe desde F1-05b (issue #32), mas exigir ao menos 1 foto é decisão de
+// produto/UX ainda não tomada — lista vazia continua válida para não travar o fluxo.
 export const photosSchema = z.array(photoSchema);
 
 export const howTheyMetSchema = z

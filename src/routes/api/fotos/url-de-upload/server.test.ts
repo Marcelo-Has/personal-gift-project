@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SignableBucket } from '$lib/server/signed-url';
-import { handleUrlDeUpload } from './+server';
+import { handleUrlDeDownload, handleUrlDeUpload } from './+server';
 
 /**
  * Bucket falso no mesmo padrão de `signed-url.test.ts`: dependência externa (Storage)
@@ -145,5 +145,69 @@ describe('POST /api/fotos/url-de-upload', () => {
 		const corpo = await resposta.json();
 		expect(corpo.path).not.toContain('foto-forjada');
 		expect(calls[0].path).not.toContain('foto-forjada');
+	});
+});
+
+function fakeUrl(params: Record<string, string>): URL {
+	const url = new URL('http://localhost/api/fotos/url-de-upload');
+	for (const [chave, valor] of Object.entries(params)) {
+		url.searchParams.set(chave, valor);
+	}
+	return url;
+}
+
+describe('GET /api/fotos/url-de-upload', () => {
+	it('deve responder 401 quando não há sessão', async () => {
+		const { bucket } = fakeBucket();
+
+		await expect(
+			handleUrlDeDownload(
+				{ url: fakeUrl({ orderId: 'pedido-9', photoId: 'foto-3' }), locals: { uid: null } },
+				bucket
+			)
+		).rejects.toMatchObject({ status: 401 });
+	});
+
+	it('deve devolver uma URL de leitura no caminho do dono quando a sessão é válida', async () => {
+		const { bucket, calls } = fakeBucket();
+
+		const resposta = await handleUrlDeDownload(
+			{
+				url: fakeUrl({ orderId: 'pedido-9', photoId: 'foto-3' }),
+				locals: { uid: 'uid-download-1' }
+			},
+			bucket
+		);
+
+		expect(resposta.status).toBe(200);
+		const corpo = await resposta.json();
+		expect(corpo.path).toBe('users/uid-download-1/orders/pedido-9/photos/foto-3');
+		expect(calls[0].options).toMatchObject({ action: 'read' });
+	});
+
+	it('deve responder 400 quando faltam orderId ou photoId', async () => {
+		const { bucket, calls } = fakeBucket();
+
+		await expect(
+			handleUrlDeDownload(
+				{ url: fakeUrl({ orderId: 'pedido-9' }), locals: { uid: 'uid-download-2' } },
+				bucket
+			)
+		).rejects.toMatchObject({ status: 400 });
+		expect(calls).toHaveLength(0);
+	});
+
+	it('deve responder 429 quando o uid estoura o rate limit de download', async () => {
+		const { bucket } = fakeBucket();
+		const uid = 'uid-download-429';
+		const url = fakeUrl({ orderId: 'pedido-9', photoId: 'foto-3' });
+
+		for (let i = 0; i < 10; i++) {
+			await handleUrlDeDownload({ url, locals: { uid } }, bucket);
+		}
+
+		await expect(handleUrlDeDownload({ url, locals: { uid } }, bucket)).rejects.toMatchObject({
+			status: 429
+		});
 	});
 });
