@@ -124,7 +124,8 @@
 				photoId: extrairPhotoId(upload.path),
 				idToken
 			});
-			questionario.photos.push({ url: download.url });
+			// `path` é o que fica; `url` é só o preview desta sessão e expira em 10 min.
+			questionario.photos.push({ path: upload.path, url: download.url });
 
 			const item = itensFoto.find((item) => item.id === id);
 			if (item) item.status = 'concluida';
@@ -136,6 +137,34 @@
 			}
 		}
 	}
+
+	/**
+	 * Renova as URLs de preview ao entrar na etapa de fotos. Elas expiram em 10 minutos e o
+	 * questionário tem 9 etapas: sem isto, quem envia as fotos cedo e volta depois vê `<img>`
+	 * quebrado (achado da revisão do PR #66). O `path` é durável e é o que permite renovar.
+	 * Melhor esforço, como o resto do fluxo: falhar aqui não trava o preenchimento.
+	 */
+	$effect(() => {
+		if (etapa.key !== 'photos') return;
+		const semPreview = questionario.photos.filter((foto) => !foto.url);
+		if (semPreview.length === 0) return;
+
+		(async () => {
+			try {
+				const idToken = await getSessionIdToken();
+				for (const foto of semPreview) {
+					const download = await solicitarUrlDeDownload({
+						orderId: orderIdRascunho,
+						photoId: extrairPhotoId(foto.path),
+						idToken
+					});
+					foto.url = download.url;
+				}
+			} catch {
+				// Sem sessão/rede: o preview fica sem imagem, mas o `path` continua guardado.
+			}
+		})();
+	});
 
 	async function selecionarFotos(evento: Event) {
 		const input = evento.currentTarget as HTMLInputElement;
@@ -201,10 +230,15 @@
 		{/if}
 
 		{#if questionario.photos.length > 0}
+			<!-- Chave é o `path`, não a `url`: a url é renovada e trocaria a identidade do item. -->
 			<ul class="preview-fotos">
-				{#each questionario.photos as foto, indice (foto.url)}
+				{#each questionario.photos as foto, indice (foto.path)}
 					<li>
-						<img src={foto.url} alt="Foto enviada do casal" />
+						{#if foto.url}
+							<img src={foto.url} alt="Foto enviada do casal" />
+						{:else}
+							<span>Prévia indisponível — a foto continua salva.</span>
+						{/if}
 						<button type="button" onclick={() => removerFotoEnviada(indice)}>Remover</button>
 					</li>
 				{/each}

@@ -8,8 +8,23 @@ export interface Person {
 	traits: string[];
 }
 
+/**
+ * Referência a uma foto do casal.
+ *
+ * `path` é a referência DURÁVEL — o caminho do objeto no Storage
+ * (`users/<uid>/orders/<orderId>/photos/<photoId>`), devolvido pela rota de upload. É ele
+ * que identifica a foto para sempre, e é o que a persistência do pedido guarda.
+ *
+ * `url` é assinada e EXPIRA (10 min, `DEFAULT_DOWNLOAD_TTL_SECONDS` em
+ * `$lib/server/signed-url.ts`) — por exigência de `.claude/rules/security.md`, foto nunca
+ * fica pública. Por isso ela é estado efêmero de UI: serve para o preview da sessão atual e
+ * é renovada sob demanda a partir do `path`. Guardá-la como identificador da foto daria um
+ * `<img>` quebrado em qualquer fluxo que passe de 10 minutos — e o questionário tem 9 etapas
+ * (achado da revisão do PR #66).
+ */
 export interface PhotoReference {
-	url: string;
+	path: string;
+	url?: string;
 	caption?: string;
 }
 

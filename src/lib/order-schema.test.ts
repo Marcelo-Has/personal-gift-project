@@ -70,9 +70,16 @@ describe('photosSchema', () => {
 		expect(photosSchema.safeParse([]).success).toBe(true);
 	});
 
-	it('deve rejeitar foto sem url', () => {
-		const resultado = photosSchema.safeParse([{ url: '' }]);
+	it('deve rejeitar foto sem path', () => {
+		const resultado = photosSchema.safeParse([{ path: '' }]);
 		expect(resultado.success).toBe(false);
+	});
+
+	it('deve aceitar foto só com path, porque a url é efêmera e renovada sob demanda', () => {
+		const resultado = photosSchema.safeParse([
+			{ path: 'users/uid-1/orders/pedido-9/photos/foto-3' }
+		]);
+		expect(resultado.success).toBe(true);
 	});
 });
 

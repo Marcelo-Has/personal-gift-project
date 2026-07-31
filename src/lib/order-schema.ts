@@ -22,8 +22,12 @@ export const personSchema = z.object({
 
 export const peopleSchema = z.tuple([personSchema, personSchema]);
 
+// `path` é o que identifica a foto de verdade; `url` é assinada, expira em 10 min e existe
+// só para o preview da sessão (ver `PhotoReference` em `./order.ts`). Exigir `url` aqui faria
+// a persistência guardar uma URL morta — achado da revisão do PR #66.
 export const photoSchema = z.object({
-	url: z.string().trim().min(1, 'URL da foto é obrigatória.'),
+	path: z.string().trim().min(1, 'Caminho da foto é obrigatório.'),
+	url: z.string().trim().min(1).optional(),
 	caption: z.string().trim().max(200, 'Legenda muito longa.').optional()
 });
 
