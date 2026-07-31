@@ -56,6 +56,25 @@ jobs:
             auditável.
           claude_args: '--max-turns 50 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),TodoWrite"'
 
+      # FU-10 (issue #59): descarta a credencial que a `claude-code-action` grava em
+      # `.git/config` durante o próprio step acima. Achado real da revisão de segurança do
+      # PR #57 (job `ai-security-review` de `security.yml`, sem nenhuma mudança de workflow em
+      # voo): o arquivo continha `[remote "origin"] url = https://x-access-token:ghs_...@
+      # github.com/...`, e `[user] name = claude[bot]` no mesmo arquivo aponta a própria action
+      # como autora — outra chave, diferente do `http.https://github.com/.extraheader` que o
+      # `actions/checkout` persiste e que o `unset-all` do [D-030] já cobria no `verdict.yml`.
+      #
+      # Limite reconhecido: a action escreve isso na sua própria bootstrap, dentro do mesmo step
+      # opaco em que o agente roda, então não há como intercalar limpeza ANTES de o agente poder
+      # ler o arquivo — só depois. Isto fecha a janela para o resto do job (guard-rail abaixo);
+      # não fecha a leitura pelo próprio agente enquanto a action ainda executa. Esse residual é
+      # o canal de leitura/publicação da allow-list — issue #58. Ver [D-032].
+      - name: Descartar credencial do .git/config após o agente
+        if: always()
+        run: |
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
       # Guard-rail D-014 (parte 2/2): ponte até o branch protection (bloqueado por
       # exigir GitHub Pro em repo privado). Sem isto, quando a action pula a execução
       # — p.ex. "Skipping action due to workflow validation" — ela sai com exit 0 e o

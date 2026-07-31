@@ -109,6 +109,18 @@ jobs:
           # CONSTRUÇÃO. O corte acima reduz superfície; quem fecha de verdade é a issue #62.
           claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue:*),Bash(gh run view:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(echo:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 
+      # FU-10 (issue #59): descarta a credencial do `.git/config` DEPOIS do agente — nunca
+      # antes, porque o próprio agente empurra commit (`git push`) durante o step acima, e tirar
+      # a credencial cedo demais quebraria esse push. É o limite que a issue #59 marca para este
+      # workflow: aqui a limpeza só reduz a janela de exposição para os steps seguintes
+      # (observabilidade/upload); não fecha a leitura possível pelo próprio agente enquanto ele
+      # roda. Ver [D-032].
+      - name: Descartar credencial do .git/config após o agente
+        if: always()
+        run: |
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
       # Mesma observabilidade que o `implement.yml` ganhou no [D-019]: sem ela este workflow é
       # indiagnosticável. Quatro runs seguidos estouraram o teto sem produzir commit e, no
       # último, `permission_denials_count: 17` — MAIS que os 14 do run anterior, apesar de a

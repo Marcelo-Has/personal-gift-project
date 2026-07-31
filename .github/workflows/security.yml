@@ -75,6 +75,16 @@ jobs:
           # Tarefa de alto risco → modelo mais forte.
           claude_args: '--max-turns 50 --model opus --allowed-tools "Read,Glob,Grep,Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(find:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),TodoWrite"'
 
+      # FU-10 (issue #59): mesma limpeza e mesmo limite reconhecido do `review.yml` — e foi
+      # justamente NESTE job (`ai-security-review`, run do PR #57, sem mudança de workflow em
+      # voo) que a credencial foi lida ao vivo em `.git/config`, na forma
+      # `[remote "origin"] url = https://x-access-token:ghs_...@github.com/...`. Ver [D-032].
+      - name: Descartar credencial do .git/config após o agente
+        if: always()
+        run: |
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
       # Guard-rail D-014 (parte 2/2): ver a explicação em review.yml. Revisão de
       # segurança que não deixa veredito escrito no PR não conta como revisão.
       - name: Exigir veredito publicado no PR
