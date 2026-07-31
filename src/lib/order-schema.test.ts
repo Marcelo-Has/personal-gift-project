@@ -76,8 +76,7 @@ describe('photosSchema', () => {
 	});
 
 	it('deve aceitar foto só com photoId, porque a url é efêmera e renovada sob demanda', () => {
-		const resultado = photosSchema.safeParse([{ photoId: 'foto-3' }]);
-		expect(resultado.success).toBe(true);
+		expect(photosSchema.safeParse([{ photoId: 'foto-3' }]).success).toBe(true);
 	});
 
 	// O `photoId` vira segmento de caminho no Storage quando a URL de leitura é remontada no
@@ -89,6 +88,11 @@ describe('photosSchema', () => {
 			expect(photosSchema.safeParse([{ photoId }]).success).toBe(false);
 		}
 	);
+
+	it('deve rejeitar mais de 20 fotos num único envio', () => {
+		const fotos = Array.from({ length: 21 }, (_, i) => ({ photoId: `foto-${i}` }));
+		expect(photosSchema.safeParse(fotos).success).toBe(false);
+	});
 });
 
 describe('howTheyMetSchema', () => {

@@ -22,21 +22,21 @@ export const personSchema = z.object({
 
 export const peopleSchema = z.tuple([personSchema, personSchema]);
 
-// `photoId` é o que identifica a foto de verdade; `url` é assinada, expira em 10 min e existe
-// só para o preview da sessão (ver `PhotoReference` em `./order.ts`). Exigir `url` aqui faria
-// a persistência guardar uma URL morta — achado da revisão do PR #66.
-//
-// A mesma allow-list de `signed-url.ts`/`orders.ts`, e não um `min(1)` qualquer: este id vem
-// do cliente e vira segmento de caminho no Storage. Sem a âncora, `../` passaria.
+// `photoId` identifica a foto; `url` é assinada, expira em 10 min e só serve de preview
+// (ver `PhotoReference` em `./order.ts`). Mesma allow-list de `orderIdSchema`/`signed-url.ts`,
+// e não um `min(1)` qualquer: este id vem do cliente e vira segmento de caminho no Storage,
+// então sem a âncora o `../` passaria — achado MÉDIO da revisão de segurança do PR #67.
 export const photoSchema = z.object({
 	photoId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'ID de foto inválido.'),
-	url: z.string().trim().min(1).optional(),
+	url: z.string().trim().min(1).max(2048, 'URL muito longa.').optional(),
 	caption: z.string().trim().max(200, 'Legenda muito longa.').optional()
 });
 
-// O upload existe desde F1-05b (issue #32), mas exigir ao menos 1 foto é decisão de
-// produto/UX ainda não tomada — lista vazia continua válida para não travar o fluxo.
-export const photosSchema = z.array(photoSchema);
+// Teto explícito, como em todos os outros arrays deste arquivo. `photos` era a exceção, e
+// esta issue é a primeira a levar o schema para uma rota de servidor que ESCREVE: sem o
+// `.max()`, um único POST carregaria dezenas de milhares de entradas.
+// Exigir ao menos 1 foto é decisão de produto ainda não tomada — lista vazia segue válida.
+export const photosSchema = z.array(photoSchema).max(20, 'No máximo 20 fotos.');
 
 export const howTheyMetSchema = z
 	.string()
@@ -111,3 +111,49 @@ export type QuestionarioInput = z.infer<typeof questionarioSchema>;
 export const questionarioInputAssignableToModel: QuestionarioInput extends CoupleQuestionnaire
 	? true
 	: false = true;
+
+/**
+ * Schema do rascunho (F1-05c, issue #33): reusa os schemas de etapa acima, mas
+ * cada etapa é opcional — o rascunho é salvo aos pedaços, etapa a etapa, então
+ * nunca chega completo antes da última tela do questionário.
+ */
+export const rascunhoQuestionarioSchema = z
+	.object({
+		people: peopleSchema,
+		photos: photosSchema,
+		howTheyMet: howTheyMetSchema,
+		milestones: milestonesSchema,
+		insideJokes: insideJokesSchema,
+		trips: tripsSchema,
+		challenges: challengesSchema,
+		futurePlans: futurePlansSchema,
+		specialMessage: specialMessageSchema
+	})
+	.partial();
+
+/** Sem schema próprio ainda (#30 cobriu só o questionário) — mínimo para o rascunho. */
+export const rascunhoChoiceSchema = z
+	.object({
+		narrativeStyleId: z.string().trim().min(1, 'Selecione um estilo de narrativa.'),
+		photoStyleId: z.string().trim().min(1, 'Selecione um estilo de foto.'),
+		sizeId: z.string().trim().min(1, 'Selecione um tamanho.')
+	})
+	.partial();
+
+/**
+ * Id seguro para virar caminho de documento/foto — mesma allow-list de
+ * `SAFE_ID`/`assertSafeId` em `src/lib/server/signed-url.ts:41`, para os dois
+ * concordarem sobre o mesmo `orderId`.
+ */
+export const orderIdSchema = z
+	.string()
+	.regex(/^[A-Za-z0-9_-]{1,128}$/, 'ID de pedido inválido: use apenas letras, números, "-" e "_".');
+
+/** Corpo aceito por `POST /api/pedidos/rascunho`. `ownerId`/`userId` não entram — o dono vem sempre de `locals.uid`. */
+export const salvarRascunhoSchema = z.object({
+	orderId: orderIdSchema,
+	questionnaire: rascunhoQuestionarioSchema.optional(),
+	choice: rascunhoChoiceSchema.optional()
+});
+
+export type SalvarRascunhoInput = z.infer<typeof salvarRascunhoSchema>;

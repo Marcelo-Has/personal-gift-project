@@ -1,4 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import {
+	abrirEtapa,
+	interceptarRascunhoVazio,
+	interceptarSessaoFirebase
+} from './support/questionario';
 
 /**
  * E2E da etapa de fotos (F1-05b, issue #32).
@@ -21,49 +26,11 @@ const PNG_MINIMO = Buffer.from(
 	'base64'
 );
 
-/**
- * Sessão anônima falsa: evita qualquer chamada real ao Identity Toolkit.
- *
- * São DOIS endpoints, com formatos diferentes, e responder o mesmo corpo aos dois quebra o
- * SDK: `accounts:signUp` cria a sessão e devolve o token; `accounts:lookup` é chamado logo
- * em seguida para montar o objeto `User` e espera `{ users: [...] }` — sem esse array o
- * firebase estoura em `users.length`.
- */
-async function interceptarSessaoFirebase(page: Page) {
-	await page.route('**identitytoolkit.googleapis.com**', async (route) => {
-		const ehLookup = route.request().url().includes('accounts:lookup');
-
-		const corpo = ehLookup
-			? {
-					kind: 'identitytoolkit#GetAccountInfoResponse',
-					users: [
-						{
-							localId: 'uid-de-teste',
-							providerUserInfo: [],
-							lastLoginAt: `${Date.now()}`,
-							createdAt: `${Date.now()}`
-						}
-					]
-				}
-			: {
-					kind: 'identitytoolkit#SignupNewUserResponse',
-					idToken: 'id-token-de-teste',
-					refreshToken: 'refresh-token-de-teste',
-					expiresIn: '3600',
-					localId: 'uid-de-teste'
-				};
-
-		await route.fulfill({
-			status: 200,
-			contentType: 'application/json',
-			body: JSON.stringify(corpo)
-		});
-	});
-}
-
 test.describe('etapa de fotos do questionário', () => {
 	test.beforeEach(async ({ page }) => {
 		await interceptarSessaoFirebase(page);
+		// Rascunho vazio: esta suíte é sobre fotos, não sobre persistência (isso é a #33).
+		await interceptarRascunhoVazio(page);
 	});
 
 	test('deve enviar a foto e mostrar o preview quando o arquivo é válido', async ({ page }) => {
@@ -97,7 +64,7 @@ test.describe('etapa de fotos do questionário', () => {
 			await route.fulfill({ status: 200, contentType: 'image/png', body: PNG_MINIMO });
 		});
 
-		await page.goto('/questionario/fotos');
+		await abrirEtapa(page, '/questionario/fotos');
 
 		await page.getByLabel('Selecionar fotos').setInputFiles({
 			name: 'nossa-foto.png',
@@ -126,7 +93,7 @@ test.describe('etapa de fotos do questionário', () => {
 			await route.abort();
 		});
 
-		await page.goto('/questionario/fotos');
+		await abrirEtapa(page, '/questionario/fotos');
 
 		// 10 MB é o teto (`MAX_PHOTO_BYTES`); 10 MB + 1 byte tem de ser recusado no cliente,
 		// antes de gastar requisição.

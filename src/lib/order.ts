@@ -12,18 +12,16 @@ export interface Person {
  * Referência a uma foto do casal.
  *
  * `photoId` é a referência DURÁVEL — só o último segmento do caminho no Storage, gerado no
- * servidor (`crypto.randomUUID()` na rota de upload). Guardar o CAMINHO inteiro seria um
- * IDOR esperando acontecer: ele viria pronto do cliente e nada impediria
+ * SERVIDOR (`crypto.randomUUID()` na rota de upload, F1-05b). Guardar o caminho inteiro
+ * seria IDOR esperando acontecer: viria pronto do cliente e nada impediria
  * `users/<uid-de-outro>/...`. O invariante de `$lib/server/signed-url.ts` é explícito — "o
  * caminho do objeto é sempre montado aqui, a partir de ids validados, nunca recebido
- * pronto" —, e quem for gerar a URL de leitura remonta com o `uid` da SESSÃO
- * (achado MÉDIO da revisão de segurança do PR #67, aplicado aqui antes de existir dado
- * persistido).
+ * pronto" —, e quem gera a URL de leitura remonta com o `uid` da SESSÃO (achado MÉDIO da
+ * revisão de segurança do PR #67).
  *
- * `url` é assinada e EXPIRA (10 min, `DEFAULT_DOWNLOAD_TTL_SECONDS` em
- * `$lib/server/signed-url.ts`) — por exigência de `.claude/rules/security.md`, foto nunca
- * fica pública. Por isso ela é estado efêmero de UI: serve para o preview da sessão atual e
- * é renovada sob demanda a partir do `path`. Guardá-la como identificador da foto daria um
+ * `url` é assinada e EXPIRA em 10 min (`.claude/rules/security.md`: foto nunca fica
+ * pública), então é estado efêmero de UI — opcional, renovada sob demanda a partir do
+ * `photoId`, e sem valor algum depois de persistida. Guardá-la como identificador daria
  * `<img>` quebrado em qualquer fluxo que passe de 10 minutos — e o questionário tem 9 etapas
  * (achado da revisão do PR #66).
  */
@@ -65,4 +63,25 @@ export interface StyleAndSizeChoice {
 export interface Order {
 	questionnaire: CoupleQuestionnaire;
 	choice: StyleAndSizeChoice;
+}
+
+/**
+ * Rascunho persistido em `users/<uid>/orders/<orderId>` (F1-05c, issue #33).
+ * Só `'rascunho'` é escrito por esta issue; os demais valores existem no tipo
+ * para F1-07 (checkout/pagamento) não precisar alterar o modelo.
+ */
+export type OrderStatus = 'rascunho' | 'aguardando_pagamento' | 'pago';
+
+/**
+ * Rascunho é preenchido etapa a etapa (`merge: true`), então cada parte do
+ * pedido é opcional até o questionário/escolha estarem completos.
+ */
+export interface OrderDraft {
+	id: string;
+	ownerId: string;
+	status: OrderStatus;
+	createdAt: string;
+	updatedAt: string;
+	questionnaire?: Partial<CoupleQuestionnaire>;
+	choice?: Partial<StyleAndSizeChoice>;
 }

@@ -8,8 +8,10 @@ export default defineConfig({
 		// Valores de mentira, só para `readConfig()` em `src/lib/firebase/client.ts` não lançar
 		// "Configuração do Firebase incompleta" no E2E. NÃO são segredo e não apontam para
 		// projeto nenhum: o SDK cliente expõe esses campos no bundle por design, e quem protege
-		// o dado são as regras do Firebase. Nos testes que exercitam a etapa de fotos, a rede do
-		// Firebase é interceptada com `page.route(...)` — nada sai do runner (F1-05b, issue #32).
+		// o dado são as regras do Firebase. Nos testes que dependem de sessão (etapa de fotos,
+		// F1-05b/#32; rascunho do pedido, F1-05c/#33), a rede do Firebase é interceptada com
+		// `page.route(...)` — nada sai do runner.
+
 		env: {
 			PUBLIC_FIREBASE_API_KEY: 'chave-de-teste-e2e',
 			PUBLIC_FIREBASE_AUTH_DOMAIN: 'teste-e2e.firebaseapp.com',

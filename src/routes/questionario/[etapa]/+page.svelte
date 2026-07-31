@@ -21,6 +21,7 @@
 	const etapa = $derived(data.etapa);
 
 	const questionario = getContext<CoupleQuestionnaire>('questionario');
+	const salvarRascunho = getContext<() => Promise<void>>('salvarRascunhoQuestionario');
 	const indicesPessoas: (0 | 1)[] = [0, 1];
 
 	const indiceAtual = $derived(getEtapaIndex(etapa.slug));
@@ -47,6 +48,8 @@
 	function avancar() {
 		tentouAvancar = true;
 		if (!validacaoEtapa.success) return;
+		// Melhor esforço: não trava o avanço se salvar falhar (ver +layout.svelte).
+		void salvarRascunho?.();
 		if (proximaEtapa) {
 			goto(resolve('/questionario/[etapa]', { etapa: proximaEtapa.slug }));
 		}

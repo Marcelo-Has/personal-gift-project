@@ -1,5 +1,6 @@
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { env } from '$env/dynamic/private';
 
@@ -58,4 +59,9 @@ export function getPhotoBucket() {
 /** Verificação de ID token da sessão anônima (F1-05a2, issue #31). */
 export function getAdminAuth() {
 	return getAuth(getAdminApp());
+}
+
+/** Firestore do servidor — rascunho de pedido (F1-05c, issue #33). Fechado por `firestore.rules`. */
+export function getAdminFirestore() {
+	return getFirestore(getAdminApp());
 }
