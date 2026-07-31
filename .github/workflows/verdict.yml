@@ -188,6 +188,18 @@ jobs:
             `Write` serve só para o arquivo do veredito acima — nenhum outro arquivo. Publique
             sempre um veredito — label trocada OU arquivo de comentário escrito — nunca em
             silêncio.
+
+            ORÇAMENTO E FERRAMENTAS — leia antes de começar, porque tentar o que não existe
+            queima turno à toa. Você tem 40 turnos e SÓ estas ferramentas:
+
+              Read, Glob, Grep, Write, TodoWrite
+              Bash: ls, git log, git show, gh issue view, gh pr view, gh pr diff, gh pr edit
+
+            NÃO existem aqui, e cada tentativa é um turno perdido: `cat`, `grep`, `head`,
+            `tail`, `wc`, `find`, `git diff` (use o tool `Read`/`Grep`/`Glob` e o `gh pr diff`)
+            e `gh pr comment` (o veredito vai para o ARQUIVO acima; quem publica é o step
+            não-IA). Leia o diff UMA vez pelo `gh pr diff` e trabalhe em cima dele; só abra
+            arquivo no disco quando precisar conferir algo que o diff não mostra.
           # ADIAR (2ª rodada, BAIXO): `Bash(gh pr edit:*)` é mais largo que o papel — o Verdict
           # só precisa de `--title`, `--remove-label` e `--add-label`, mas o curinga também
           # autoriza `--base` (trocar a branch de destino) e `--body`. Sem impacto hoje, porque
@@ -214,7 +226,14 @@ jobs:
           # `Bash(gh pr comment:*)` SAIU (FU-09, issue #58): publicar texto no PR deixou de ser
           # capacidade do agente — quem comenta é o step não-IA abaixo, a partir do arquivo. O
           # `gh pr edit` fica, porque trocar label/título É o veredito, não um texto livre.
-          claude_args: '--max-turns 20 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*)"'
+          # `--max-turns` subiu de 20 para 40: com 20, o Verdict estourou o teto (`num_turns:
+          # 21`, `error_max_turns`) nos PRs #66 e #67 — 11 arquivos e ~850 linhas cada — e não
+          # publicou nada, deixando os dois travados em `entrega:incompleta` para sempre. Ler
+          # PR + issue + diff e conferir critério de aceite não cabe em 20 turnos num PR desse
+          # tamanho, e a poda de allow-list das FU-08/FU-09 tornou isso pior: 6 negações de
+          # permissão naquele run, cada uma um turno queimado. O prompt agora lista as
+          # ferramentas que existem, para o agente não tentar `cat`/`git diff`/`gh pr comment`.
+          claude_args: '--max-turns 40 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*)"'
 
       # Publica a explicação do que falta (FU-09, issue #58): sem `Bash(gh pr comment:*)` no
       # agente, quem comenta é este step, não-IA, a partir do arquivo estruturado. Quando o
