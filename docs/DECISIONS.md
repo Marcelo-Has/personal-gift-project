@@ -1241,6 +1241,9 @@ Pro em repositório privado, e é a origem de todo o `merge-manual` e dos guard-
 "veredito publicado". **Em repositório público, branch protection é gratuita.** O impasse pode
 deixar de existir — vira issue própria, porque desmontar os guard-rails que hoje substituem a
 proteção de branch é decisão de desenho, não ajuste de config.
+
+---
+## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
   por SKU). O *modelo* de preço já foi decidido em [D-036] (só por tamanho; estilo não altera
