@@ -1282,13 +1282,32 @@ robustez adiável.
    olhado.
 4. **Espelho em `.claude/agents/reviewer.md`**, para valer também fora do CI.
 
-**Sobre o item 1 da issue ("achar a origem da reversão"), com honestidade sobre o que ficou em
-aberto.** A origem da divergência **de hoje em diante** está identificada e registrada: é o step
-do [D-033], intencional. O que **não** está provado é o que mexeu no workspace no run do PR #57,
-*antes* de o [D-033] existir — o candidato natural é a própria `claude-code-action`, que já se
-sabe reescrever `.git/config` na sua bootstrap ([D-032]). Não foi gasto um run descartável para
-provar isso: o guard-rail do item 3 responde a pergunta na primeira vez que o caso reaparecer, e
-a correção do item 2 já não depende da resposta. Se a divergência inesperada nunca mais aparecer,
+**Item 1 da issue ("achar a origem da reversão"): respondido com evidência de run, e o run foi o
+deste próprio PR.** O critério de aceite pedia evidência; o job `review` do PR #79
+(run `30662067972`) produziu:
+
+```
+##[group]Workspace após a restauração (divergência esperada)
+M  .claude/agents/reviewer.md
+##[endgroup]
+...
+##[group]Workspace ao fim do job
+M  .claude/agents/reviewer.md
+##[endgroup]
+Workspace sem divergência inesperada.
+```
+
+Leia o que isso diz. Este PR **acrescenta** uma seção a `.claude/agents/reviewer.md`; o disco do
+runner mostra o arquivo **modificado de volta para a versão da base**. É o mecanismo do veredito
+invertido do PR #57 reproduzido ao vivo: um revisor que lesse o disco reportaria que este PR
+*remove* a seção que ele *adiciona*. E o estado do fim do job é idêntico ao da restauração —
+**nenhum mutador desconhecido** acrescentou nada.
+
+**O que este run NÃO prova, e é preciso dizer:** a `claude-code-action` foi *pulada* nele
+(`workflow validation`, impasse [D-014]), então ela não teve chance de mexer em nada. A hipótese
+de que ela era a mutadora no run do PR #57 — plausível, já que se sabe que ela reescreve
+`.git/config` na bootstrap ([D-032]) — continua **não testada**. O guard-rail do item 3 responde
+a isso no primeiro job em que a action de fato rodar: se a divergência inesperada nunca aparecer,
 a resposta é "era o [D-033] esperando para acontecer".
 
 **Limite aceito:** nada disso *impede* o revisor de ler o disco — a instrução é prompt, e prompt
