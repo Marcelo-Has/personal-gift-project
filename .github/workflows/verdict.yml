@@ -25,14 +25,20 @@ permissions:
 
 jobs:
   verdict:
-    # ADIAR (revisão de segurança do PR #55, MÉDIO sem superfície atual): `workflow_run` roda
-    # privilegiado no repo base, com segredos, mesmo quando o CI que o disparou veio de um PR
-    # de fork. Hoje o repo é privado e de dono único ([D-014]/[D-019]), então não há fork de
-    # terceiro. No dia em que virar público OU entrar um colaborador (mesmo somente-leitura —
-    # pode forkar e abrir PR), somar ao `if` abaixo:
-    #   github.event.workflow_run.head_repository.full_name == github.repository
-    # O `fix.yml:17` tem exatamente o mesmo padrão e precisa do mesmo gate na mesma hora.
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # APLICADO em 2026-07-31, quando o repositório virou PÚBLICO — era exatamente a condição
+    # que o ADIAR desta linha esperava ("no dia em que virar público OU entrar um colaborador").
+    #
+    # `workflow_run` roda privilegiado no repo BASE, com segredos, mesmo quando o CI que o
+    # disparou veio de um PR de fork — e num repo público qualquer pessoa forka e abre PR. Sem
+    # o gate de origem, um estranho dispararia este job, que tem `ANTHROPIC_API_KEY` e um
+    # agente lendo o conteúdo do PR dele.
+    #
+    # `head_repository.full_name == github.repository` limita a branches do próprio repo. PR de
+    # fork simplesmente não recebe veredito automático — é a troca certa: o veredito é
+    # conveniência, o segredo não é. Ver [D-039].
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
