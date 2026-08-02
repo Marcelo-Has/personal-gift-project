@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	carregarRascunho,
 	LimiteDeRascunhosError,
+	marcarAguardandoPagamento,
 	PedidoNaoEditavelError,
 	salvarRascunho,
 	type OrderStore
@@ -306,6 +307,70 @@ describe('carregarRascunho', () => {
 
 		await expect(
 			carregarRascunho({ uid: 'uid-alice', orderId: '../outro' }, store)
+		).rejects.toThrow(/orderId inválido/);
+		expect(calls).toHaveLength(0);
+	});
+});
+
+describe('marcarAguardandoPagamento', () => {
+	it('deve transicionar de rascunho para aguardando_pagamento', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'rascunho' }
+		});
+
+		await marcarAguardandoPagamento({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(docs.get('users/uid-alice/orders/pedido-1')?.status).toBe('aguardando_pagamento');
+	});
+
+	it('deve preservar questionnaire/choice já salvos (merge, não sobrescrita)', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': {
+				status: 'rascunho',
+				questionnaire: { howTheyMet: 'oi' },
+				choice: { sizeId: 'mini-15x15' }
+			}
+		});
+
+		await marcarAguardandoPagamento({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		const doc = docs.get('users/uid-alice/orders/pedido-1');
+		expect((doc?.questionnaire as { howTheyMet?: string })?.howTheyMet).toBe('oi');
+		expect((doc?.choice as { sizeId?: string })?.sizeId).toBe('mini-15x15');
+	});
+
+	it('deve recusar quando o pedido não existe', async () => {
+		const { store, calls } = fakeStore();
+
+		await expect(
+			marcarAguardandoPagamento({ uid: 'uid-alice', orderId: 'pedido-1' }, store)
+		).rejects.toThrow(PedidoNaoEditavelError);
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	// Sem esta trava, chamar o endpoint duas vezes (ex.: duplo clique) reprocessaria em
+	// silêncio um pedido já `aguardando_pagamento`, ou pior, um já `pago`.
+	it.each(['aguardando_pagamento', 'pago'])(
+		'deve recusar e não escrever nada quando o status já é %s',
+		async (status) => {
+			const { store, calls, docs } = fakeStore({
+				'users/uid-alice/orders/pedido-1': { status }
+			});
+
+			await expect(
+				marcarAguardandoPagamento({ uid: 'uid-alice', orderId: 'pedido-1' }, store)
+			).rejects.toThrow(PedidoNaoEditavelError);
+
+			expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+			expect(docs.get('users/uid-alice/orders/pedido-1')?.status).toBe(status);
+		}
+	);
+
+	it('deve recusar orderId inválido antes de qualquer leitura', async () => {
+		const { store, calls } = fakeStore();
+
+		await expect(
+			marcarAguardandoPagamento({ uid: 'uid-alice', orderId: '../outro' }, store)
 		).rejects.toThrow(/orderId inválido/);
 		expect(calls).toHaveLength(0);
 	});

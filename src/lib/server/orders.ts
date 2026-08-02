@@ -163,3 +163,35 @@ export async function carregarRascunho(
 		choice: dados.choice as Partial<StyleAndSizeChoice> | undefined
 	};
 }
+
+export interface MarcarAguardandoPagamentoInput {
+	uid: string;
+	orderId: string;
+}
+
+/**
+ * Transição `rascunho` → `aguardando_pagamento` (F1-07a, issue #86) — a única desta issue.
+ * Deliberadamente uma função própria, e não `salvarRascunho` (que grava `status: 'rascunho'`
+ * sempre, na linha acima): reusar abriria uma via geral de sobrescrever `questionnaire`/
+ * `choice` de um pedido que já saiu de rascunho, exatamente o que o guard de
+ * `PedidoNaoEditavelError` existe para fechar. Não escreve `dados` nenhum, só o `status` —
+ * e só quando o estado atual ainda é `'rascunho'`, para não reprocessar em silêncio um
+ * pedido que já está `aguardando_pagamento` ou `pago`.
+ */
+export async function marcarAguardandoPagamento(
+	{ uid, orderId }: MarcarAguardandoPagamentoInput,
+	store: OrderStore = getAdminFirestore()
+): Promise<void> {
+	const ref = store.doc(orderPath(uid, orderId));
+	const existente = await ref.get();
+	const statusAtual = (existente.data() as { status?: OrderStatus } | undefined)?.status;
+
+	if (!existente.exists || statusAtual !== 'rascunho') {
+		throw new PedidoNaoEditavelError();
+	}
+
+	await ref.set(
+		{ status: 'aguardando_pagamento', updatedAt: FieldValue.serverTimestamp() },
+		{ merge: true }
+	);
+}
