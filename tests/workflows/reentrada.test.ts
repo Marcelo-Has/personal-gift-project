@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 const RAIZ = process.cwd();
 const WORKFLOW = `${RAIZ}/.github/workflows/daily-report.yml`;
+const IMPLEMENT = `${RAIZ}/.github/workflows/implement.yml`;
 
 const temJq = spawnSync('jq', ['--version'], { encoding: 'utf8' }).status === 0;
 
@@ -140,6 +141,23 @@ describe.skipIf(!temJq)('seleção de PR parado para re-entrada (daily-report.ym
 		expect(selecionar(prs, LIMITE)).toEqual(['92\t3']);
 	});
 
+	it('sobrevive a label reentrada: malformada, sem derrubar a seleção do repo inteiro', () => {
+		// `tonumber` sobre "" é erro de jq, e este filtro roda sobre TODOS os PRs de uma vez:
+		// sem o `test("^reentrada:[0-9]+$")`, uma única label malformada — que o guard-rail
+		// criava quando `TENTATIVA` chegava vazia — reprovaria o step inteiro e desligaria a
+		// rede de retaguarda da fábrica em silêncio. Achado M2 da revisão do PR #91.
+		const prs = [
+			{
+				number: 97,
+				title: '[WIP] com label malformada',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:incompleta', 'reentrada:', 'reentrada:2')
+			},
+			{ number: 87, title: '[WIP] sadio', updatedAt: PARADO, labels: rotulo('entrega:incompleta') }
+		];
+		expect(selecionar(prs, LIMITE)).toEqual(['97\t2', '87\t0']);
+	});
+
 	it('separa os elegíveis do resto numa lista mista, preservando a contagem de cada um', () => {
 		const prs = [
 			{ number: 87, title: '[WIP] a', updatedAt: PARADO, labels: rotulo('entrega:incompleta') },
@@ -159,5 +177,87 @@ describe.skipIf(!temJq)('seleção de PR parado para re-entrada (daily-report.ym
 			}
 		];
 		expect(selecionar(prs, LIMITE)).toEqual(['87\t0', '96\t2']);
+	});
+});
+
+/**
+ * Escolha de QUAL PR retomar (`implement.yml`). Isto é gate de segurança, não conveniência: o
+ * repositório é público e o corpo do PR é escrito por quem o abre, então o resultado desta
+ * seleção vira o `ref:` de um checkout num job com `contents: write` e o número que entra no
+ * prompt de um agente com `Bash(git:*)`/`Bash(gh api:*)`. Achados A1 e M3 da revisão de
+ * segurança do PR #91.
+ */
+function filtroDeRetomada(): string {
+	const yaml = readFileSync(IMPLEMENT, 'utf8').replace(/\r\n/g, '\n');
+	const abertura = 'jq -c --arg n "$ISSUE" --arg dono "$DONO" \'';
+	const inicio = yaml.indexOf(abertura);
+	const fim = inicio === -1 ? -1 : yaml.indexOf("| first // empty')", inicio);
+	if (inicio === -1 || fim === -1) {
+		throw new Error('Filtro de retomada não encontrado em implement.yml — o teste ficou órfão.');
+	}
+	return yaml.slice(inicio + abertura.length, fim) + '| first // empty';
+}
+
+function retomar(prs: unknown[], issue = '86', dono = 'Marcelo-Has'): string {
+	return execFileSync(
+		'jq',
+		['-c', '--arg', 'n', issue, '--arg', 'dono', dono, filtroDeRetomada()],
+		{ input: JSON.stringify(prs), encoding: 'utf8' }
+	).trim();
+}
+
+const prBase = {
+	number: 87,
+	headRefName: 'feat/f1-07a',
+	title: '[WIP] entrega em andamento',
+	labels: rotulo('entrega:incompleta'),
+	body: 'Closes #86',
+	isCrossRepository: false,
+	author: { login: 'app/claude' }
+};
+
+describe.skipIf(!temJq)('escolha do PR a retomar (implement.yml)', () => {
+	it('retoma o PR da própria fábrica que fecha a issue', () => {
+		expect(retomar([prBase])).toContain('"number":87');
+	});
+
+	it('aceita PR aberto pelo dono do repositório', () => {
+		expect(retomar([{ ...prBase, author: { login: 'Marcelo-Has' } }])).toContain('"number":87');
+	});
+
+	it('RECUSA PR vindo de fork, ainda que diga Closes #86', () => {
+		expect(retomar([{ ...prBase, isCrossRepository: true }])).toBe('');
+	});
+
+	it('RECUSA PR de terceiro: corpo é texto controlado por quem abre o PR', () => {
+		expect(retomar([{ ...prBase, author: { login: 'pessoa-aleatoria' } }])).toBe('');
+	});
+
+	it('RECUSA PR [BLOQUEADO]: Decision Gate espera humano de propósito (FU-06)', () => {
+		expect(retomar([{ ...prBase, title: '[BLOQUEADO] esperando decisão' }])).toBe('');
+	});
+
+	it('RECUSA PR precisa-humano: saiu da fila automática, não volta pela retomada', () => {
+		const labels = rotulo('entrega:incompleta', 'precisa-humano');
+		expect(retomar([{ ...prBase, labels }])).toBe('');
+	});
+
+	it('ignora menção solta a #86: só palavra de fechamento conta', () => {
+		expect(retomar([{ ...prBase, body: 'Refs #86, contexto em #86' }])).toBe('');
+	});
+
+	it('não confunde #86 com #861', () => {
+		expect(retomar([{ ...prBase, body: 'Closes #861' }])).toBe('');
+	});
+
+	it('escolhe o PR legítimo mesmo quando um de terceiro reivindica a mesma issue', () => {
+		// O caso que motiva A1: o `first` sozinho pegaria o intruso.
+		const intruso = {
+			...prBase,
+			number: 999,
+			headRefName: 'malicioso',
+			author: { login: 'pessoa-aleatoria' }
+		};
+		expect(retomar([intruso, prBase])).toContain('"number":87');
 	});
 });

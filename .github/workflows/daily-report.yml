@@ -196,7 +196,7 @@ jobs:
             | select(any(.labels[]; .name == "precisa-humano") | not)
             | select(.updatedAt < $limite)
             | select(.title | startswith("[BLOQUEADO]") | not)
-            | "\(.number)\t\([.labels[].name | select(startswith("reentrada:")) | ltrimstr("reentrada:") | tonumber] | max // 0)"
+            | "\(.number)\t\([.labels[].name | select(test("^reentrada:[0-9]+$")) | ltrimstr("reentrada:") | tonumber] | max // 0)"
           ' "${RUNNER_TEMP}/prs.json" > "${RUNNER_TEMP}/candidatos.tsv"
 
           while IFS=$'\t' read -r pr gastas; do

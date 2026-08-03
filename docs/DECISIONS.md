@@ -1629,7 +1629,24 @@ comenta no PR ao re-disparar, o que renova o `updatedAt` e tira o PR da janela d
 **Não-IA, pelo argumento do [D-043]:** atuador feito por agente é silenciado pela mesma falha que
 deveria consertar. Ambos rodam `gh` no shell do runner com o `GITHUB_TOKEN` do job. **Nenhuma
 allow-list de agente foi ampliada** — em particular, `Bash(gh workflow run:*)` NÃO entra na lista
-de agente nenhum: a capacidade de se re-disparar é do workflow, não do Developer.
+de agente nenhum: a capacidade de se re-disparar é do workflow, não do Developer. **Sem exagerar a
+afirmação:** `Bash(gh api:*)` já está na allow-list do Developer e o `implement.yml` já tem
+`permissions: actions: write` — os dois pré-existentes —, então `gh api -X POST
+.../workflows/implement.yml/dispatches` alcança o mesmo endpoint, e `Bash(gh pr edit:*)` alcança as
+labels que sustentam o teto. Nada disso é criado aqui, mas é esta decisão que transforma essas
+capacidades em bypass de um controle de **custo**. Estreitar a allow-list é follow-up da Fase 5.
+
+**A seleção de qual PR retomar é gate de segurança, não conveniência.** O repositório é público
+(PR #75) e o corpo de um PR é escrito por quem o abre: casar só por "palavra de fechamento + `#N`"
+deixaria qualquer pessoa disputar — e, pela ordenação do `gh pr list`, tende a **ganhar** — a
+escolha de um `ref:` que é baixado num job com `contents: write`, e do número que entra no prompt
+de um agente com `Bash(git:*)`/`Bash(gh api:*)`. Por isso a retomada filtra **origem** (nada de
+fork), **autor** (lista fechada: a própria fábrica ou o dono) e os dois rótulos de parada, antes de
+olhar o texto. Pelo mesmo motivo o prompt lê os comentários do PR **filtrados por autor**
+(`claude[bot]` ou `OWNER`) e os enquadra como DADO, nunca instrução: comentário de PR é escrita
+pública sem gate nenhum, e sem isso a FU-17 abriria um caminho de injeção de prompt que o gate de
+`author_association` do `implement.yml` mantinha fechado. Achados A1, A2 e M3 da revisão de
+segurança do PR #91.
 
 **O teto é a decisão cara, e ele é auditável.** Re-entrada sem limite é torneira aberta de crédito
 de API — a falha que sai mais cara que o travamento que ela conserta. A contagem mora em label
