@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	criarSessaoCheckout,
-	getTestPricingForSize,
-	type CheckoutSessionsClient
-} from './stripe';
+import { criarSessaoCheckout, getTestPricingForSize, type CheckoutSessionsClient } from './stripe';
 
 /**
  * Cliente Stripe falso: a API é dependência externa, então é ela que se mocka
@@ -16,7 +12,9 @@ function fakeStripe(session: { id: string; url: string | null } = { id: 'cs_test
 			sessions: {
 				async create(params) {
 					calls.push(params);
-					return session.url ? session : { ...session, url: 'https://checkout.stripe.com/cs_test_1' };
+					return session.url
+						? session
+						: { ...session, url: 'https://checkout.stripe.com/cs_test_1' };
 				}
 			}
 		}
@@ -26,7 +24,10 @@ function fakeStripe(session: { id: string; url: string | null } = { id: 'cs_test
 
 describe('getTestPricingForSize', () => {
 	it('deve devolver preço e label para um sizeId mapeado', () => {
-		expect(getTestPricingForSize('mini-15x15')).toEqual({ amountCents: 9900, label: 'Mini 15 × 15 cm' });
+		expect(getTestPricingForSize('mini-15x15')).toEqual({
+			amountCents: 9900,
+			label: 'Mini 15 × 15 cm'
+		});
 	});
 
 	it('deve devolver undefined para um sizeId sem preço de teste', () => {
