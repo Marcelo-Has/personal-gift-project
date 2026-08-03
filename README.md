@@ -68,7 +68,10 @@ Passo manual do dono do projeto (depois do merge, fora do escopo desta issue):
    `.env.example`): `PUBLIC_FIREBASE_*` (6, expostas ao cliente por design — por isso
    estão em `SECRETS_SCAN_OMIT_KEYS` no `netlify.toml`) e, para as rotas de servidor,
    `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`,
-   `FIREBASE_STORAGE_BUCKET`.
+   `FIREBASE_STORAGE_BUCKET` e `STRIPE_SECRET_KEY` (F1-07a).
+   A chave do Stripe **não** entra em `SECRETS_SCAN_OMIT_KEYS`: é segredo de verdade, e
+   deploy reprovado pela varredura por causa dela é sinal de vazamento para o bundle —
+   corrige-se no código, nunca omitindo a chave da varredura.
    `FIREBASE_PROJECT_ID` e `FIREBASE_STORAGE_BUCKET` também estão em
    `SECRETS_SCAN_OMIT_KEYS`: são identificadores (mesmo valor das `PUBLIC_`
    correspondentes), e o project id é o nome do repositório, que aparece em
