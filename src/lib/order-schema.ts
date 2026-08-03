@@ -131,14 +131,19 @@ export const rascunhoQuestionarioSchema = z
 	})
 	.partial();
 
+/**
+ * `StyleAndSizeChoice` completo (F1-07a, issue #86): usado para checar se o rascunho já tem
+ * os três ids antes de criar a sessão de checkout. `rascunhoChoiceSchema` abaixo é a versão
+ * `.partial()` desta — mesma allow-list, cada campo só passa a ser exigido quando completo.
+ */
+export const styleAndSizeChoiceSchema = z.object({
+	narrativeStyleId: z.string().trim().min(1, 'Selecione um estilo de narrativa.'),
+	photoStyleId: z.string().trim().min(1, 'Selecione um estilo de foto.'),
+	sizeId: z.string().trim().min(1, 'Selecione um tamanho.')
+});
+
 /** Sem schema próprio ainda (#30 cobriu só o questionário) — mínimo para o rascunho. */
-export const rascunhoChoiceSchema = z
-	.object({
-		narrativeStyleId: z.string().trim().min(1, 'Selecione um estilo de narrativa.'),
-		photoStyleId: z.string().trim().min(1, 'Selecione um estilo de foto.'),
-		sizeId: z.string().trim().min(1, 'Selecione um tamanho.')
-	})
-	.partial();
+export const rascunhoChoiceSchema = styleAndSizeChoiceSchema.partial();
 
 /**
  * Id seguro para virar caminho de documento/foto — mesma allow-list de
@@ -157,3 +162,10 @@ export const salvarRascunhoSchema = z.object({
 });
 
 export type SalvarRascunhoInput = z.infer<typeof salvarRascunhoSchema>;
+
+/** Corpo aceito por `POST /api/pedidos/checkout` (F1-07a, issue #86). */
+export const checkoutSchema = z.object({
+	orderId: orderIdSchema
+});
+
+export type CheckoutInput = z.infer<typeof checkoutSchema>;

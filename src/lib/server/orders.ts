@@ -136,6 +136,38 @@ export async function salvarRascunho(
 	await ref.set(payload, { merge: true });
 }
 
+export interface MarcarAguardandoPagamentoInput {
+	uid: string;
+	orderId: string;
+}
+
+/**
+ * Transição única `rascunho` → `aguardando_pagamento` (F1-07a, issue #86), chamada ao criar
+ * a sessão de Checkout. Não reusa `salvarRascunho`: aquela função sempre regrava
+ * `status: 'rascunho'` (é para questionário/escolha, não para avançar o estado do pedido) —
+ * reusá-la para isto abriria uma via geral de sobrescrever pedido pago, o que o comentário
+ * em `salvarRascunho` explicitamente evita. Mesmo erro tipado de `salvarRascunho`
+ * (`PedidoNaoEditavelError`) para o handler responder 409 sem distinguir "não existe" de "já
+ * saiu do rascunho" neste nível — quem chama decide 404 vs 409 antes, com o rascunho já em mãos.
+ */
+export async function marcarAguardandoPagamento(
+	{ uid, orderId }: MarcarAguardandoPagamentoInput,
+	store: OrderStore = getAdminFirestore()
+): Promise<void> {
+	const ref = store.doc(orderPath(uid, orderId));
+	const existente = await ref.get();
+
+	const statusAtual = (existente.data() as { status?: OrderStatus } | undefined)?.status;
+	if (!existente.exists || statusAtual !== 'rascunho') {
+		throw new PedidoNaoEditavelError();
+	}
+
+	await ref.set(
+		{ status: 'aguardando_pagamento', updatedAt: FieldValue.serverTimestamp() },
+		{ merge: true }
+	);
+}
+
 export interface CarregarRascunhoInput {
 	uid: string;
 	orderId: string;
