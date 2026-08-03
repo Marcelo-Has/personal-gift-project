@@ -68,6 +68,9 @@ seleção de estilo/tamanho e checkout Stripe em teste, com deploy de staging.
       Desbloqueado: o *modelo* de preço saiu do gate em [D-036] (só por tamanho). Os **números**
       continuam no D-101, mas não bloqueiam o modo teste.
       **CSP:** o Checkout exige `script-src https://js.stripe.com` e `frame-src` — ver nota abaixo.
+  - [x] **F1-07a** — Cliente Stripe + endpoint que cria a sessão de checkout (Price de teste
+        por tamanho) e marca o pedido `aguardando_pagamento`. (#86)
+  - [ ] **F1-07b** — Webhook Stripe: verifica assinatura e marca o pedido `pago`.
 - [x] **F1-08** — [D-018: Netlify] Host/infra + deploy automático de **staging**. (#35)
       **CSP:** rota pré-renderizada não passa pelo `handle`; fixar os headers na camada de CDN/edge.
   - [x] **F1-08b** — Deploy reprovado pelo secrets scanning: `FIREBASE_PROJECT_ID` é o nome do

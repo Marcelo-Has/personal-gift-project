@@ -1558,6 +1558,45 @@ reproduz exatamente as doze linhas de deriva — nos dois modos de falha ("conti
 se valida **depois** do merge ([D-019], 3ª rodada).
 
 ---
+## D-046 | 2026-08-03 | ACEITA
+**[F1-07a] A sessão de Checkout usa `price_data` inline, e o preço de TESTE mora em código.**
+Fecha a issue #86.
+
+**A escolha.** O `line_item` da Checkout Session pode sair de um `Price` pré-cadastrado no
+dashboard do Stripe (referenciado por `price: price_xxx`) ou de um `price_data` montado na hora.
+Escolhido o **`price_data` inline**.
+
+**Por quê.** O `Price` pré-cadastrado obriga a uma configuração manual fora do repositório, uma
+por ambiente, que nenhum PR cria nem verifica: o id viraria variável de ambiente, e o teste do
+endpoint passaria a depender de um estado que ninguém versiona. Um pedido antigo também deixaria
+de ser reproduzível se alguém arquivasse o `Price` no dashboard. Com `price_data`, o preço de
+teste é `TEST_PRICING_BY_SIZE_ID` em `src/lib/server/stripe.ts` — versionado, revisável no diff e
+testável sem rede.
+
+**O que isto NÃO decide.** Os **números** continuam no **D-101**, PENDENTE. Os valores aqui são
+fictícios e de modo TESTE, autorizados pelo [D-036], que liberou o *modelo* (preço só por
+tamanho; estilo não altera preço). Sair do modo teste é Decision Gate de dinheiro real
+(`docs/AUTONOMY.md` §2) e **exige** substituir estes valores pelos do D-101 — não é passo de
+deploy, é pré-requisito dele.
+
+**Guarda-corpo:** o mapa é indexado pelo `sizeId` do registry, e `sizeId` sem preço mapeado
+**não chama o Stripe** — erro antes da chamada, com teste dedicado. Sem isso, um tamanho novo
+publicado no catálogo criaria sessão de checkout com preço errado ou zero.
+
+**Códigos de erro do endpoint** (a issue pedia "de forma consistente com o restante da rota de
+pedidos"): `404` para rascunho inexistente; **`409`** para pedido que já saiu de `'rascunho'`,
+reusando a mensagem de `PedidoNaoEditavelError` como em `salvarRascunho`; `400` para corpo
+inválido, questionário ou escolha incompletos e escolha fora das entradas `published`; `429` para
+rate limit. O `409` é deliberado e não `400`: o pedido existe, e reprocessar em silêncio criaria
+uma **segunda** sessão de checkout para o mesmo pedido.
+
+**CSP não muda nesta entrega, e a nota do ROADMAP continua válida para a F1-07b.** O fluxo é por
+redirecionamento: o servidor devolve a URL da sessão e o navegador navega para
+`checkout.stripe.com`. Não há `js.stripe.com` embutido — o projeto não depende de
+`@stripe/stripe-js`. `script-src`/`frame-src` só precisarão ser afrouxados se algum dia o
+Checkout for embutido na página, e aí valem as regras de allow-list de host do FU-01.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
