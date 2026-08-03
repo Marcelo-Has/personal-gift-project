@@ -8,7 +8,10 @@ on:
 permissions:
   contents: read
   issues: write
-  pull-requests: read
+  # `write` desde a FU-17: a rede de retaguarda da re-entrada precisa marcar `precisa-humano`
+  # e comentar no PR quando o teto de tentativas se esgota. O agente continua sem essas
+  # ferramentas — quem escreve é step não-IA, com o `GITHUB_TOKEN` do job (padrão da FU-09).
+  pull-requests: write
   id-token: write
   actions: write
 
@@ -155,6 +158,97 @@ jobs:
             echo "::warning::ROADMAP fora de sincronia — ver a issue do relatório de hoje."
           else
             echo "ROADMAP em sincronia com as issues fechadas."
+          fi
+
+      # FU-17 — REDE DE RETAGUARDA da re-entrada. O atuador principal mora no fim do
+      # `implement.yml`: no instante em que a sessão falha, ele já sabe que o PR existe e está
+      # incompleto, e re-dispara ali mesmo. Este step existe para o caso em que aquele NÃO
+      # chega a rodar — job cancelado, runner morto, dispatch perdido, ou o travamento que
+      # nasceu antes da FU-17 existir. Sem ele, essas janelas continuariam sendo o beco sem
+      # saída que a FU-13 só sabia denunciar.
+      #
+      # Não-IA e antes do agente, pelo mesmo motivo do [D-043]: atuador feito por agente é
+      # silenciado pela mesma falha que deveria consertar. Nenhuma allow-list de agente foi
+      # ampliada — `gh` roda no shell do runner com o `GITHUB_TOKEN` do job.
+      #
+      # A contagem de tentativas é mantida pelo `implement.yml`, que rotula `reentrada:N` ao
+      # fim de cada sessão. Aqui só LEMOS esse teto — rotular também faria a mesma sessão ser
+      # contada duas vezes.
+      - name: Re-entrada em PR parado (step não-IA)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SINAIS: ${{ runner.temp }}/sinais.md
+          HORAS_PARADO: "6"
+          MAX_TENTATIVAS: "3"
+        run: |
+          set -euo pipefail
+          limite=$(date -u -d "${HORAS_PARADO} hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          : > "${RUNNER_TEMP}/redisparos.txt"
+
+          # `prs.json` veio do step anterior. Um PR só entra aqui se estiver aberto, marcado
+          # `entrega:incompleta`, parado além da janela, sem `precisa-humano` e sem
+          # `[BLOQUEADO]` no título — este último é Decision Gate esperando humano DE
+          # PROPÓSITO (FU-06), e re-disparar desfaria aquele conserto.
+          jq -r --arg limite "$limite" '
+            .[]
+            | select(any(.labels[]; .name == "entrega:incompleta"))
+            | select(any(.labels[]; .name == "precisa-humano") | not)
+            | select(.updatedAt < $limite)
+            | select(.title | startswith("[BLOQUEADO]") | not)
+            | "\(.number)\t\([.labels[].name | select(startswith("reentrada:")) | ltrimstr("reentrada:") | tonumber] | max // 0)"
+          ' "${RUNNER_TEMP}/prs.json" > "${RUNNER_TEMP}/candidatos.tsv"
+
+          while IFS=$'\t' read -r pr gastas; do
+            [ -n "${pr:-}" ] || continue
+
+            if [ "${gastas}" -ge "${MAX_TENTATIVAS}" ]; then
+              gh label create 'precisa-humano' --color 'B60205' --force \
+                --description 'Teto de re-entradas esgotado: a fabrica parou e nao tenta mais (FU-17)' >/dev/null
+              gh pr edit "${pr}" --add-label 'precisa-humano' >/dev/null
+              gh pr comment "${pr}" --body "$(printf '%s\n' \
+                "🛑 **Teto de re-entradas esgotado** (${gastas}/${MAX_TENTATIVAS}). A fábrica não tenta mais sozinha." \
+                '' \
+                'Parar é desfecho válido; sumir não é. Depois de destravar à mão, remova o' \
+                '`precisa-humano` e re-dispare o `implement.yml` com a issue deste PR.')"
+              echo "- #${pr} — teto de ${MAX_TENTATIVAS} tentativas esgotado, marcado \`precisa-humano\`" \
+                >> "${RUNNER_TEMP}/redisparos.txt"
+              continue
+            fi
+
+            # A issue vem da PALAVRA DE FECHAMENTO no corpo, nunca de `#N` solto — mesmo regex
+            # do guard-rail do `implement.yml`, pelo mesmo falso-positivo ([D-019], 3ª rodada).
+            issue=$(gh pr view "${pr}" --json body \
+              | jq -r '(.body // "")
+                  | capture("(?<kw>clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]+#(?<n>[0-9]+)"; "i")
+                  | .n // empty')
+
+            if [ -z "${issue:-}" ]; then
+              echo "- #${pr} — parado, mas sem palavra de fechamento no corpo: não dá para saber a issue" \
+                >> "${RUNNER_TEMP}/redisparos.txt"
+              continue
+            fi
+
+            gh workflow run implement.yml -f issue="${issue}"
+            gh pr comment "${pr}" --body "$(printf '%s\n' \
+              "▶️ **Re-entrada automática** (FU-17): este PR está \`entrega:incompleta\` e sem atividade" \
+              "há mais de ${HORAS_PARADO}h, então o \`implement.yml\` foi re-disparado para a issue #${issue}." \
+              '' \
+              "Sessões gastas até agora: ${gastas} de ${MAX_TENTATIVAS}.")"
+            echo "- #${pr} — re-disparado \`implement.yml\` para a issue #${issue} (${gastas}/${MAX_TENTATIVAS} sessões gastas)" \
+              >> "${RUNNER_TEMP}/redisparos.txt"
+          done < "${RUNNER_TEMP}/candidatos.tsv"
+
+          if [ -s "${RUNNER_TEMP}/redisparos.txt" ]; then
+            {
+              echo "## ▶️ Re-entrada automática em PR parado (FU-17)"
+              echo
+              cat "${RUNNER_TEMP}/redisparos.txt"
+              echo
+            } >> "$SINAIS"
+            echo "::warning::Houve re-entrada automática — ver a issue do relatório de hoje."
+          else
+            echo "Nenhum PR parado elegível para re-entrada."
           fi
 
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
