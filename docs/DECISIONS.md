@@ -1818,6 +1818,42 @@ não declara orçamento algum) são follow-up imediato, em PR próprio.
 ([D-019], 3ª rodada) — o workflow que roda num PR é o da branch base. O prompt novo do Developer
 só é exercitado na próxima issue implementada após este merge.
 
+## D-049 | 2026-08-04 | ACEITA
+**[F2-01] Chave do registry de skills é `(id, version)`, não `id` sozinho; `resolveSkill`
+sem versão resolve a maior versão *presente*, não a maior `status: published`.** Fecha a
+issue #99.
+
+**Convenção de chave.** `RegistrySkillEntry` já era um array por categoria — nada no tipo
+impedia duas entradas com o mesmo `id`; só faltava formalizar que **isso é o caminho
+suportado**, não um acidente de schema. Nenhuma mudança de tipo foi necessária em
+`src/lib/registry.ts` além de exportar `defaultRegistry` (para `loader.ts` reaproveitar em
+vez de reparsear `registry.json`). O carregador (`src/lib/product-skills/loader.ts`,
+`resolveSkill`) é quem passa a tratar `(id, version)` como a chave real, com o par exigido
+para nomear uma entrada sem ambiguidade.
+
+**Por que "maior versão presente", e não "maior `published`".** As três skills placeholder
+(`romantico`, `aquarela`, `polaroid-com-texto`) são `status: draft` — publicar no catálogo é
+Decision Gate (D-105), fora do escopo desta issue. Se `resolveSkill` sem versão filtrasse por
+`status: published`, nenhuma delas resolveria, e o critério de aceite da issue ("resolve as
+três skills placeholder... retornando a versão publicada mais alta") ficaria impossível de
+cumprir nesta fase. `publicada` ali foi lido como "presente no registry" (a versão mais alta
+que existe), não como o campo de negócio `status` de F1-06 — que continua servindo só para
+decidir o que aparece na loja (`getPublished*`, intocado). O motor de geração (F2-06) precisa
+carregar skill em `draft` para gerar preview/produção antes dela virar opção de compra; se
+algum dia isso precisar mudar, é escolha nova, não uma correção deste PR.
+
+**`registry.json` não ganhou uma v2 de verdade.** A issue liberou explicitamente resolver só
+com fixture de teste ("decida o que for mais simples"). Criar uma segunda versão fake de uma
+skill de produto real poluiria o catálogo sem necessidade — os testes de múltiplas versões em
+`loader.test.ts` usam um `ProductRegistry` construído em memória (mesmo padrão que
+`registry.test.ts` já usa), reaproveitando a pasta real de `romantico` no disco só para a
+checagem de path/`definition.md` passar.
+
+**Semver é comparação numérica própria, sem dependência nova.** `package.json` não tinha
+`semver`; o carregador implementa um comparador mínimo (major.minor.patch + prerelease
+simples) só para `major.minor.patch` numérico — suficiente para o formato usado hoje
+(`1.0.0`), sem puxar biblioteca externa para um comparador de poucas linhas.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
