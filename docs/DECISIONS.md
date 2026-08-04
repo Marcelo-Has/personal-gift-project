@@ -1691,9 +1691,20 @@ o filtro de autor dos comentários é **instrução de prompt**, não gate do wo
 o ignore lê a thread inteira; endurecer de verdade exigiria o workflow pré-buscar os comentários
 filtrados e injetá-los, o que é defesa em profundidade e não superfície nova. `MAX_TENTATIVAS`
 está duplicado nos dois workflows (o Actions não tem constante compartilhada entre arquivos), e
-divergir os dois valores afrouxaria o teto em silêncio. E o contador pode **subcontar** se a
-sessão morrer antes do guard-rail rodar (falha de infra, job cancelado): nesse caso a retaguarda
-ainda pega o PR, mas com uma sessão a mais do que o teto sugere.
+divergir os dois valores afrouxaria o teto em silêncio. A retaguarda também **não** replica os
+filtros de origem e autor dos outros três — hoje sem lacuna, porque `entrega:incompleta` só é
+aplicada pelo Developer a um PR que ele mesmo criou no repo base, e sem essa label o PR não entra
+na lista; se algum dia outra coisa passar a aplicar essa label, este filtro tem de ser endurecido
+junto.
+
+**A convergência do teto tem um limite honesto, e ele é o mais relevante desta lista.** Quem
+escreve `reentrada:N` é o guard-rail do `implement.yml`, ao fim da sessão. Se uma sessão retomada
+morrer **antes** dele — falha de infra, job cancelado, runner perdido —, o contador não sobe, e a
+retaguarda pode re-disparar aquele PR de novo achando que sobra orçamento. Não é laço aberto na
+prática: a retaguarda roda **uma vez por dia**, então o excesso é de um dispatch por dia e aparece
+no próprio relatório. Mas é o teto falhando na direção permissiva, e a correção certa (mover o
+incremento para o início da sessão, com um único escritor) é mudança de semântica do contador —
+trabalho próprio, não emenda de fim de PR. Registrado como o primeiro follow-up da FU-17.
 
 **Limite reconhecido, o de sempre para este arquivo:** mudança em `implement.yml` só se valida
 **depois** do merge ([D-019], 3ª rodada) — o workflow que roda num PR é o da branch base. A

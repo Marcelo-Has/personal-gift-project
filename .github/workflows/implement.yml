@@ -408,6 +408,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          # `if: always()` faz este step rodar mesmo quando `Validar ISSUE` reprovou — e desde
+          # que ele passou a RE-DISPARAR, isso deixou de ser inócuo: um `ISSUE` não numérico
+          # entraria no regex do `jq` (casando largo) e depois em `gh workflow run -f issue=...`.
+          # O job já está vermelho pela validação; aqui não há nada a julgar e, sobretudo, nada
+          # a disparar. Achado M3 da 3ª rodada da revisão de segurança do PR #91.
+          case "$ISSUE" in
+            '' | *[!0-9]*)
+              echo "::notice::ISSUE inválido ('${ISSUE}') — a validação já reprovou o job. Guard-rail não julga e NÃO re-dispara."
+              exit 0
+              ;;
+          esac
+
           if [ "$DEV_OUTCOME" = 'skipped' ]; then
             causa='O Developer **nem chegou a rodar**: um step anterior do workflow falhou (infra, não o agente).'
           else
