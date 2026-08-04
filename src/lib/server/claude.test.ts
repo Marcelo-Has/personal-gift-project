@@ -27,7 +27,7 @@ describe('getClaudeClient', () => {
 		});
 
 		it('deve chamar a API de Messages com os headers e o corpo certos', async () => {
-			const fetchMock = vi.fn(
+			const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
 				async () =>
 					new Response(JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }), {
 						status: 200
