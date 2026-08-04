@@ -97,14 +97,23 @@ describe('gerarNarrativaRomantica — golden samples (Claude API mockada)', () =
 		expect(system.cache_control).toEqual({ type: 'ephemeral' });
 	});
 
-	it('usa max_tokens grande o bastante para o teto do narrativeBlocksSchema', async () => {
+	it('usa max_tokens grande o bastante para o teto real do narrativeBlocksSchema', async () => {
 		const { client, calls } = fakeClaudeClient(JSON.stringify(completoOutput));
 
 		await gerarNarrativaRomantica(completoInput as CoupleQuestionnaire, { client, skill });
 
-		// Teto do schema (chapters + polaroidCaptions + timeline + finalLetter + dedication +
-		// opening) passa de ~14-15 mil tokens de conteúdo — max_tokens precisa comportar isso.
-		expect(calls[0].max_tokens).toBeGreaterThanOrEqual(8192);
+		// Teto de caracteres que o schema permite (mesma conta do comentário de MAX_TOKENS em
+		// generate.ts): opening 1.000 + chapters 20×(120+2.000)=42.400 + polaroidCaptions
+		// 20×200=4.000 + timeline 20×(120+500)=12.400 + finalLetter 3.000 + dedication 500.
+		// Calculado aqui de forma independente (não copiando o valor de MAX_TOKENS) para que
+		// o teste falhe se `narrativeBlocksSchema` crescer sem `MAX_TOKENS` acompanhar.
+		const tetoCaracteresSchema =
+			1000 + 20 * (120 + 2000) + 20 * 200 + 20 * (120 + 500) + 3000 + 500;
+		// Piso conservador de 3 caracteres/token (pior que os ~4 chars/token do inglês, para
+		// sobrar espaço para acentuação em português e pontuação de JSON).
+		const tokensMinimosNecessarios = Math.ceil(tetoCaracteresSchema / 3);
+
+		expect(calls[0].max_tokens).toBeGreaterThan(tokensMinimosNecessarios);
 	});
 
 	it('envia o questionário serializado como mensagem do usuário', async () => {
