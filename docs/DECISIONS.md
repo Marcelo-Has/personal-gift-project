@@ -1686,6 +1686,15 @@ FU-04 (ainda aberta), e mandar um agente consertar achado de varredura de segura
 risco diferente de consertar teste vermelho. Misturar as duas coisas incharia o PR contra a
 `.claude/rules/right-sizing.md`. Fica registrado como próximo follow-up.
 
+**Adiado de propósito, registrado para não virar achado repetido** (`.claude/rules/right-sizing.md`):
+o filtro de autor dos comentários é **instrução de prompt**, não gate do workflow — um agente que
+o ignore lê a thread inteira; endurecer de verdade exigiria o workflow pré-buscar os comentários
+filtrados e injetá-los, o que é defesa em profundidade e não superfície nova. `MAX_TENTATIVAS`
+está duplicado nos dois workflows (o Actions não tem constante compartilhada entre arquivos), e
+divergir os dois valores afrouxaria o teto em silêncio. E o contador pode **subcontar** se a
+sessão morrer antes do guard-rail rodar (falha de infra, job cancelado): nesse caso a retaguarda
+ainda pega o PR, mas com uma sessão a mais do que o teto sugere.
+
 **Limite reconhecido, o de sempre para este arquivo:** mudança em `implement.yml` só se valida
 **depois** do merge ([D-019], 3ª rodada) — o workflow que roda num PR é o da branch base. A
 seleção de PR do atuador de retaguarda, essa sim, está fixada em teste executável

@@ -404,6 +404,7 @@ jobs:
           # PR e o do `daily-report.yml`. Achado M2 da revisão de segurança do PR #91.
           TENTATIVA: ${{ steps.retomada.outputs.tentativa || '1' }}
           MAX_TENTATIVAS: '3'
+          DONO: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
 
@@ -422,7 +423,7 @@ jobs:
           # `([^0-9]|$)` em vez de `\b`: o `\b` não casa no jq embutido do `gh`, o que daria
           # falso-negativo ao depurar este mesmo guard-rail à mão. Mesmo fim — impedir que
           # `#3` case com `#30`.
-          prs=$(gh pr list --state all --limit 100 --json number,url,labels,body,state,title \
+          prs=$(gh pr list --state all --limit 100 --json number,url,labels,body,state,title,isCrossRepository,author \
             | jq --arg n "$ISSUE" '[.[] | select((.body // "")
                 | test("(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]+#" + $n + "([^0-9]|$)"; "i"))]')
 
@@ -481,9 +482,20 @@ jobs:
             # está incompleta. O sweep do `daily-report.yml` continua existindo como rede —
             # ele pega o que este step não alcança (job cancelado, runner morto, dispatch
             # perdido), que é justamente quando este step não chega a rodar.
-            aberto=$(jq -r '[.[] | select(.state == "OPEN")] | first // empty' <<<"$prs")
+            # Os MESMOS filtros de origem e autor do step `retomada`, e pelo mesmo motivo — só
+            # que aqui pesa mais: este bloco **escreve** o contador `reentrada:N` e dispara a
+            # próxima sessão. Escolher o PR errado gravaria a contagem num PR de terceiro, o
+            # contador do PR legítimo nunca subiria, e o teto de 3 — o controle de custo que a
+            # D-047 chama de "a decisão cara" — deixaria de existir. A assimetria entre quem LÊ
+            # o contador (retomada, filtrado) e quem o ESCREVE (aqui) foi o achado A1 da 2ª
+            # rodada da revisão de segurança do PR #91.
+            aberto=$(jq -r --arg dono "$DONO" '[.[]
+              | select(.state == "OPEN")
+              | select(.isCrossRepository | not)
+              | select(.author.login == "app/claude" or .author.login == "claude[bot]" or .author.login == $dono)]
+              | first // empty' <<<"$prs")
             if [ -z "${aberto}" ]; then
-              echo "::error::PR ${numeros} referencia a issue #${ISSUE} mas nenhum está aberto — nada a re-disparar."
+              echo "::error::PR ${numeros} referencia a issue #${ISSUE}, mas nenhum está aberto e vem da fábrica ou do dono — nada a re-disparar."
               exit 1
             fi
             alvo=$(jq -r '.number' <<<"${aberto}")
@@ -497,6 +509,14 @@ jobs:
                 exit 1
                 ;;
             esac
+
+            # `precisa-humano` é parada dura, não sugestão: o PR já saiu da fila automática (por
+            # teto esgotado aqui ou na retaguarda) e re-disparar o traria de volta, furando o
+            # próprio teto. Mesmo achado A1.
+            if [ "$(jq -r 'any(.labels[]; .name == "precisa-humano")' <<<"${aberto}")" = 'true' ]; then
+              echo "::error::PR #${alvo} está marcado precisa-humano — parada dura, sem nova re-entrada."
+              exit 1
+            fi
 
             gh label create "reentrada:${TENTATIVA}" --color 'FBCA04' --force \
               --description 'Numero de sessoes que a fabrica ja gastou neste PR (FU-17)' >/dev/null

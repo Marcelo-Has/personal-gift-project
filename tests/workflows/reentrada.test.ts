@@ -263,6 +263,67 @@ describe.skipIf(!temJq)('escolha do PR a retomar (implement.yml)', () => {
 });
 
 /**
+ * Escolha do PR-alvo do RE-DISPARO, no guard-rail de saída do `implement.yml`.
+ *
+ * Separado da retomada de propósito: são dois filtros distintos no mesmo arquivo, e a 2ª rodada
+ * da revisão de segurança do PR #91 achou exatamente a assimetria entre eles — a retomada (que
+ * LÊ o contador) filtrava origem e autor, e este (que ESCREVE `reentrada:N` e dispara a próxima
+ * sessão) não. Gravar a contagem no PR errado faria o contador do PR legítimo nunca subir, e o
+ * teto de 3 — o controle de custo — deixaria de existir.
+ */
+function filtroDeAlvo(): string {
+	const yaml = readFileSync(IMPLEMENT, 'utf8').replace(/\r\n/g, '\n');
+	const abertura = 'aberto=$(jq -r --arg dono "$DONO" \'';
+	const inicio = yaml.indexOf(abertura);
+	const fim = inicio === -1 ? -1 : yaml.indexOf("| first // empty'", inicio);
+	if (inicio === -1 || fim === -1) {
+		throw new Error('Filtro de alvo do re-disparo não encontrado em implement.yml.');
+	}
+	return yaml.slice(inicio + abertura.length, fim) + '| first // empty';
+}
+
+function alvoDoRedisparo(prs: unknown[], dono = 'Marcelo-Has'): string {
+	const saida = execFileSync('jq', ['-r', '--arg', 'dono', dono, filtroDeAlvo()], {
+		input: JSON.stringify(prs),
+		encoding: 'utf8'
+	}).trim();
+	return saida === '' ? '' : String(JSON.parse(saida).number);
+}
+
+const alvoBase = {
+	number: 87,
+	state: 'OPEN',
+	title: '[WIP] legítimo',
+	labels: rotulo('entrega:incompleta'),
+	isCrossRepository: false,
+	author: { login: 'app/claude' }
+};
+
+describe.skipIf(!temJq)('escolha do PR-alvo do re-disparo (guard-rail do implement.yml)', () => {
+	it('escolhe o PR da fábrica', () => {
+		expect(alvoDoRedisparo([alvoBase])).toBe('87');
+	});
+
+	it('não deixa PR de terceiro roubar o alvo, mesmo vindo antes na lista', () => {
+		const intruso = { ...alvoBase, number: 999, author: { login: 'pessoa-aleatoria' } };
+		expect(alvoDoRedisparo([intruso, alvoBase])).toBe('87');
+	});
+
+	it('não deixa PR de fork roubar o alvo, mesmo vindo antes na lista', () => {
+		const forjado = { ...alvoBase, number: 998, isCrossRepository: true };
+		expect(alvoDoRedisparo([forjado, alvoBase])).toBe('87');
+	});
+
+	it('não escolhe alvo nenhum quando só há PR de terceiro', () => {
+		expect(alvoDoRedisparo([{ ...alvoBase, author: { login: 'pessoa-aleatoria' } }])).toBe('');
+	});
+
+	it('ignora PR fechado', () => {
+		expect(alvoDoRedisparo([{ ...alvoBase, state: 'CLOSED' }])).toBe('');
+	});
+});
+
+/**
  * Filtro de comentários que a sessão retomada usa para descobrir o que falta.
  *
  * Este teste existe porque a lógica mora dentro do TEXTO DO PROMPT, e não em shell de step —
