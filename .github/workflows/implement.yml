@@ -398,11 +398,9 @@ jobs:
           # cinco arquivos não cabe numa sessão, e três sessões de 100 turnos cobrem com folga
           # qualquer issue do tamanho que o Supervisor deveria estar criando. Se três não
           # bastarem, o problema é o tamanho da issue, não o teto — e aí quem decide é humano.
-          # `|| '1'` porque este guard-rail tem `if: always()` e o step `retomada` não: se a
-          # validação do ISSUE reprovar, `retomada` é PULADO e `TENTATIVA` chegaria vazia —
-          # criando a label malformada `reentrada:` (sem número), que trava o filtro `jq` deste
-          # PR e o do `daily-report.yml`. Achado M2 da revisão de segurança do PR #91.
-          TENTATIVA: ${{ steps.retomada.outputs.tentativa || '1' }}
+          # `TENTATIVA` NÃO vem daqui de propósito: é calculada dentro do step, a partir das
+          # labels do PR. Passá-la como env (com `|| '1'` para o caso de o step `retomada`
+          # não rodar) fazia o teto falhar aberto — ver o comentário na própria contagem.
           MAX_TENTATIVAS: '3'
           DONO: ${{ github.repository_owner }}
         run: |
@@ -529,6 +527,17 @@ jobs:
               echo "::error::PR #${alvo} está marcado precisa-humano — parada dura, sem nova re-entrada."
               exit 1
             fi
+
+            # A contagem sai das LABELS DO PRÓPRIO PR, não do output do step `retomada`.
+            # Confiar naquele output faz o teto falhar ABERTO: se `retomada` falhar (erro
+            # transitório do `gh`, por exemplo) o output chega vazio, o default o trata como
+            # primeira sessão, e toda sessão volta a gravar `reentrada:1` e re-disparar — laço
+            # sem limite, com o contador travado em 1. Label é estado durável e é a mesma fonte
+            # que a retaguarda do `daily-report.yml` lê, então as duas contagens não divergem.
+            # Achado A1 da 4ª rodada da revisão de segurança do PR #91.
+            gastas=$(jq -r '[.labels[].name | select(test("^reentrada:[0-9]+$")) | ltrimstr("reentrada:")]
+                            | map(tonumber) | max // 0' <<<"${aberto}")
+            TENTATIVA=$((gastas + 1))
 
             gh label create "reentrada:${TENTATIVA}" --color 'FBCA04' --force \
               --description 'Numero de sessoes que a fabrica ja gastou neste PR (FU-17)' >/dev/null

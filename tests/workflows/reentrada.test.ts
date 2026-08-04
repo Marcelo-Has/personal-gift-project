@@ -324,6 +324,49 @@ describe.skipIf(!temJq)('escolha do PR-alvo do re-disparo (guard-rail do impleme
 });
 
 /**
+ * Contagem de sessões gastas, dentro do guard-rail. É o núcleo do teto, e é o ponto que já
+ * falhou ABERTO uma vez: enquanto vinha do output do step `retomada`, um erro transitório
+ * naquele step zerava a contagem, toda sessão se anunciava como a primeira e o re-disparo
+ * ficava sem limite. Agora sai das labels do PR — estado durável e monotônico.
+ */
+function contagemDeSessoes(): string {
+	const yaml = readFileSync(IMPLEMENT, 'utf8').replace(/\r\n/g, '\n');
+	const abertura = "gastas=$(jq -r '";
+	const inicio = yaml.indexOf(abertura);
+	const fim = inicio === -1 ? -1 : yaml.indexOf("max // 0'", inicio);
+	if (inicio === -1 || fim === -1) {
+		throw new Error('Contagem de sessões não encontrada em implement.yml.');
+	}
+	return yaml.slice(inicio + abertura.length, fim) + 'max // 0';
+}
+
+function gastas(labels: string[]): number {
+	const saida = execFileSync('jq', ['-r', contagemDeSessoes()], {
+		input: JSON.stringify({ labels: rotulo(...labels) }),
+		encoding: 'utf8'
+	});
+	return Number(saida.trim());
+}
+
+describe.skipIf(!temJq)('contagem de sessões gastas (guard-rail do implement.yml)', () => {
+	it('conta zero quando o PR ainda não tem label de re-entrada', () => {
+		expect(gastas(['entrega:incompleta'])).toBe(0);
+	});
+
+	it('conta o MAIOR valor: labels antigas não são removidas', () => {
+		expect(gastas(['reentrada:1', 'reentrada:3', 'reentrada:2'])).toBe(3);
+	});
+
+	it('sobrevive a label reentrada: malformada em vez de estourar o step', () => {
+		expect(gastas(['reentrada:', 'reentrada:2'])).toBe(2);
+	});
+
+	it('conta zero num PR sem label nenhuma', () => {
+		expect(gastas([])).toBe(0);
+	});
+});
+
+/**
  * Filtro de comentários que a sessão retomada usa para descobrir o que falta.
  *
  * Este teste existe porque a lógica mora dentro do TEXTO DO PROMPT, e não em shell de step —
