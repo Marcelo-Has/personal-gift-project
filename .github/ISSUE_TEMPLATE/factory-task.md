@@ -25,7 +25,11 @@ Como usar (humano ou Supervisor):
 <!-- Uma frase: o resultado observável quando a issue estiver concluída. -->
 
 ## Escopo
-<!-- O que esta issue entrega, em itens concretos. PR pequeno e revisável. -->
+<!-- O que esta issue entrega, em itens concretos. PR pequeno e revisável.
+     Comece pelo tamanho (D-048): cabe em ~40 turnos de Developer? Se não couber,
+     decomponha em issues ordenadas em vez de estimar G. -->
+
+**Tamanho estimado:** <!-- P | M | G + uma frase de justificativa -->
 
 ## Fora de escopo
 <!-- O que NÃO deve ser feito aqui (e para qual issue/fase fica). Explícito, não implícito. -->
