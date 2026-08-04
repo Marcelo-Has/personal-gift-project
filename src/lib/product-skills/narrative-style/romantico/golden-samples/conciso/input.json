@@ -1,0 +1,16 @@
+{
+	"people": [
+		{ "name": "Ana", "traits": ["gentil"] },
+		{ "name": "Pedro", "traits": ["divertido"] }
+	],
+	"photos": [{ "photoId": "foto1" }],
+	"howTheyMet": "Se conheceram numa festa de aniversário de um amigo em comum.",
+	"milestones": [
+		{ "title": "Primeiro beijo", "description": "Aconteceu na varanda, no fim da festa." }
+	],
+	"insideJokes": ["Chamar qualquer imprevisto de 'plano B'"],
+	"trips": [{ "destination": "Praia Grande" }],
+	"challenges": ["A timidez de Pedro no começo."],
+	"futurePlans": ["Viajar mais juntos."],
+	"specialMessage": "Com você, tudo fica mais leve."
+}
