@@ -134,3 +134,26 @@ describe('composePolaroidComTexto — validação do SKU', () => {
 		).toThrow(/área útil/);
 	});
 });
+
+describe('composePolaroidComTexto — validação das dimensões da imagem', () => {
+	const baseSku: SkuLayoutParams = {
+		pageWidthMm: 156,
+		pageHeightMm: 156,
+		bleedMm: 3,
+		safeMarginMm: 5
+	};
+
+	it.each([
+		{ widthPx: 0, heightPx: 1200 },
+		{ widthPx: 1200, heightPx: 0 },
+		{ widthPx: -1200, heightPx: 1200 },
+		{ widthPx: Infinity, heightPx: 1200 },
+		{ widthPx: NaN, heightPx: 1200 }
+	])('rejeita dimensões de imagem inválidas %o', ({ widthPx, heightPx }) => {
+		const image = { path: 'fixtures/foto.jpg', widthPx, heightPx };
+
+		expect(() =>
+			composePolaroidComTexto({ image, caption: 'Nós dois.' }, baseSku)
+		).toThrow(/dimensões de imagem inválidas/);
+	});
+});

@@ -1856,7 +1856,7 @@ simples) só para `major.minor.patch` numérico — suficiente para o formato us
 
 ---
 
-## D-050 | 2026-08-04 | ACEITA
+## D-051 | 2026-08-04 | ACEITA
 **[F2-05a] `polaroid-com-texto` v1: legenda acima do limite é rejeitada (não truncada);
 moldura usa ajuste "contain" (largura E altura) para caber em SKU quadrado com foto
 retrato; inclinação é determinística a partir da legenda, não aleatória.** Fecha a

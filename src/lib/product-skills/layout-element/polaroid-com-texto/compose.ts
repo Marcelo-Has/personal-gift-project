@@ -83,7 +83,21 @@ function assertCaptionLength(caption: string): void {
 	if (caption.length > MAX_CAPTION_LENGTH) {
 		throw new PolaroidComTextoValidationError(
 			`legenda com ${caption.length} caracteres excede o máximo de ${MAX_CAPTION_LENGTH} ` +
-				`definido em polaroid-com-texto/definition.md: "${caption}"`
+				`definido em polaroid-com-texto/definition.md`
+		);
+	}
+}
+
+function assertImageDimensions(image: PolaroidComTextoInput['image']): void {
+	if (
+		!Number.isFinite(image.widthPx) ||
+		!Number.isFinite(image.heightPx) ||
+		image.widthPx <= 0 ||
+		image.heightPx <= 0
+	) {
+		throw new PolaroidComTextoValidationError(
+			`dimensões de imagem inválidas: ${image.widthPx}x${image.heightPx}px ` +
+				`(exige inteiros positivos finitos)`
 		);
 	}
 }
@@ -123,6 +137,7 @@ export function composePolaroidComTexto(
 	sku: SkuLayoutParams
 ): PolaroidComposition {
 	assertCaptionLength(input.caption);
+	assertImageDimensions(input.image);
 	assertSkuParams(sku);
 
 	const skill = resolveSkill('layout-element', 'polaroid-com-texto');
