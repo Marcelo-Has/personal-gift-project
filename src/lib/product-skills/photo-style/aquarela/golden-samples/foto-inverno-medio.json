@@ -1,0 +1,13 @@
+{
+	"description": "Foto de casal, tamanho medio-20x20, saída aprox. 300 DPI",
+	"input": {
+		"photoId": "foto-02",
+		"photoBase64": "Zm90by1pbnZlcm5vLTIwMjQ=",
+		"params": { "sizeId": "medio-20x20", "targetWidthPx": 2362, "targetHeightPx": 2362 }
+	},
+	"expectedOutput": {
+		"sourcePhotoId": "foto-02",
+		"dataBase64": "f4s0sYAhzUeKjVNoMbtSjAZEFThVI++p8bUQMCh32PI=",
+		"metadata": { "widthPx": 2362, "heightPx": 2362, "dpi": 300, "format": "png" }
+	}
+}

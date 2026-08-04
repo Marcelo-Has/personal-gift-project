@@ -1855,6 +1855,33 @@ simples) só para `major.minor.patch` numérico — suficiente para o formato us
 (`1.0.0`), sem puxar biblioteca externa para um comparador de poucas linhas.
 
 ---
+## D-050 | 2026-08-04 | ACEITA
+**[F2-03] Contrato `PhotoStyleProvider` fica em `photo-style/provider.ts` (não em
+`photo-style/aquarela/`); o provider fake do golden sample usa hash SHA-256 como "imagem",
+não bytes de PNG de verdade.** Fecha a issue #102.
+
+**Onde mora o contrato.** `PhotoStyleProvider`/`SourcePhoto`/`PhotoStyleOrderParams`/
+`StylizedPhoto` ficam em `photo-style/provider.ts`, um nível acima de `aquarela/` — é o
+contrato da *categoria* `photo-style`, não do estilo `aquarela`. Cada novo estilo de foto
+(caricato, cinematográfico, ainda não existem) implementa a mesma interface sem duplicá-la;
+só `AquarelaFakeProvider` (a implementação) mora dentro de `aquarela/`.
+
+**Por que a saída fake é um digest SHA-256, e não uma imagem PNG real.** A issue pede
+"transformação simples e reprodutível" (texto do escopo) — não pede uma imagem
+renderizável. Gerar PNG de verdade exigiria escrever um encoder (zlib crua via `node:zlib`
++ chunks IHDR/IDAT/IEND com CRC32) só para um placeholder de teste; isso é trabalho e
+superfície de bug que não paga pelo que a issue pede, e viola `.claude/rules/right-sizing.md`
+(não construir o que a fase não pede). O contrato (`StylizedPhoto.data: Uint8Array` +
+`metadata` de resolução/DPI) não exige que `data` seja um PNG válido — só que seja
+determinístico e rastreável (`sourcePhotoId`). O provedor real (F2-04) troca
+`AquarelaFakeProvider` por uma implementação que devolve bytes de imagem de verdade, sem
+mudar o formato do contrato.
+
+**Sem dependência nova.** O hash usa `node:crypto` (built-in do Node), o mesmo padrão de
+"sem lib externa para pouca coisa" que [D-049] já usou para o comparador semver do
+carregador.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
