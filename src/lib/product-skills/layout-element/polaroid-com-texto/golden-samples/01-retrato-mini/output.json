@@ -1,0 +1,31 @@
+{
+	"skillId": "polaroid-com-texto",
+	"skillVersion": "1.0.0",
+	"frame": {
+		"area": {
+			"xMm": 42.78813559322034,
+			"yMm": 27.6,
+			"widthMm": 70.42372881355932,
+			"heightMm": 100.8
+		},
+		"rotationDeg": -0.6
+	},
+	"photo": {
+		"path": "fixtures/casal-praia.jpg",
+		"area": {
+			"xMm": 48.78813559322034,
+			"yMm": 33.6,
+			"widthMm": 58.42372881355932,
+			"heightMm": 77.89830508474576
+		}
+	},
+	"caption": {
+		"text": "Foi amor à primeira vista, no verão de 2019.",
+		"area": {
+			"xMm": 48.78813559322034,
+			"yMm": 111.49830508474577,
+			"widthMm": 58.42372881355932,
+			"heightMm": 10.901694915254236
+		}
+	}
+}

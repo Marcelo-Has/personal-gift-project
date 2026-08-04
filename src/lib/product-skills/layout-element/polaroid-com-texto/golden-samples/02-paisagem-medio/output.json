@@ -1,0 +1,31 @@
+{
+	"skillId": "polaroid-com-texto",
+	"skillVersion": "1.0.0",
+	"frame": {
+		"area": {
+			"xMm": 35.32000000000001,
+			"yMm": 37.49680000000001,
+			"widthMm": 135.35999999999999,
+			"heightMm": 131.00639999999999
+		},
+		"rotationDeg": -0.9
+	},
+	"photo": {
+		"path": "fixtures/casal-montanha.jpg",
+		"area": {
+			"xMm": 41.32000000000001,
+			"yMm": 43.49680000000001,
+			"widthMm": 123.35999999999999,
+			"heightMm": 92.52
+		}
+	},
+	"caption": {
+		"text": "Nosso primeiro sim.",
+		"area": {
+			"xMm": 41.32000000000001,
+			"yMm": 136.0168,
+			"widthMm": 123.35999999999999,
+			"heightMm": 26.486399999999996
+		}
+	}
+}
