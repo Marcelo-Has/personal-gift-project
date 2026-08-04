@@ -3,6 +3,7 @@ import {
 	carregarRascunho,
 	LimiteDeRascunhosError,
 	marcarAguardandoPagamento,
+	marcarPago,
 	PedidoNaoEditavelError,
 	salvarRascunho,
 	type OrderStore
@@ -368,6 +369,59 @@ describe('marcarAguardandoPagamento', () => {
 		await expect(
 			marcarAguardandoPagamento({ uid: 'uid-alice', orderId: '../outro' }, store)
 		).rejects.toThrow(/orderId inválido/);
+		expect(calls).toHaveLength(0);
+	});
+});
+
+describe('marcarPago', () => {
+	it('deve transicionar aguardando_pagamento para pago', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'aguardando_pagamento' }
+		});
+
+		await marcarPago({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		const doc = docs.get('users/uid-alice/orders/pedido-1');
+		expect(doc?.status).toBe('pago');
+		expect(doc?.updatedAt).toBeDefined();
+	});
+
+	it('deve ser idempotente e não escrever de novo quando o pedido já está pago', async () => {
+		const { store, calls } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'pago' }
+		});
+
+		await marcarPago({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	it('deve lançar PedidoNaoEditavelError e não escrever nada quando o pedido não existe', async () => {
+		const { store, calls } = fakeStore();
+
+		await expect(marcarPago({ uid: 'uid-alice', orderId: 'pedido-1' }, store)).rejects.toThrow(
+			PedidoNaoEditavelError
+		);
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	it('deve lançar PedidoNaoEditavelError e não escrever nada quando o pedido ainda está em rascunho', async () => {
+		const { store, calls } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'rascunho' }
+		});
+
+		await expect(marcarPago({ uid: 'uid-alice', orderId: 'pedido-1' }, store)).rejects.toThrow(
+			PedidoNaoEditavelError
+		);
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	it('deve recusar orderId inválido antes de qualquer leitura', async () => {
+		const { store, calls } = fakeStore();
+
+		await expect(marcarPago({ uid: 'uid-alice', orderId: '../outro' }, store)).rejects.toThrow(
+			/orderId inválido/
+		);
 		expect(calls).toHaveLength(0);
 	});
 });

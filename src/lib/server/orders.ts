@@ -168,6 +168,35 @@ export async function marcarAguardandoPagamento(
 	);
 }
 
+export interface MarcarPagoInput {
+	uid: string;
+	orderId: string;
+}
+
+/**
+ * Transição `aguardando_pagamento` → `pago` (F1-07b, issue #97), chamada pelo webhook do
+ * Stripe depois da assinatura do evento verificada. Idempotente: se o pedido já estiver
+ * `pago`, retorna sem escrever de novo — o Stripe reenvia o mesmo evento em retry. Mesmo
+ * erro tipado de `marcarAguardandoPagamento` para pedido inexistente ou ainda em `rascunho`
+ * (nunca passou pelo checkout): não é o que o webhook espera reconciliar.
+ */
+export async function marcarPago(
+	{ uid, orderId }: MarcarPagoInput,
+	store: OrderStore = getAdminFirestore()
+): Promise<void> {
+	const ref = store.doc(orderPath(uid, orderId));
+	const existente = await ref.get();
+
+	const statusAtual = (existente.data() as { status?: OrderStatus } | undefined)?.status;
+	if (!existente.exists || statusAtual === 'rascunho') {
+		throw new PedidoNaoEditavelError();
+	}
+
+	if (statusAtual === 'pago') return;
+
+	await ref.set({ status: 'pago', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+}
+
 export interface CarregarRascunhoInput {
 	uid: string;
 	orderId: string;
