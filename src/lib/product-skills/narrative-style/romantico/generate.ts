@@ -18,7 +18,10 @@ import { resolveSkill, type ResolvedSkill } from '../../loader';
 import type { CoupleQuestionnaire } from '../../../order';
 
 const CLAUDE_MODEL = 'claude-sonnet-5';
-const MAX_TOKENS = 4096;
+// Teto do `narrativeBlocksSchema` (chapters + polaroidCaptions + timeline + finalLetter +
+// dedication + opening) passa de ~14-15 mil tokens de conteúdo; 8192 dá folga para o
+// overhead de sintaxe JSON sem truncar exatamente os questionários mais completos.
+const MAX_TOKENS = 8192;
 
 export const narrativeChapterSchema = z.object({
 	title: z.string().trim().min(1).max(120),
@@ -82,6 +85,19 @@ function extrairTexto(response: { content: { type: string; text?: string }[] }):
 	return bloco.text;
 }
 
+/**
+ * Monta explicitamente o que o modelo precisa do questionário, em vez de despejar o
+ * objeto inteiro: `PhotoReference.url` é a URL assinada e expirável da foto (`order.ts`),
+ * credencial de leitura que o prompt não usa (`FORMATO_JSON_ESPERADO` só pede `photoId`) —
+ * não sai do perímetro para um terceiro sem necessidade (menor privilégio, ARCHITECTURE Parte 3).
+ */
+function payloadParaOModelo(questionnaire: CoupleQuestionnaire): CoupleQuestionnaire {
+	return {
+		...questionnaire,
+		photos: questionnaire.photos.map(({ photoId, caption }) => ({ photoId, caption }))
+	};
+}
+
 function validarFundamentacaoFactual(
 	blocks: NarrativeBlocks,
 	questionnaire: CoupleQuestionnaire
@@ -126,7 +142,7 @@ export async function gerarNarrativaRomantica(
 				cache_control: { type: 'ephemeral' }
 			}
 		],
-		messages: [{ role: 'user', content: JSON.stringify(questionnaire) }]
+		messages: [{ role: 'user', content: JSON.stringify(payloadParaOModelo(questionnaire)) }]
 	});
 
 	const texto = extrairTexto(response);

@@ -97,6 +97,16 @@ describe('gerarNarrativaRomantica — golden samples (Claude API mockada)', () =
 		expect(system.cache_control).toEqual({ type: 'ephemeral' });
 	});
 
+	it('usa max_tokens grande o bastante para o teto do narrativeBlocksSchema', async () => {
+		const { client, calls } = fakeClaudeClient(JSON.stringify(completoOutput));
+
+		await gerarNarrativaRomantica(completoInput as CoupleQuestionnaire, { client, skill });
+
+		// Teto do schema (chapters + polaroidCaptions + timeline + finalLetter + dedication +
+		// opening) passa de ~14-15 mil tokens de conteúdo — max_tokens precisa comportar isso.
+		expect(calls[0].max_tokens).toBeGreaterThanOrEqual(8192);
+	});
+
 	it('envia o questionário serializado como mensagem do usuário', async () => {
 		const { client, calls } = fakeClaudeClient(JSON.stringify(completoOutput));
 
@@ -105,6 +115,30 @@ describe('gerarNarrativaRomantica — golden samples (Claude API mockada)', () =
 		expect(calls[0].messages).toEqual([
 			{ role: 'user', content: JSON.stringify(completoInput) }
 		]);
+	});
+
+	it('nunca envia a URL assinada da foto para a Claude API', async () => {
+		const questionarioComUrl: CoupleQuestionnaire = {
+			...(completoInput as CoupleQuestionnaire),
+			photos: (completoInput as CoupleQuestionnaire).photos.map((foto, indice) =>
+				indice === 0
+					? {
+							...foto,
+							url: 'https://storage.googleapis.com/bucket/foto-privada?signature=segredo',
+							caption: 'Nosso primeiro encontro'
+						}
+					: foto
+			)
+		};
+		const { client, calls } = fakeClaudeClient(JSON.stringify(completoOutput));
+
+		await gerarNarrativaRomantica(questionarioComUrl, { client, skill });
+
+		const conteudoEnviado = calls[0].messages[0].content;
+		expect(conteudoEnviado).not.toContain('storage.googleapis.com');
+		expect(conteudoEnviado).not.toContain('segredo');
+		expect(conteudoEnviado).toContain('foto-abc123');
+		expect(conteudoEnviado).toContain('Nosso primeiro encontro');
 	});
 });
 
