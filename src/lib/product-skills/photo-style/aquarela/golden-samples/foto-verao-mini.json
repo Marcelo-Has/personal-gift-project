@@ -1,0 +1,13 @@
+{
+	"description": "Foto de casal, tamanho mini-15x15 (S150), saída aprox. 300 DPI",
+	"input": {
+		"photoId": "foto-01",
+		"photoBase64": "Zm90by12ZXJhby0yMDI0",
+		"params": { "sizeId": "mini-15x15", "targetWidthPx": 1772, "targetHeightPx": 1772 }
+	},
+	"expectedOutput": {
+		"sourcePhotoId": "foto-01",
+		"dataBase64": "EmsB0TRuzexDvrKPpAPm/rpI3YyFPjbC1ob39crGXvk=",
+		"metadata": { "widthPx": 1772, "heightPx": 1772, "dpi": 300, "format": "png" }
+	}
+}

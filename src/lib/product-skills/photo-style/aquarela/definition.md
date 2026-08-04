@@ -16,3 +16,10 @@
 ## Golden samples
 `golden-samples/` guarda pares aprovados (referência de entrada → saída) para os testes
 de estilo no CI.
+
+## Implementação (F2-03)
+- Contrato typed em `../provider.ts` (interface `PhotoStyleProvider`).
+- Provider fake e determinístico (sem rede) em `fake-provider.ts` (`AquarelaFakeProvider`),
+  usado pelos testes e pelo motor futuro (F2-06) até a F2-04 existir.
+- O provedor real de geração de imagem entra em **F2-04**, atrás do gate **D-102** — como
+  nova implementação de `PhotoStyleProvider`, sem redesenho do contrato.
