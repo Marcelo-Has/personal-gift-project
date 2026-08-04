@@ -58,7 +58,12 @@ export function parseRegistry(raw: unknown): ProductRegistry {
 	return raw as ProductRegistry;
 }
 
-const defaultRegistry = parseRegistry(registryJson);
+/**
+ * Registry default, carregado de `registry.json`. Exportado (além de `parseRegistry`)
+ * para o carregador de skills (`product-skills/loader.ts`) reaproveitar em vez de
+ * reparsear o JSON.
+ */
+export const defaultRegistry = parseRegistry(registryJson);
 
 function published<T extends { status: string }>(entries: T[]): T[] {
 	return entries.filter((entry) => entry.status === 'published');
