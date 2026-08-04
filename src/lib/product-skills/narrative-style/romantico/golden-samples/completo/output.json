@@ -1,0 +1,29 @@
+{
+	"opening": "Marina e Rafael se encontraram por acaso, lado a lado num curso de fotografia de sábado — e desde então aprenderam a olhar o mundo, e um para o outro, com mais atenção.",
+	"chapters": [
+		{
+			"title": "Como tudo começou",
+			"text": "Foi num sábado qualquer, numa sala cheia de gente querendo aprender fotografia, que Marina e Rafael se sentaram lado a lado. Depois da aula, foram tomar sorvete e a conversa esticou até o parque fechar — e não parou mais."
+		},
+		{
+			"title": "A vida a dois",
+			"text": "Dois anos depois, decidiram morar juntos no mesmo bairro onde se conheceram. No meio do caminho, passaram um ano em cidades diferentes por causa do trabalho de Rafael — e aprenderam que distância também se atravessa a dois."
+		}
+	],
+	"polaroidCaptions": [
+		{ "photoId": "foto-abc123", "caption": "O jeito cuidadoso de Marina, capturado num dia comum." },
+		{ "photoId": "foto-def456", "caption": "Rafael, paciente como sempre, sonhando alto." }
+	],
+	"timeline": [
+		{
+			"title": "Primeiro encontro",
+			"description": "Sorvete depois da aula de fotografia, conversa até o parque fechar."
+		},
+		{
+			"title": "Mudança para o mesmo apartamento",
+			"description": "Depois de dois anos, escolheram morar juntos no bairro onde tudo começou."
+		}
+	],
+	"finalLetter": "Marina e Rafael, entre um sábado de fotografia e uma pousada em Paraty debaixo de chuva, vocês foram construindo um jeito só de vocês de amar. Obrigada por escolherem um ao outro todos os dias, mesmo nos dias difíceis — é isso que faz de vocês, vocês.",
+	"dedication": "Para Marina e Rafael, que continuem escolhendo um ao outro, dia após dia."
+}

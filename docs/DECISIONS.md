@@ -1854,6 +1854,38 @@ checagem de path/`definition.md` passar.
 simples) só para `major.minor.patch` numérico — suficiente para o formato usado hoje
 (`1.0.0`), sem puxar biblioteca externa para um comparador de poucas linhas.
 
+## D-050 | 2026-08-04 | ACEITA
+**[F2-02] Skill `narrative-style/romantico` v1 chama a Claude API por um cliente `fetch`
+próprio (`src/lib/server/claude.ts`), sem adicionar `@anthropic-ai/sdk`; critério de
+comparação dos testes de estilo = schema (Zod) + fundamentação factual, não diff de texto.**
+Fecha a issue #101.
+
+**Sem SDK novo.** A API de Messages é um único `POST` JSON; `getClaudeClient()` segue o
+mesmo padrão de `getStripeClient()` (`src/lib/server/stripe.ts`) — instância única sob
+demanda, interface mínima (`ClaudeMessagesClient`) injetável nos testes, chave só via
+`$env/dynamic/private` (`ANTHROPIC_API_KEY`, já convencionado em [D-005]). Puxar
+`@anthropic-ai/sdk` para um único endpoint chamado por uma skill só (por ora) seria
+dependência sem segundo uso concreto ainda (`.claude/rules/right-sizing.md`); trocar por um
+SDK real no futuro é só reescrever `getClaudeClient()`, sem tocar quem chama.
+
+**Critério de comparação dos testes de estilo (a issue pedia para definir e documentar).**
+Texto gerado por LLM não é byte-a-byte determinístico, então "igual ao golden sample" não é
+o critério real de produção — é só o que os testes conseguem checar com a API mockada. O
+critério que importa de verdade, documentado no topo de `generate.test.ts`, é: (1)
+**estrutura** — a resposta bate com `narrativeBlocksSchema` (Zod), valida os blocos do
+contrato de `definition.md`; (2) **fundamentação factual** — nenhuma legenda de polaroid
+referencia um `photoId` fora do questionário (`definition.md`: "nunca inventar fatos"),
+verificado em runtime (`NarrativaInvalidaError`) e nos golden samples em si. Heurística de
+tom (léxico afetivo, clichê) ficou fora: exigiria um scorer/lista de termos que nenhuma
+skill além de `romantico` usa ainda — mesmo raciocínio de right-sizing do D-049 para
+`registry.json` não ganhar uma v2 fake.
+
+**Golden samples como fixture do mock, não chamada real.** Os 2 samples em
+`golden-samples/` (`completo/`, `conciso/`) são pares `input.json`/`output.json` — o mock da
+Claude API devolve o `output.json` e o teste confere que `gerarNarrativaRomantica` devolve
+esse objeto sem alterar conteúdo (parsing/validação são transparentes ao golden aprovado).
+Nenhuma chamada real à Claude API acontece no CI (`.claude/rules/testing.md`).
+
 ---
 
 ## D-051 | 2026-08-04 | ACEITA

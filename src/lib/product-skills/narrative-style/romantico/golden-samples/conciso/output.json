@@ -1,0 +1,18 @@
+{
+	"opening": "Ana e Pedro se conheceram numa festa de aniversário de um amigo em comum — e o que era só uma noite virou o começo de tudo.",
+	"chapters": [
+		{
+			"title": "Como tudo começou",
+			"text": "Na festa de aniversário de um amigo em comum, Ana e Pedro se encontraram. O primeiro beijo veio na varanda, no fim da noite, quando quase todo mundo já tinha ido embora."
+		}
+	],
+	"polaroidCaptions": [{ "photoId": "foto1", "caption": "Ana e Pedro, gentileza e leveza lado a lado." }],
+	"timeline": [
+		{
+			"title": "Primeiro beijo",
+			"description": "Na varanda, no fim da festa onde tudo começou."
+		}
+	],
+	"finalLetter": "Ana e Pedro, de uma festa de aniversário a uma vida inteira de planos — com você, tudo fica mais leve. Que a viagem para Praia Grande seja só a primeira de muitas.",
+	"dedication": "Para Ana e Pedro, que a leveza de vocês dure para sempre."
+}
