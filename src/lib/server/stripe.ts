@@ -58,6 +58,57 @@ export interface CheckoutSessionsClient {
 	};
 }
 
+const STRIPE_WEBHOOK_SECRET_VAR = 'STRIPE_WEBHOOK_SECRET';
+
+/**
+ * Erro tipado para a rota do webhook distinguir "assinatura ausente/inválida" (400) de falha
+ * de infraestrutura (500) — mesmo padrão de `PedidoNaoEditavelError` em `orders.ts`. Cobre
+ * também a env var do segredo ausente: do ponto de vista de quem chama o Stripe, os dois
+ * casos são "não processei, tente configurar de novo", então respondem igual.
+ */
+export class AssinaturaWebhookInvalidaError extends Error {
+	constructor(message = 'Assinatura do webhook do Stripe ausente ou inválida.') {
+		super(message);
+		this.name = 'AssinaturaWebhookInvalidaError';
+	}
+}
+
+/**
+ * Interface mínima do SDK usada aqui — mesmo padrão de `CheckoutSessionsClient`, permite o
+ * teste injetar um dublê sem depender de uma assinatura HMAC real.
+ */
+export interface WebhookEventsClient {
+	webhooks: {
+		constructEvent(payload: string, signature: string, secret: string): Stripe.Event;
+	};
+}
+
+export interface VerificarAssinaturaWebhookInput {
+	payload: string;
+	signature: string | null;
+}
+
+/**
+ * Verifica a assinatura do evento de webhook (F1-07b, issue #97) — `.claude/rules/payments.md`:
+ * todo webhook do Stripe valida a assinatura antes de processar. Segredo lido só via
+ * `$env/dynamic/private`, nunca no bundle do cliente, mesmo padrão de `getStripeClient()`.
+ */
+export function verificarAssinaturaWebhook(
+	{ payload, signature }: VerificarAssinaturaWebhookInput,
+	stripe: WebhookEventsClient = getStripeClient()
+): Stripe.Event {
+	const secret = env[STRIPE_WEBHOOK_SECRET_VAR];
+	if (!secret || !signature) {
+		throw new AssinaturaWebhookInvalidaError();
+	}
+
+	try {
+		return stripe.webhooks.constructEvent(payload, signature, secret);
+	} catch {
+		throw new AssinaturaWebhookInvalidaError();
+	}
+}
+
 export interface CriarSessaoCheckoutInput {
 	uid: string;
 	orderId: string;
