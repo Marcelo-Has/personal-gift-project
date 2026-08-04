@@ -1855,6 +1855,47 @@ simples) só para `major.minor.patch` numérico — suficiente para o formato us
 (`1.0.0`), sem puxar biblioteca externa para um comparador de poucas linhas.
 
 ---
+
+## D-050 | 2026-08-04 | ACEITA
+**[F2-05a] `polaroid-com-texto` v1: legenda acima do limite é rejeitada (não truncada);
+moldura usa ajuste "contain" (largura E altura) para caber em SKU quadrado com foto
+retrato; inclinação é determinística a partir da legenda, não aleatória.** Fecha a
+issue #104 e é a primeira skill `layout-element` implementada de fato — define a
+convenção que `timeline`/`carta`/`dedicatória` (F2-05b/c/d) devem seguir.
+
+**Comprimento máximo de legenda = 80 caracteres, rejeitar em vez de truncar.**
+`definition.md` já previa um limite ("definido aqui"), mas sem número — esta issue tinha
+que decidir o valor e o comportamento. Truncar uma legenda manuscrita curta arrisca cortar
+no meio de uma frase e imprimir algo sem sentido; como a legenda vem do narrative-style
+(que já pode gerar mais curto), rejeitar com erro descritivo (`PolaroidComTextoValidationError`)
+é mais seguro para um produto físico que não se corrige depois de impresso. O motor de
+geração (F2-06) decide o que fazer com o erro (pedir regeneração mais curta); não é
+responsabilidade desta skill.
+
+**Ajuste "contain" nos dois eixos, não só na largura.** A primeira versão do cálculo limitava
+a moldura só pela largura útil da página; para uma foto retrato (comum em fotos de casal) num
+SKU quadrado (mini 15×15, médio 20×20 — `docs/PRODUCT.md` §5), isso gerava uma moldura mais
+alta que a própria página, e a função lançava erro de validação para uma entrada
+perfeitamente normal. Resolvido: a moldura respeita 72% da largura útil **e** 72% da altura
+útil; quando o limite de altura for o mais restritivo, a largura da moldura é recalculada
+para caber exatamente nele. Sem isso, metade das fotos reais de um casal (retrato) quebraria
+a skill em produção — é correção do que está sendo entregue agora, não *hardening*
+hipotético (`.claude/rules/right-sizing.md`).
+
+**Inclinação determinística, não `Math.random`.** A composição precisa ser reproduzível
+(golden samples/testes de estilo comparam saída exata); um ângulo aleatório tornaria os
+testes não-determinísticos. O ângulo é derivado de um hash simples da legenda (mesma
+legenda → mesmo ângulo, mas legendas diferentes tendem a ângulos diferentes), mantendo a
+variedade visual do "leve inclinação" do `definition.md` sem sacrificar reprodutibilidade.
+
+**Golden samples são JSON (entrada + composição esperada), não imagem renderizada.** A
+issue pede fixture de imagem de teste, não integração com `photo-style` (fora de escopo,
+depende de F2-03/F2-04); o "golden" desta skill é a estrutura posicionada (retângulos em
+mm + ângulo), não um bitmap — o motor de geração (F2-06) é quem eventualmente rasteriza
+isso. Dois exemplos: uma foto retrato em SKU mini e uma paisagem em SKU médio, cobrindo os
+dois ramos do ajuste "contain".
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
