@@ -42,8 +42,19 @@ jobs:
             dependências. Se a tarefa tocar uma decisão PENDENTE (D-100..D-106), crie
             como decision-needed, não status:ready.
 
+            TAMANHO (D-048) — o teste é o Developer caber em 40 turnos. Uma issue = uma
+            preocupação, um entregável, superfície limitada (um módulo ou um punhado de
+            arquivos). Teste prático: se você não consegue descrever a mudança concretamente em
+            poucas frases, ela está grande demais — DECOMPONHA em issues ordenadas, cada uma
+            completável e verificável sozinha, com "Bloqueada por #N" em Dependências. Nunca uma
+            mega-issue. Escreva em "Escopo" a linha `**Tamanho estimado:** P | M | G` com uma
+            frase de justificativa (G = você não conseguiu decompor mais; diga por quê).
+            Mega-issue não morre aqui: morre três sessões depois, em `precisa-humano`, com o
+            custo já gasto.
+
             ROADMAP (FU-16, D-045): se a tarefa NÃO existir como linha de docs/ROADMAP.md —
-            porque você decompôs um item (F1-05 -> F1-05a/b/c) ou porque é trabalho de produto
+            porque você decompôs um item (F1-05 -> F1-05a/b/c — UMA linha declarada por
+            sub-issue) ou porque é trabalho de produto
             que o plano não previa — a issue TEM de trazer, em "Escopo", a linha exata a
             acrescentar no arquivo: código, fase e posição. Você é read-only e não escreve o
             arquivo; quem escreve é o Developer, no PR que fecha a issue. Sem essa linha

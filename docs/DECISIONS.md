@@ -1712,6 +1712,112 @@ seleção de PR do atuador de retaguarda, essa sim, está fixada em teste execut
 (`tests/workflows/reentrada.test.ts`), que extrai o filtro `jq` do próprio workflow em vez de
 reimplementá-lo.
 
+## D-048 | 2026-08-04 | ACEITA
+**[FU-18] 40 turnos é o orçamento de trabalho da fábrica. O `--max-turns` deixa de ser
+orçamento e passa a ser margem declarada.** Fecha a issue #93.
+
+**O buraco: o prompt ensinava o agente a gastar o teto.** O `implement.yml` dizia "você tem 100
+turnos" e, sete linhas depois, "Estourar o teto NÃO é mais fatal". Uma mensagem informa o
+tamanho da carteira, a outra diz que estourar sai barato; nenhuma diz que a tarefa deveria ter
+cabido em muito menos. A consequência está medida no [D-047]: a issue #86 morreu **duas vezes**
+em `error_max_turns` (`num_turns: 81` contra `--max-turns 80`), US$ 7,47, zero entregue. A FU-17
+acertou o atuador (re-entrada automática, teto de 3 sessões) e errou a causa — subiu o teto de
+80 para 100. Teto maior compra tempo para uma tarefa mal dimensionada; **não impede que ela seja
+criada.**
+
+**Decisão: toda issue é dimensionada para caber em 40 turnos de Developer.** O teto do workflow
+continua existindo só como margem para o imprevisível (CI instável, estado inesperado do repo),
+nunca como orçamento planejado. Isso desloca a correção para onde ela é barata: o **Supervisor**,
+que dimensiona, e o **Developer**, que gasta. Só texto de prompt — nenhum mecanismo novo.
+
+**Onde o texto vive: fonte de verdade única, no `prompt:` inline do workflow.** Pelo [D-019] §1
+ele é o único texto garantido em contexto no CI (o workflow não instancia subagente e o `tools:`
+do frontmatter dos agentes é inerte). Os `.claude/agents/*.md` valem como referência de papel
+para invocação local e **não** recebem cópia deste texto: duplicar as regras nas duas superfícies
+cria deriva, que é exatamente o defeito já observado nos frontmatters (ver "adiado", abaixo).
+
+**A parada branda em ~35 turnos, e por que ela é alcançável onde a instrução que o [D-047]
+removeu não era.** O [D-047] apagou "se o orçamento acabar, encerre com elegância" porque
+`error_max_turns` encerra a sessão **sem** dar turno ao agente — aquela instrução nunca executou.
+A parada branda é outra coisa: o 35º turno contra um teto de 100 tem 65 turnos de folga. Não é
+gestão de morte, é gasto de orçamento, e o agente está vivo para executá-la. Segue sendo
+heurística e não instrumento — o agente não tem contador confiável de turnos —, e é por isso que
+o critério de sucesso é o `num_turns` do artefato, não a fé no texto.
+
+**A parada branda CONSOME uma tentativa do teto de 3, de propósito.** O contador `reentrada:N`
+sobe sempre que o PR não tem `entrega:completa`, independentemente de *como* a sessão terminou.
+Tratar a parada branda à parte exigiria o guard-rail distinguir "morreu no teto" de "parou
+limpo" — mecanismo novo — e abriria a porta para uma sessão que para no 35º sem progresso
+reentrar para sempre. Custo desta escolha: **zero linha de código**.
+
+**Quem é dono do desfecho: a re-entrada, até o teto.** O Developer não devolve o trabalho ao
+Supervisor ao parar — ele relata e a próxima sessão continua na mesma branch. O Supervisor entra
+quando `precisa-humano` aparece. O único caminho de saída antecipada já existe e não é criado
+aqui: Decision Gate → `decision-needed` + título `[BLOQUEADO]`, que o guard-rail exclui da
+re-entrada por prefixo de título (FU-06). Escopo maior que o descrito **não** é saída: é
+comentário na issue, com a sessão seguindo.
+
+**Compatibilidade com o guard-rail do [D-019]:** a parada branda termina com PR aberto
+referenciando a issue — o desfecho (a). Ela nunca cai no ramo fatal ("nada produzido"). O job
+fica vermelho como *entrega parcial*, que é precisamente o estado que a FU-17 projetou para
+disparar a re-entrada. Não é um jeito novo de reprovar; é o caminho que já existia.
+
+**A aritmética resultante: 40 × 3 ≈ 120 turnos por issue antes de exigir humano.** É teto, não
+expectativa — uma issue bem dimensionada fecha na sessão 1, e 3 sessões é a cauda patológica.
+Issue antiga mal dimensionada vai bater em `precisa-humano` mais rápido, e **isso é o sinal
+funcionando**: o [D-047] já diz que "se três não bastarem, o problema é o tamanho da issue e não
+o teto". `precisa-humano` passa a significar "esta issue precisa ser redimensionada", e quem
+redimensiona é o Supervisor — não se sobe teto para acomodar issue grande.
+
+**`--max-turns 100` do `implement.yml` FICA, como margem declarada e não como herança.** Voltar
+para 80 era defensável, e foi recusado por três motivos: (i) muda-se uma variável por vez, senão
+o `num_turns` do artefato mede a parada branda contaminado por um teto que mudou junto; (ii) a
+evidência do [D-047] é que **80 é empiricamente o pior valor** — duas sessões morreram em 81, com
+o trabalho quase pronto; (iii) se a parada branda funcionar, o teto nunca liga e 100 vs 80 é
+indiferente; se não funcionar, queremos ver isso no dado, não escondido atrás de um teto menor.
+**Gatilho de revisão declarado:** depois dos 3 primeiros PRs que carregarem `reentrada:N`, olhar
+o `num_turns` das sessões; se estiverem fechando em ≤40, cortar para 80 num FU seguinte de uma
+linha. Os demais tetos (80/80/40/40/30/25) permanecem.
+
+**Como saberemos que funcionou — só sinais que já existem, sem instrumentação nova:** o
+`num_turns` no artefato de transcrição (alvo: mediana ≤40, nenhum `error_max_turns` em 100/101);
+a label `reentrada:N` da FU-17 (alvo: maioria dos PRs sem label ou em `reentrada:1`; `reentrada:3`
++ `precisa-humano` = issue mal dimensionada, devolver ao Supervisor); o alarme do FU-13 ([D-043])
+no relatório diário; e o campo `**Tamanho estimado:**` das issues novas — se toda issue nascer
+"G", a decomposição não pegou. Linha de base, já registrada no [D-047]: 81 e 81 turnos, US$ 3,72
+e 3,75, zero entregue.
+
+**Convivência com o [D-045], sem bloco novo:** decompor um item do ROADMAP e declarar a linha
+exata já eram a mesma regra; ela só ganhou a cláusula "UMA linha declarada por sub-issue", dentro
+do parágrafo que já existia. `FU-xx` continua sem linha no ROADMAP.
+
+**Adiado de propósito, registrado para não virar achado repetido**
+(`.claude/rules/right-sizing.md`): **label `tamanho:*`** — uma linha de texto no corpo da issue
+custa zero e não precisa de higiene, e não existe leitor para um label; **instrumentação de
+`num_turns`** — o artefato já carrega o número, e criar step que o leia e reprove é mecanismo
+novo para um problema sem frequência conhecida; **o teto de 3 da re-entrada** — justificado pelo
+[D-047] um dia antes e ainda **nunca disparado em produção**, sem evidência não se mexe; **o
+"contador falha aberto"** que o próprio [D-047] registrou (sessão que morre antes do guard-rail
+não incrementa `reentrada:N`) — real, já é o primeiro follow-up da FU-17 e é mudança de semântica
+do contador, não emenda deste PR; **desduplicar `implement.yml` ↔ `developer.md`** (~40 das 118
+linhas do prompt reescrevem o agente) — apagar do prompt para "desduplicar" **perde a regra no
+CI** pelo [D-019], e apagar do `developer.md` seria churn sem efeito; **as divergências de
+frontmatter dos `.claude/agents/*.md`** (`reviewer.md` lista `Bash(git diff*)` que já saiu da
+allow-list e omite o `Write` que o workflow exige; `supervisor.md` lista `Bash(gh pr*)` amplo
+contra o `gh pr view|list` real; `verdict.md` ainda manda "comente no PR", que o próprio arquivo
+desmente 20 linhas depois) — deriva real, mas de documentação numa superfície inerte no CI, LOW
+pelo filtro do right-sizing → backlog da Fase 5, **não** `status:ready`.
+
+**`review.yml` e `security.yml` não foram tocados**, e não por medo: os dois já declaram 80 = 80
+e já têm condição de parada explícita. Como editá-los força merge manual pela exceção do [D-014],
+mexer neles seria pagar custo por ganho zero. `verdict.yml` (sem condição de parada nenhuma,
+justamente o agente que já morreu no teto sem publicar nos PRs #66/#67) e `fix.yml` (único que
+não declara orçamento algum) são follow-up imediato, em PR próprio.
+
+**Limite reconhecido, o de sempre:** mudança em `implement.yml` só se valida **depois** do merge
+([D-019], 3ª rodada) — o workflow que roda num PR é o da branch base. O prompt novo do Developer
+só é exercitado na próxima issue implementada após este merge.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

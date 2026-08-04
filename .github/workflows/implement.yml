@@ -204,18 +204,22 @@ jobs:
             PR já aberto para esta issue: `${{ steps.retomada.outputs.pr || 'nenhum' }}`.
             Tentativa número ${{ steps.retomada.outputs.tentativa }}.
 
-            ORÇAMENTO: você tem 100 turnos e o runner é DESTRUÍDO no fim. Nada que não
-            esteja empurrado para o GitHub sobrevive. A issue já traz "Arquivos exatos" e
-            "Ler antes" — leia o que ela manda e comece; não faça arqueologia do repo além
-            disso, e NUNCA leia código dentro de `node_modules/` (dúvida de tipagem do
-            SvelteKit se resolve rodando `npm run check`, não lendo a fonte dele). Agrupe
-            leituras curtas numa só chamada de Bash.
+            ORÇAMENTO: 40 turnos é o seu orçamento de trabalho — esta issue foi dimensionada
+            para caber neles. O teto do workflow é maior, mas é MARGEM para o imprevisto (CI
+            instável, estado inesperado do repo), não orçamento a gastar. O runner é DESTRUÍDO
+            no fim: nada que não esteja empurrado para o GitHub sobrevive. A issue já traz
+            "Arquivos exatos" e "Ler antes" — leia o que ela manda e comece; não faça
+            arqueologia do repo além disso, e NUNCA leia código dentro de `node_modules/`
+            (dúvida de tipagem do SvelteKit se resolve rodando `npm run check`, não lendo a
+            fonte dele). Agrupe leituras curtas numa só chamada de Bash.
 
-            Estourar o teto NÃO é mais fatal: se a sessão morrer com o PR aberto, o próprio
-            workflow re-dispara e outra sessão continua daqui (até um teto de tentativas).
-            Isso NÃO é licença para ser perdulário — é a razão de empurrar commit cedo e
-            sempre. O que estiver empurrado, a próxima sessão aproveita; o que estiver só no
-            runner morre com ele.
+            PARADA BRANDA — por volta do 35º turno com a tarefa incompleta, PARE de codar e
+            feche a sessão limpa: commite e empurre o que existe, deixe o placar do corpo do PR
+            exato, e comente no PR o que falta e qual é o próximo passo concreto. Isso é
+            desfecho VÁLIDO, não desistência: o PR aberto satisfaz o contrato abaixo, e a
+            re-entrada automática recoloca outra sessão nesta mesma branch. Morrer no teto, ao
+            contrário, encerra a sessão SEM te dar turno para avisar — o que a próxima sessão
+            encontrar tem de já estar escrito quando você parar.
 
             CONTRATO DE SAÍDA — obrigatório. O job REPROVA se não for cumprido:
 
@@ -261,10 +265,9 @@ jobs:
                pare tudo e faça isto agora.
 
             2. Depois, implemente empurrando aos poucos: `git add -A && git commit && git push`
-               a cada arquivo ou etapa concluída, NUNCA só no fim. No run 30503680892 o
-               Developer implementou a issue inteira, viu lint/test/build passarem, e morreu
-               no teto de turnos antes do primeiro commit — o trabalho todo foi perdido com
-               o runner. Commit empurrado é a única coisa que sobrevive a você.
+               a cada arquivo ou etapa concluída, NUNCA só no fim. O run 30503680892 implementou
+               a issue inteira e morreu antes do primeiro commit: perdeu tudo. Commit empurrado
+               é a única coisa que sobrevive a você.
 
             3. ANTES de fechar o ciclo, atualize `docs/ROADMAP.md` NO MESMO PR (FU-16, D-045).
                Se a issue tem código `Fx-yy` no título, marque a linha dela como `[x]`; se a
@@ -306,6 +309,11 @@ jobs:
                estiver escrito. Se perceber que o orçamento está acabando, pare de codar e
                atualize esse placar — é a coisa mais útil que você pode fazer com os últimos
                turnos.
+
+            7. SE A ISSUE FOR MAIOR DO QUE ELA DESCREVE, não absorva o extra. Entregue o pedaço
+               que cabe no orçamento, mantenha `entrega:incompleta`, e comente na ISSUE o que
+               você encontrou a mais, para o Supervisor dividir. Inchar a issue em silêncio é
+               como uma sessão vira três.
 
             Não faça merge: `gh pr merge` não está na allow-list e o merge é humano (D-012).
           # `cat`/`grep`/`head`/`tail`/`wc`/`find` saíram (FU-09, issue #58): `Read`/`Grep` já
