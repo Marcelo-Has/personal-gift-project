@@ -1,0 +1,31 @@
+{
+	"people": [
+		{ "name": "Marina", "traits": ["cuidadosa", "engraçada"] },
+		{ "name": "Rafael", "traits": ["paciente", "sonhador"] }
+	],
+	"photos": [{ "photoId": "foto-abc123" }, { "photoId": "foto-def456" }],
+	"howTheyMet": "Se conheceram em um curso de fotografia aos sábados, sentados lado a lado por acaso.",
+	"milestones": [
+		{
+			"title": "Primeiro encontro",
+			"description": "Foram tomar sorvete depois da aula e ficaram conversando até o parque fechar."
+		},
+		{
+			"title": "Mudança para o mesmo apartamento",
+			"description": "Depois de dois anos juntos, decidiram morar juntos no bairro onde se conheceram."
+		}
+	],
+	"insideJokes": [
+		"Chamar qualquer atraso de 'horário de Marina'",
+		"Sempre discutir qual pizza pedir e nunca decidir"
+	],
+	"trips": [
+		{
+			"destination": "Paraty",
+			"description": "Primeira viagem juntos, alugaram uma pousada simples e choveu o fim de semana inteiro."
+		}
+	],
+	"challenges": ["Passaram um ano morando em cidades diferentes por causa do trabalho de Rafael."],
+	"futurePlans": ["Querem adotar um cachorro assim que se mudarem para uma casa com quintal."],
+	"specialMessage": "Obrigada por escolher a gente todos os dias, mesmo nos dias difíceis."
+}

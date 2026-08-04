@@ -1,0 +1,14 @@
+{
+	"image": {
+		"path": "fixtures/casal-praia.jpg",
+		"widthPx": 1200,
+		"heightPx": 1600
+	},
+	"caption": "Foi amor à primeira vista, no verão de 2019.",
+	"sku": {
+		"pageWidthMm": 156,
+		"pageHeightMm": 156,
+		"bleedMm": 3,
+		"safeMarginMm": 5
+	}
+}

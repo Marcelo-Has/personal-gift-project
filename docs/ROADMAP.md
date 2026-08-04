@@ -88,10 +88,15 @@ DoD: a partir de um Pedido, o sistema gera narrativa + arte + layout via skills 
 e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo no CI.
 
 - [x] **F2-01** — Contrato de skill + carregador versionado do registry (resolve versão).
-- [ ] **F2-02** — Skill `narrative-style/romantico` v1 (definição + golden samples + testes de estilo).
+- [x] **F2-02** — Skill `narrative-style/romantico` v1 (definição + golden samples + testes de estilo).
 - [x] **F2-03** — Skill `photo-style` (mecanismo que abstrai o provedor) + golden samples.
 - [ ] **F2-04** — [gate D-102] Integração do provedor de imagem nas `photo-style`.
 - [ ] **F2-05** — Skills `layout-element` (polaroid+texto, timeline, carta, dedicatória).
+      Decomposto em quatro entregas; o pai fecha quando as quatro fecharem.
+  - [x] **F2-05a** — `polaroid-com-texto`: composição + golden samples + testes de estilo.
+  - [ ] **F2-05b** — `timeline`.
+  - [ ] **F2-05c** — `carta`.
+  - [ ] **F2-05d** — `dedicatória`.
 - [ ] **F2-06** — Motor de geração (orquestra narrativa+foto+layout a partir do Pedido).
 - [ ] **F2-07** — Fila + worker assíncrono para a geração pesada.
 - [ ] **F2-08** — Geração do **PDF de produção** por tamanho/SKU (sangria, 300 DPI, PDF/X-4).

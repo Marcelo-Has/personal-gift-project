@@ -1854,8 +1854,81 @@ checagem de path/`definition.md` passar.
 simples) só para `major.minor.patch` numérico — suficiente para o formato usado hoje
 (`1.0.0`), sem puxar biblioteca externa para um comparador de poucas linhas.
 
----
 ## D-050 | 2026-08-04 | ACEITA
+**[F2-02] Skill `narrative-style/romantico` v1 chama a Claude API por um cliente `fetch`
+próprio (`src/lib/server/claude.ts`), sem adicionar `@anthropic-ai/sdk`; critério de
+comparação dos testes de estilo = schema (Zod) + fundamentação factual, não diff de texto.**
+Fecha a issue #101.
+
+**Sem SDK novo.** A API de Messages é um único `POST` JSON; `getClaudeClient()` segue o
+mesmo padrão de `getStripeClient()` (`src/lib/server/stripe.ts`) — instância única sob
+demanda, interface mínima (`ClaudeMessagesClient`) injetável nos testes, chave só via
+`$env/dynamic/private` (`ANTHROPIC_API_KEY`, já convencionado em [D-005]). Puxar
+`@anthropic-ai/sdk` para um único endpoint chamado por uma skill só (por ora) seria
+dependência sem segundo uso concreto ainda (`.claude/rules/right-sizing.md`); trocar por um
+SDK real no futuro é só reescrever `getClaudeClient()`, sem tocar quem chama.
+
+**Critério de comparação dos testes de estilo (a issue pedia para definir e documentar).**
+Texto gerado por LLM não é byte-a-byte determinístico, então "igual ao golden sample" não é
+o critério real de produção — é só o que os testes conseguem checar com a API mockada. O
+critério que importa de verdade, documentado no topo de `generate.test.ts`, é: (1)
+**estrutura** — a resposta bate com `narrativeBlocksSchema` (Zod), valida os blocos do
+contrato de `definition.md`; (2) **fundamentação factual** — nenhuma legenda de polaroid
+referencia um `photoId` fora do questionário (`definition.md`: "nunca inventar fatos"),
+verificado em runtime (`NarrativaInvalidaError`) e nos golden samples em si. Heurística de
+tom (léxico afetivo, clichê) ficou fora: exigiria um scorer/lista de termos que nenhuma
+skill além de `romantico` usa ainda — mesmo raciocínio de right-sizing do D-049 para
+`registry.json` não ganhar uma v2 fake.
+
+**Golden samples como fixture do mock, não chamada real.** Os 2 samples em
+`golden-samples/` (`completo/`, `conciso/`) são pares `input.json`/`output.json` — o mock da
+Claude API devolve o `output.json` e o teste confere que `gerarNarrativaRomantica` devolve
+esse objeto sem alterar conteúdo (parsing/validação são transparentes ao golden aprovado).
+Nenhuma chamada real à Claude API acontece no CI (`.claude/rules/testing.md`).
+
+---
+
+## D-051 | 2026-08-04 | ACEITA
+**[F2-05a] `polaroid-com-texto` v1: legenda acima do limite é rejeitada (não truncada);
+moldura usa ajuste "contain" (largura E altura) para caber em SKU quadrado com foto
+retrato; inclinação é determinística a partir da legenda, não aleatória.** Fecha a
+issue #104 e é a primeira skill `layout-element` implementada de fato — define a
+convenção que `timeline`/`carta`/`dedicatória` (F2-05b/c/d) devem seguir.
+
+**Comprimento máximo de legenda = 80 caracteres, rejeitar em vez de truncar.**
+`definition.md` já previa um limite ("definido aqui"), mas sem número — esta issue tinha
+que decidir o valor e o comportamento. Truncar uma legenda manuscrita curta arrisca cortar
+no meio de uma frase e imprimir algo sem sentido; como a legenda vem do narrative-style
+(que já pode gerar mais curto), rejeitar com erro descritivo (`PolaroidComTextoValidationError`)
+é mais seguro para um produto físico que não se corrige depois de impresso. O motor de
+geração (F2-06) decide o que fazer com o erro (pedir regeneração mais curta); não é
+responsabilidade desta skill.
+
+**Ajuste "contain" nos dois eixos, não só na largura.** A primeira versão do cálculo limitava
+a moldura só pela largura útil da página; para uma foto retrato (comum em fotos de casal) num
+SKU quadrado (mini 15×15, médio 20×20 — `docs/PRODUCT.md` §5), isso gerava uma moldura mais
+alta que a própria página, e a função lançava erro de validação para uma entrada
+perfeitamente normal. Resolvido: a moldura respeita 72% da largura útil **e** 72% da altura
+útil; quando o limite de altura for o mais restritivo, a largura da moldura é recalculada
+para caber exatamente nele. Sem isso, metade das fotos reais de um casal (retrato) quebraria
+a skill em produção — é correção do que está sendo entregue agora, não *hardening*
+hipotético (`.claude/rules/right-sizing.md`).
+
+**Inclinação determinística, não `Math.random`.** A composição precisa ser reproduzível
+(golden samples/testes de estilo comparam saída exata); um ângulo aleatório tornaria os
+testes não-determinísticos. O ângulo é derivado de um hash simples da legenda (mesma
+legenda → mesmo ângulo, mas legendas diferentes tendem a ângulos diferentes), mantendo a
+variedade visual do "leve inclinação" do `definition.md` sem sacrificar reprodutibilidade.
+
+**Golden samples são JSON (entrada + composição esperada), não imagem renderizada.** A
+issue pede fixture de imagem de teste, não integração com `photo-style` (fora de escopo,
+depende de F2-03/F2-04); o "golden" desta skill é a estrutura posicionada (retângulos em
+mm + ângulo), não um bitmap — o motor de geração (F2-06) é quem eventualmente rasteriza
+isso. Dois exemplos: uma foto retrato em SKU mini e uma paisagem em SKU médio, cobrindo os
+dois ramos do ajuste "contain".
+
+---
+## D-052 | 2026-08-04 | ACEITA
 **[F2-03] Contrato `PhotoStyleProvider` fica em `photo-style/provider.ts` (não em
 `photo-style/aquarela/`); o provider fake do golden sample usa hash SHA-256 como "imagem",
 não bytes de PNG de verdade.** Fecha a issue #102.
