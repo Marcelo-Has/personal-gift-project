@@ -133,7 +133,7 @@ jobs:
             Se esse comando falhar, NÃO insista e NÃO tente contornar (procurar token no
             ambiente, chamar a API por curl, extrair credencial do remote): é falha de
             configuração do workflow, não sua. Comente no PR dizendo que não conseguiu ler o
-            log e pare. Insistir custou 21 dos 41 turnos no run 30514339714.
+            log e pare. Insistir custou metade do orçamento no run 30514339714.
             Não tente deduzir a causa do código, e NÃO tente reproduzir localmente o que este
             runner não roda: `test:e2e` exige baixar ~115 MB de browser e `test:rules` exige
             JVM + emulador — nenhum dos dois está disponível aqui. A mensagem exata do job é a
@@ -148,8 +148,8 @@ jobs:
             assim que um problema estiver resolvido. O runner é destruído no fim do job e
             nada que não esteja empurrado sobrevive — no run 30506482646 este workflow
             queimou 25 turnos e terminou sem um único commit, então o trabalho foi todo
-            perdido. Se o orçamento de turnos estiver acabando, pare de investigar e
-            empurre o que já corrigiu.
+            perdido. Você tem 40 turnos. Se o orçamento estiver acabando, pare de investigar
+            e empurre o que já corrigiu.
 
             Quem decide se a entrega está completa é o `verdict.yml`, um agente separado que
             roda quando o CI ficar verde (issue #50). Não troque label nem título deste PR.

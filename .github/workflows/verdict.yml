@@ -207,6 +207,14 @@ jobs:
             e `gh pr comment` (o veredito vai para o ARQUIVO acima; quem publica é o step
             não-IA). Leia o diff UMA vez pelo `gh pr diff` e trabalhe em cima dele; só abra
             arquivo no disco quando precisar conferir algo que o diff não mostra.
+
+            Se o orçamento estiver acabando, PARE de investigar e publique o veredito com o
+            que já tem. Orçamento curto é o estado de MENOR informação, então o desfecho é o
+            do passo 4: só troque a label se o julgamento de "critérios atendidos" já estiver
+            formado; senão ESCREVA o arquivo dizendo o que você conferiu e o que ficou por
+            conferir. Veredito parcial publicado vale mais que job vermelho sem nada — foi
+            assim que os PRs #66 e #67 congelaram por horas, e é a falha que abriu o FU-13
+            ([D-043]). Na dúvida, não marque.
           # ADIAR (2ª rodada, BAIXO): `Bash(gh pr edit:*)` é mais largo que o papel — o Verdict
           # só precisa de `--title`, `--remove-label` e `--add-label`, mas o curinga também
           # autoriza `--base` (trocar a branch de destino) e `--body`. Sem impacto hoje, porque
