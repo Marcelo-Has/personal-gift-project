@@ -1,0 +1,14 @@
+{
+	"image": {
+		"path": "fixtures/casal-montanha.jpg",
+		"widthPx": 1600,
+		"heightPx": 1200
+	},
+	"caption": "Nosso primeiro sim.",
+	"sku": {
+		"pageWidthMm": 206,
+		"pageHeightMm": 206,
+		"bleedMm": 3,
+		"safeMarginMm": 6
+	}
+}
