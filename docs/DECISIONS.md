@@ -1597,6 +1597,122 @@ redirecionamento: o servidor devolve a URL da sessão e o navegador navega para
 Checkout for embutido na página, e aí valem as regras de allow-list de host do FU-01.
 
 ---
+## D-047 | 2026-08-03 | ACEITA
+**[FU-17] Sessão que morre no teto de turnos vira checkpoint, não beco sem saída: re-entrada
+automática com teto de tentativas.** Fecha a issue #90.
+
+**O buraco: a FU-13 construiu o observador e nenhum atuador.** A issue #86 (F1-07a) morreu duas
+vezes no mesmo ponto — `error_max_turns`, `num_turns: 81` contra `--max-turns 80`, US$ 3,72 e
+3,75 — e tudo o que veio depois funcionou como projetado: o Verdict julgou incompleto e comentou
+a lista do que faltava, o alarme do FU-13 listou o PR parado no relatório diário. E parou aí.
+Nenhum gatilho recolocava um Developer na branch: `implement.yml` só nasce de gatilho humano
+(`workflow_dispatch`, label `status:ready` — que já estava aplicada, sem evento novo — ou
+`@claude` de `OWNER`); `fix.yml` só responde a CI **vermelho**, e o CI estava verde;
+`verdict.yml` responde a CI verde mas não tem `Edit` nem push; `review.yml`/`security.yml` são
+gateados **fora** por `entrega:incompleta` ([D-019]); o Supervisor é read-only e não tem
+`gh workflow run` na allow-list. Beco sem saída estável: US$ 7,47 gastos, zero entregue, e o
+relatório reclamando todos os dias.
+
+**Decisão — o teto de turnos passa a ser checkpoint.** Uma sessão que morre com o PR aberto e
+incompleto re-dispara o `implement.yml` para a mesma issue, até **3 sessões** por PR. Isso muda a
+natureza do problema: uma entrega que precise de 250 turnos deixa de ser impossível e vira três
+sessões de 100. O que torna isso viável não é o teto maior — é o trabalho sobreviver à sessão,
+que o [D-019] já garantia mandando empurrar commit cedo e sempre.
+
+**Dois atuadores, de propósito.** O principal fica no fim do `implement.yml`, no guard-rail que
+já detecta a entrega parcial: é o instante em que se sabe tudo sem inferir nada — o agente acabou
+de falhar, o PR existe, a entrega está incompleta. O de retaguarda fica no `daily-report.yml`, com
+janela de 6h, e existe para o que o principal não alcança: job cancelado, runner morto, dispatch
+perdido, ou PR que travou antes desta decisão existir. Os dois não se atropelam porque o principal
+comenta no PR ao re-disparar, o que renova o `updatedAt` e tira o PR da janela de "parado".
+
+**Não-IA, pelo argumento do [D-043]:** atuador feito por agente é silenciado pela mesma falha que
+deveria consertar. Ambos rodam `gh` no shell do runner com o `GITHUB_TOKEN` do job. **Nenhuma
+allow-list de agente foi ampliada** — em particular, `Bash(gh workflow run:*)` NÃO entra na lista
+de agente nenhum: a capacidade de se re-disparar é do workflow, não do Developer. **Sem exagerar a
+afirmação:** `Bash(gh api:*)` já está na allow-list do Developer e o `implement.yml` já tem
+`permissions: actions: write` — os dois pré-existentes —, então `gh api -X POST
+.../workflows/implement.yml/dispatches` alcança o mesmo endpoint, e `Bash(gh pr edit:*)` alcança as
+labels que sustentam o teto. Nada disso é criado aqui, mas é esta decisão que transforma essas
+capacidades em bypass de um controle de **custo**. Estreitar a allow-list é follow-up da Fase 5.
+
+**A seleção de qual PR retomar é gate de segurança, não conveniência.** O repositório é público
+(PR #75) e o corpo de um PR é escrito por quem o abre: casar só por "palavra de fechamento + `#N`"
+deixaria qualquer pessoa disputar — e, pela ordenação do `gh pr list`, tende a **ganhar** — a
+escolha de um `ref:` que é baixado num job com `contents: write`, e do número que entra no prompt
+de um agente com `Bash(git:*)`/`Bash(gh api:*)`. Por isso a retomada filtra **origem** (nada de
+fork), **autor** (lista fechada: a própria fábrica ou o dono) e os dois rótulos de parada, antes de
+olhar o texto. Pelo mesmo motivo o prompt lê os comentários do PR **filtrados por autor**
+(`claude[bot]` ou `OWNER`) e os enquadra como DADO, nunca instrução: comentário de PR é escrita
+pública sem gate nenhum, e sem isso a FU-17 abriria um caminho de injeção de prompt que o gate de
+`author_association` do `implement.yml` mantinha fechado. Achados A1, A2 e M3 da revisão de
+segurança do PR #91.
+
+**O teto é a decisão cara, e ele é auditável.** Re-entrada sem limite é torneira aberta de crédito
+de API — a falha que sai mais cara que o travamento que ela conserta. A contagem mora em label
+`reentrada:N` no próprio PR, não em log nem em janela de tempo, e é o `implement.yml` que a
+escreve, ao fim de cada sessão. Esgotado o teto, o PR ganha `precisa-humano`, sai da fila
+automática e é destacado no relatório. **Parar é desfecho válido; sumir não é.** Três sessões
+porque, se três não bastarem, o problema é o tamanho da issue e não o teto — e dimensionar issue
+é trabalho do Supervisor, com humano no circuito.
+
+**`[BLOQUEADO]` fica de fora.** PR parado em Decision Gate espera humano DE PROPÓSITO (FU-06);
+re-disparar ali desfaria aquele conserto e jogaria o agente contra a mesma parede. Excluído nos
+dois atuadores, por prefixo de título.
+
+**O contrato de retomada teve de vir junto — não é acompanhamento.** Ligar o atuador sem ele não
+conserta nada: multiplica PRs. Isso foi **medido, não suposto**. Com o re-disparo manual do #86
+(run 30853793001), o Developer seguiu o item 1 do prompt ao pé da letra, criou uma segunda branch
+e um segundo PR (#89) para uma issue que já tinha o #87, e regastou o orçamento reescrevendo o que
+já estava empurrado — morrendo de novo em `num_turns: 81`. Agora quem descobre o PR existente é um
+step `gh` **antes** do checkout, que baixa a branch do PR; o prompt recebe o número como dado e
+manda continuar dali, lendo o placar do corpo do PR e os comentários do Verdict. Descobrir isso no
+workflow e não no prompt é deliberado: é barato com `gh` e caro (e não confiável) com um agente.
+
+**O item "se o orçamento acabar, encerre com elegância" era inalcançável e foi substituído.**
+`error_max_turns` encerra a sessão **sem** dar turno ao agente — a instrução nunca executou uma
+única vez desde que foi escrita. No lugar dela entra o placar `- [ ]`/`- [x]` no corpo do PR,
+atualizado a cada push: o que a próxima sessão vai encontrar tem de já estar escrito quando a
+atual morrer.
+
+**`--max-turns` 80 → 100, e o prompt passa a dizer o mesmo número.** Enquanto o prompt dizia "você
+tem 60 turnos" e o teto real era 80, o agente orçava contra um número que não existia. Subir para
+100 não é a correção principal — é parar de perder sessão inteira por margem de poucos turnos.
+
+**O que ficou de fora, e por quê.** A revisão da issue apontou que `scans` vermelho (job do
+workflow **Security**) também não tem responsável, porque `fix.yml` escuta `workflows: ["CI"]`.
+É verdade e continua aberto, mas não entra aqui: `scans` reprova por `npm audit`, cujo gate é a
+FU-04 (ainda aberta), e mandar um agente consertar achado de varredura de segurança é perfil de
+risco diferente de consertar teste vermelho. Misturar as duas coisas incharia o PR contra a
+`.claude/rules/right-sizing.md`. Fica registrado como próximo follow-up.
+
+**Adiado de propósito, registrado para não virar achado repetido** (`.claude/rules/right-sizing.md`):
+o filtro de autor dos comentários é **instrução de prompt**, não gate do workflow — um agente que
+o ignore lê a thread inteira; endurecer de verdade exigiria o workflow pré-buscar os comentários
+filtrados e injetá-los, o que é defesa em profundidade e não superfície nova. `MAX_TENTATIVAS`
+está duplicado nos dois workflows (o Actions não tem constante compartilhada entre arquivos), e
+divergir os dois valores afrouxaria o teto em silêncio. A retaguarda também **não** replica os
+filtros de origem e autor dos outros três — hoje sem lacuna, porque `entrega:incompleta` só é
+aplicada pelo Developer a um PR que ele mesmo criou no repo base, e sem essa label o PR não entra
+na lista; se algum dia outra coisa passar a aplicar essa label, este filtro tem de ser endurecido
+junto.
+
+**A convergência do teto tem um limite honesto, e ele é o mais relevante desta lista.** Quem
+escreve `reentrada:N` é o guard-rail do `implement.yml`, ao fim da sessão. Se uma sessão retomada
+morrer **antes** dele — falha de infra, job cancelado, runner perdido —, o contador não sobe, e a
+retaguarda pode re-disparar aquele PR de novo achando que sobra orçamento. Não é laço aberto na
+prática: a retaguarda roda **uma vez por dia**, então o excesso é de um dispatch por dia e aparece
+no próprio relatório. Mas é o teto falhando na direção permissiva, e a correção certa (mover o
+incremento para o início da sessão, com um único escritor) é mudança de semântica do contador —
+trabalho próprio, não emenda de fim de PR. Registrado como o primeiro follow-up da FU-17.
+
+**Limite reconhecido, o de sempre para este arquivo:** mudança em `implement.yml` só se valida
+**depois** do merge ([D-019], 3ª rodada) — o workflow que roda num PR é o da branch base. A
+seleção de PR do atuador de retaguarda, essa sim, está fixada em teste executável
+(`tests/workflows/reentrada.test.ts`), que extrai o filtro `jq` do próprio workflow em vez de
+reimplementá-lo.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
