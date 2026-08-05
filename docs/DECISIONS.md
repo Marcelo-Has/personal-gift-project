@@ -2323,6 +2323,25 @@ comparar pixel a pixel"; `pdf-lib` lê `MediaBox` em pontos (72/polegada) e o te
 para mm com uma tolerância de arredondamento (`PAGE_SIZE_TOLERANCE_MM`) documentada no
 próprio teste — mede a garantia que importa (dimensão física), não a aparência.
 
+## D-063 | 2026-08-05 | ACEITA
+**A parte fila+worker de [D-104] (F2-07) = Opção A — Netlify Background Functions.**
+Responde o gate aberto na issue #130. Fecha #130. A parte print-on-demand (F3-01) de
+[D-104] segue PENDENTE, para quando a FASE 3 chegar.
+
+**Decisão.** A geração pesada de PDF/arte roda em Netlify Background Functions — mesma
+plataforma já decidida em [D-018] para o app, sem provedor de compute novo a operar.
+Background Functions suportam até 15 minutos de execução (vs. ~10s das functions
+síncronas), suficiente para o render headless via `playwright-core` (`channel: 'chrome'`,
+[D-062]) sem o comprador esperar no request. Motivo: menor superfície nova — zero provedor
+adicional — consistente com [D-018] e com o padrão da fábrica de preferir menos infra
+quando dá conta do requisito ([D-001]).
+
+**Condição.** A escolha depende de uma prova de conceito curta: a issue de implementação de
+F2-07 precisa rodar o render de F2-08a de verdade dentro de uma Netlify Background Function
+antes de comprometer o resto da fila+worker a essa opção. Se o Chrome não couber ou não
+rodar de forma confiável no runtime da Netlify, a Opção C (worker dedicado — Cloud Run,
+Render, Fly.io) fica como próximo candidato.
+
 ---
 ## D-063 | 2026-08-05 | ACEITA
 **[F2-08b1] Render de `carta` (multi-página) e `timeline` reaproveita 100% do mecanismo de
@@ -2366,6 +2385,8 @@ só para o teste.
 - **D-103** | Prévia antes ou depois do pagamento?
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
   print-on-demand definitivo (F3-01). A hospedagem do app SvelteKit **saiu deste gate** e
-  foi decidida em [D-018] (Netlify); o restante continua PENDENTE.
+  foi decidida em [D-018] (Netlify); a parte fila+worker (F2-07) **saiu deste gate** e foi
+  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito); só
+  o provedor de print-on-demand (F3-01) continua PENDENTE.
 - **D-105** | Quais estilos entram no catálogo público da V1 (sugestão: 2–3 consistentes).
 - **D-106** | Quais tamanhos entram na V1 e a spec exata de cada SKU.
