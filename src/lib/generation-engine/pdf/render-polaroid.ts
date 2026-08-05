@@ -29,7 +29,10 @@ import type {
 	PositionedRect,
 	SkuLayoutParams
 } from '../../product-skills/layout-element/polaroid-com-texto/compose';
-import type { StylizedPhoto, StylizedPhotoMetadata } from '../../product-skills/photo-style/provider';
+import type {
+	StylizedPhoto,
+	StylizedPhotoMetadata
+} from '../../product-skills/photo-style/provider';
 import { PHOTO_STYLE_TARGET_DPI } from '../../product-skills/photo-style/resolution-config';
 
 const require = createRequire(import.meta.url);

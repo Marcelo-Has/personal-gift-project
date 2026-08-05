@@ -2324,6 +2324,40 @@ para mm com uma tolerância de arredondamento (`PAGE_SIZE_TOLERANCE_MM`) documen
 próprio teste — mede a garantia que importa (dimensão física), não a aparência.
 
 ---
+## D-063 | 2026-08-05 | ACEITA
+**[F2-08b2] Foto abaixo de 300 DPI na área de destino do PDF de produção falha com erro
+explícito (`PolaroidRenderResolutionError`), não aceita-com-log.** Fecha a issue #128
+(F2-08b2), primeira issue de F2-08 onde a exigência de 300 DPI de `docs/ARCHITECTURE.md`
+Parte 2 se aplica de fato (F2-08a era só texto vetorial, isento por nota explícita — ver
+[D-062]).
+
+**Por quê falhar em vez de aceitar-com-log.** A issue pedia essa decisão explícita: o
+pipeline de estilização (F2-04, `resolution-config.ts`, `PHOTO_STYLE_TARGET_DPI = 300`) já
+mira exatamente o teto exigido pela impressão — uma foto que chega no render abaixo de
+300 DPI na área de destino não é uma limitação esperada de operação normal, é sinal de um
+defeito a montante (foto errada resolvida para `photo.path`, redimensionamento incorreto
+em alguma etapa). Um PDF de produção com bitmap abaixo de 300 DPI é o tipo de defeito caro
+de descobrir só depois de impresso (reimpressão, imagem borrada no livro entregue) — melhor
+falhar cedo no worker (fila) com um erro que aponta a causa (`sourcePhotoId`, resolução
+recebida, área de destino) do que arriscar mandar arte degradada ao print-on-demand.
+Não existe upscaling artificial como alternativa: aumentar pixels de uma imagem que não os
+tem não aumenta a resolução real, só disfarça o problema.
+
+**Como o DPI efetivo é calculado.** `effectiveDpi()` usa o MENOR entre a razão
+largura(px)/largura(mm) e altura(px)/altura(mm) de `composition.photo.area` — um encaixe
+desalinhado pode esticar mais numa dimensão que na outra, e o requisito de 300 DPI vale
+para a imagem inteira, não só o lado mais favorável.
+
+**Como `photo.path` se resolve para os bytes do `StylizedPhoto`.** `renderPolaroidSpreadToPdf`
+recebe o `StylizedPhoto` já resolvido como parâmetro (quem chama — motor F2-06/worker —
+mapeia `sourcePhotoId` para o `StylizedPhoto` certo antes de chamar), no mesmo espírito de
+`render-dedicatoria` receber a composição pronta ([D-062]) e de `.claude/rules/right-sizing.md`
+(sem mecanismo genérico de resolução de path/cache sem um segundo uso concreto). A função só
+valida a consistência do par recebido (`stylizedPhoto.sourcePhotoId === composition.photo.path`),
+lançando `PolaroidRenderInputError` se não bater — protege contra bug de wiring de quem chama,
+não implementa a resolução em si.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

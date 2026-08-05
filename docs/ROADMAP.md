@@ -112,7 +112,11 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
   - [x] **F2-08a** — Infra de renderização headless (HTML/CSS → PDF) + spread único de
         `dedicatoria` (SKU mini): sangria, 300 DPI, fonte incorporada.
   - [ ] **F2-08b** — Renderização de `carta`, `polaroid-com-texto` e `timeline`,
-        reaproveitando a infra de F2-08a.
+        reaproveitando a infra de F2-08a. Decomposto em duas entregas (tamanho de PR); o
+        item pai fecha quando as duas fecharem.
+    - [ ] **F2-08b1** — Renderização de `carta` (multi-página) e `timeline` (texto vetorial).
+    - [x] **F2-08b2** — Renderização de polaroid-com-texto: imagem bitmap embutida a
+          300 DPI + rotação da moldura, reaproveitando a infra de F2-08a.
   - [ ] **F2-08c** — Montagem do PDF de produção do livro inteiro (`GeneratedBook`, SKU
         mini) + conformidade PDF/X-4.
 - [ ] **F2-09** — Geração do **PDF de preview** (spreads).
