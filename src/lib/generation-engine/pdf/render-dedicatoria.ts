@@ -19,38 +19,17 @@
  *
  * Fora de escopo (ver issue #125): renderizar `carta`/`polaroid-com-texto`/`timeline`
  * (F2-08b) e montar o PDF do livro inteiro a partir de um `GeneratedBook` (F2-08c).
+ *
+ * F2-08b1 (issue #127) reaproveitou o padrão de fonte/`@page`/launch-close do Chrome deste
+ * módulo em `render-carta.ts`/`render-timeline.ts`, e extraiu a parte comum (segundo e
+ * terceiro uso concreto) para `render-shared.ts`.
  */
-import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
-import { chromium } from 'playwright-core';
 import type { DedicatoriaComposition } from '../../product-skills/layout-element/dedicatoria/compose';
 import type { SkuLayoutParams } from '../../product-skills/layout-element/polaroid-com-texto/compose';
-
-const require = createRequire(import.meta.url);
-
-/** Família de fonte usada no render — Lora (Google Fonts, SIL OFL 1.1). */
-const FONT_FAMILY = 'Lora';
+import { escapeHtml, FONT_FAMILY, loadFontBase64, renderHtmlToPdf } from './render-shared';
 
 /** Tamanho do texto de dedicatória (pt), para a tipografia de abertura do livro. */
 const FONT_SIZE_PT = 14;
-
-/** Lê o arquivo woff2 do pacote `@fontsource/lora` e devolve o conteúdo em base64, para
- * incorporar como data URI no `@font-face` — sem depender de fonte instalada no SO. */
-function loadFontBase64(): string {
-	const fontPath = require.resolve('@fontsource/lora/files/lora-latin-400-normal.woff2');
-	return readFileSync(fontPath).toString('base64');
-}
-
-/** Escapa o texto da dedicatória antes de embuti-lo no HTML — o texto vem de uma skill de
- * narrativa (saída de LLM) e pode conter caracteres especiais de HTML. */
-function escapeHtml(text: string): string {
-	return text
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
-}
 
 function buildHtml(
 	composition: DedicatoriaComposition,
@@ -115,23 +94,5 @@ export async function renderDedicatoriaSpreadToPdf(
 	sku: SkuLayoutParams
 ): Promise<Uint8Array> {
 	const html = buildHtml(composition, sku, loadFontBase64());
-
-	// No `ubuntu-latest` (24.04) do GitHub Actions o AppArmor restringe user namespaces
-	// sem privilégio por padrão, o que quebra o sandbox do Chrome do sistema (diferente do
-	// Chromium empacotado pelo Playwright, que já vem ajustado para isso) — o launch trava
-	// em vez de lançar um erro claro (actions/runner-images#9491). `--no-sandbox` só entra
-	// em CI: o HTML renderizado aqui é sempre gerado por este módulo (texto escapado, sem
-	// recurso externo, sem navegação para conteúdo de terceiros), então o risco que o
-	// sandbox do Chrome mitiga (execução de conteúdo remoto não confiável) não se aplica.
-	// Em produção o sandbox continua ativo.
-	const launchArgs = process.env.CI ? ['--no-sandbox'] : [];
-	const browser = await chromium.launch({ channel: 'chrome', args: launchArgs });
-	try {
-		const page = await browser.newPage();
-		await page.setContent(html, { waitUntil: 'load' });
-		const pdfBuffer = await page.pdf({ printBackground: true, preferCSSPageSize: true });
-		return new Uint8Array(pdfBuffer);
-	} finally {
-		await browser.close();
-	}
+	return renderHtmlToPdf(html);
 }

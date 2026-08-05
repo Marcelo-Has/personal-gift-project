@@ -2,7 +2,7 @@
 /**
  * Testes de `renderPolaroidSpreadToPdf` (F2-08b2, issue #128) contra os critérios de
  * aceite: PDF válido, imagem bitmap embutida a 300 DPI (ou erro explícito quando não
- * alcança, [D-063]), moldura rotacionada em `frame.rotationDeg`, legenda extraível dentro
+ * alcança, [D-064]), moldura rotacionada em `frame.rotationDeg`, legenda extraível dentro
  * da área rotacionada, e determinismo.
  *
  * `@vitest-environment node`, mesmo racional de `render-dedicatoria.test.ts`: o worker
@@ -299,7 +299,7 @@ describe('renderPolaroidSpreadToPdf', () => {
 		expect(pdfDoc.getPageCount()).toBe(1);
 	}, 30_000);
 
-	it('rejeita com PolaroidRenderResolutionError uma foto abaixo de 300 DPI na área de destino, sem tentar renderizar ([D-063])', async () => {
+	it('rejeita com PolaroidRenderResolutionError uma foto abaixo de 300 DPI na área de destino, sem tentar renderizar ([D-064])', async () => {
 		const composition = composeFixture('Manhã de inverno');
 		const stylizedPhoto = await makeStylizedPhoto(composition, PHOTO_STYLE_TARGET_DPI - 100);
 

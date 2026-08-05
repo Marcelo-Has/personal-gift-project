@@ -7,7 +7,7 @@
  * (`PolaroidComposition.frame.rotationDeg`) — as duas complexidades que justificam esta
  * issue ficar separada de F2-08b1 (texto puro). `docs/ARCHITECTURE.md` Parte 2 exige
  * 300 DPI para bitmap no PDF de produção; a decisão de comportamento quando a foto não
- * alcança isso na área de destino está registrada em [D-063].
+ * alcança isso na área de destino está registrada em [D-064].
  *
  * `PolaroidComposition.photo.path` guarda só um identificador (não os bytes) —
  * `sourcePhotoId` do `StylizedPhoto` correspondente resolvido é responsabilidade de quem
@@ -19,11 +19,11 @@
  *
  * Fora de escopo (ver issue #128): `carta`/`timeline` (F2-08b1) e montar o PDF do livro
  * inteiro a partir de um `GeneratedBook` (F2-08c).
+ *
+ * Reaproveita `render-shared.ts` (extraído em F2-08b1, issue #127) para o padrão de
+ * fonte/launch-close do Chrome, mesma infra de `render-carta.ts`/`render-timeline.ts`.
  */
-import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
 import { Buffer } from 'node:buffer';
-import { chromium } from 'playwright-core';
 import type {
 	PolaroidComposition,
 	PositionedRect,
@@ -34,36 +34,13 @@ import type {
 	StylizedPhotoMetadata
 } from '../../product-skills/photo-style/provider';
 import { PHOTO_STYLE_TARGET_DPI } from '../../product-skills/photo-style/resolution-config';
-
-const require = createRequire(import.meta.url);
-
-/** Família de fonte usada no render da legenda — Lora (Google Fonts, SIL OFL 1.1), mesma
- * fonte de `render-dedicatoria.ts`. */
-const FONT_FAMILY = 'Lora';
+import { escapeHtml, FONT_FAMILY, loadFontBase64, renderHtmlToPdf } from './render-shared';
 
 /** Tamanho da legenda da polaroid (pt) — menor que a dedicatória (14pt): a faixa de
  * legenda (`CAPTION_BAND_RATIO` de `compose.ts`) é mais estreita que uma página inteira. */
 const CAPTION_FONT_SIZE_PT = 10;
 
 const MM_PER_INCH = 25.4;
-
-/** Lê o arquivo woff2 do pacote `@fontsource/lora` e devolve o conteúdo em base64, para
- * incorporar como data URI no `@font-face` — sem depender de fonte instalada no SO. */
-function loadFontBase64(): string {
-	const fontPath = require.resolve('@fontsource/lora/files/lora-latin-400-normal.woff2');
-	return readFileSync(fontPath).toString('base64');
-}
-
-/** Escapa o texto da legenda antes de embuti-lo no HTML — a legenda vem de uma skill de
- * narrativa (saída de LLM) e pode conter caracteres especiais de HTML. */
-function escapeHtml(text: string): string {
-	return text
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
-}
 
 /** Erro lançado quando o par `(composition, stylizedPhoto)` recebido é inconsistente —
  * sinal de um bug de wiring em quem resolveu `photo.path` para o `StylizedPhoto` errado,
@@ -72,7 +49,7 @@ export class PolaroidRenderInputError extends Error {}
 
 /**
  * Erro lançado quando a foto de entrada não alcança 300 DPI na área de destino
- * (`composition.photo.area`) do PDF de produção — decisão [D-063]: falha explícita, não
+ * (`composition.photo.area`) do PDF de produção — decisão [D-064]: falha explícita, não
  * aceitar-com-log. O pipeline de estilização (F2-04, `resolution-config.ts`) já mira
  * exatamente `PHOTO_STYLE_TARGET_DPI`; cair abaixo disso aqui sinaliza um defeito a
  * montante (foto errada resolvida, redimensionamento incorreto), não uma limitação
@@ -210,7 +187,7 @@ html, body {
  *
  * Lança `PolaroidRenderInputError` se `stylizedPhoto` não corresponder a
  * `composition.photo.path`, e `PolaroidRenderResolutionError` se a foto não alcançar
- * 300 DPI na área de destino ([D-063]). Determinística do lado do conteúdo, mas depende
+ * 300 DPI na área de destino ([D-064]). Determinística do lado do conteúdo, mas depende
  * de lançar um processo do Chrome instalado no ambiente (`playwright-core`,
  * `channel: 'chrome'`, [D-062]) — não é livre de efeito colateral.
  */
@@ -225,20 +202,5 @@ export async function renderPolaroidSpreadToPdf(
 	const mimeType = stylizedPhoto.metadata.format === 'png' ? 'image/png' : 'image/jpeg';
 	const photoDataUri = `data:${mimeType};base64,${Buffer.from(stylizedPhoto.data).toString('base64')}`;
 	const html = buildHtml(composition, sku, loadFontBase64(), photoDataUri);
-
-	// Mesmo racional de `render-dedicatoria.ts` ([D-062]): `--no-sandbox` só em CI
-	// (AppArmor do `ubuntu-latest` quebra o sandbox do Chrome do sistema,
-	// actions/runner-images#9491), e só porque o HTML é sempre gerado por este módulo
-	// (texto escapado, imagem embutida como data URI, sem navegação para conteúdo de
-	// terceiros) — em produção o sandbox continua ativo.
-	const launchArgs = process.env.CI ? ['--no-sandbox'] : [];
-	const browser = await chromium.launch({ channel: 'chrome', args: launchArgs });
-	try {
-		const page = await browser.newPage();
-		await page.setContent(html, { waitUntil: 'load' });
-		const pdfBuffer = await page.pdf({ printBackground: true, preferCSSPageSize: true });
-		return new Uint8Array(pdfBuffer);
-	} finally {
-		await browser.close();
-	}
+	return renderHtmlToPdf(html);
 }

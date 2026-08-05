@@ -2323,8 +2323,58 @@ comparar pixel a pixel"; `pdf-lib` lê `MediaBox` em pontos (72/polegada) e o te
 para mm com uma tolerância de arredondamento (`PAGE_SIZE_TOLERANCE_MM`) documentada no
 próprio teste — mede a garantia que importa (dimensão física), não a aparência.
 
+## D-063 | 2026-08-05 | ACEITA
+**A parte fila+worker de [D-104] (F2-07) = Opção A — Netlify Background Functions.**
+Responde o gate aberto na issue #130. Fecha #130. A parte print-on-demand (F3-01) de
+[D-104] segue PENDENTE, para quando a FASE 3 chegar.
+
+**Decisão.** A geração pesada de PDF/arte roda em Netlify Background Functions — mesma
+plataforma já decidida em [D-018] para o app, sem provedor de compute novo a operar.
+Background Functions suportam até 15 minutos de execução (vs. ~10s das functions
+síncronas), suficiente para o render headless via `playwright-core` (`channel: 'chrome'`,
+[D-062]) sem o comprador esperar no request. Motivo: menor superfície nova — zero provedor
+adicional — consistente com [D-018] e com o padrão da fábrica de preferir menos infra
+quando dá conta do requisito ([D-001]).
+
+**Condição.** A escolha depende de uma prova de conceito curta: a issue de implementação de
+F2-07 precisa rodar o render de F2-08a de verdade dentro de uma Netlify Background Function
+antes de comprometer o resto da fila+worker a essa opção. Se o Chrome não couber ou não
+rodar de forma confiável no runtime da Netlify, a Opção C (worker dedicado — Cloud Run,
+Render, Fly.io) fica como próximo candidato.
+
 ---
 ## D-063 | 2026-08-05 | ACEITA
+**[F2-08b1] Render de `carta` (multi-página) e `timeline` reaproveita 100% do mecanismo de
+[D-062] através de um módulo comum novo, `render-shared.ts` (fonte em base64,
+launch/close do Chrome, `escapeHtml`), extraído no segundo e terceiro uso real do padrão de
+`render-dedicatoria.ts`.** Fecha a issue #127 (F2-08b1).
+
+**Por quê extrair `render-shared.ts` só agora, não em F2-08a.** `.claude/rules/right-sizing.md`
+pede abstração só com um segundo uso concreto; em F2-08a (#125) `render-dedicatoria.ts` era o
+único módulo de render, então duplicar teria sido especulativo. F2-08b1 cria o segundo e o
+terceiro uso reais (`render-carta.ts`, `render-timeline.ts`) do mesmo padrão de fonte
+incorporada + launch/close do Chrome + `@page` — o momento certo para extrair, sem inventar
+abstração além do que os três arquivos de fato repetem (`render-dedicatoria.ts` não foi
+reescrito além de trocar a duplicação pelos helpers compartilhados).
+
+**Por quê uma carta multi-página vira várias páginas de PDF com `<div>`s + `break-after: page`,
+em vez de várias chamadas a `page.pdf()` seguidas de merge.** Uma `CartaComposition` pode ter
+até `MAX_PAGES` (2) páginas; gerar um PDF por página e juntar depois exigiria uma dependência
+nova só para merge de PDF. Em vez disso, o HTML de entrada tem um `<div>` do tamanho físico
+exato da página por `CartaPage`, com quebra de página CSS entre eles — o Chrome já exporta cada
+`<div>` como uma página própria do PDF de saída, com um único `@page { size }` compartilhado
+(mesmo SKU), sem dependência nova.
+
+**Por quê a linha da timeline é verificada via lista de operadores do `pdfjs-dist`
+(`page.getOperatorList()`), não comparação de pixel.** Mesma lógica de D-062 para dimensão
+física: medir a garantia que importa, sem golden sample byte-a-byte. Como a linha é um
+retângulo preenchido (não texto), `getTextContent()` não a alcança; a lista de operadores
+(API pública do `pdfjs-dist`, já usada internamente por `getTextContent`) confirma que um
+preenchimento vetorial foi de fato desenhado, sem introduzir rasterização para imagem/canvas
+só para o teste.
+
+---
+## D-064 | 2026-08-05 | ACEITA
 **[F2-08b2] Foto abaixo de 300 DPI na área de destino do PDF de produção falha com erro
 explícito (`PolaroidRenderResolutionError`), não aceita-com-log.** Fecha a issue #128
 (F2-08b2), primeira issue de F2-08 onde a exigência de 300 DPI de `docs/ARCHITECTURE.md`
@@ -2369,6 +2419,8 @@ não implementa a resolução em si.
 - **D-103** | Prévia antes ou depois do pagamento?
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
   print-on-demand definitivo (F3-01). A hospedagem do app SvelteKit **saiu deste gate** e
-  foi decidida em [D-018] (Netlify); o restante continua PENDENTE.
+  foi decidida em [D-018] (Netlify); a parte fila+worker (F2-07) **saiu deste gate** e foi
+  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito); só
+  o provedor de print-on-demand (F3-01) continua PENDENTE.
 - **D-105** | Quais estilos entram no catálogo público da V1 (sugestão: 2–3 consistentes).
 - **D-106** | Quais tamanhos entram na V1 e a spec exata de cada SKU.
