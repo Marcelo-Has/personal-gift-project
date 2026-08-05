@@ -18,6 +18,10 @@ dist/
 **/secrets*
 serviceAccount*.json
 
+# Fotos de teste do fixture de Pedido (FU-20) — foto real de pessoa é dado pessoal
+# sensível e NUNCA entra no repositório; sem esta pasta o fixture gera placeholders.
+src/lib/fixtures/photos-locais/
+
 # Config pessoal do Claude Code (não compartilhada)
 .claude/settings.local.json
 .claude/agent-memory-local/
