@@ -2025,6 +2025,40 @@ imagem/PDF, fora de escopo desta issue (golden sample é estrutura posicionada, 
 renderizado — mesma decisão de [D-051] para `polaroid-com-texto`).
 
 ---
+## D-055 | 2026-08-05 | ACEITA
+**[F2-05d] Skill `layout-element/dedicatoria` v1: texto acima do limite ou do espaço
+disponível é rejeitado, nunca truncado; com F2-05b/F2-05c já mergeados, este PR fecha
+F2-05 (item pai).** Fecha a issue #109.
+
+**Rejeitar, não truncar — dois limites, não um.** Igual à legenda de `polaroid-com-texto`
+([F2-05a]): cortar uma dedicatória no meio arrisca uma frase sem sentido impressa na página
+de abertura do livro. `dedicatoria/compose.ts` valida em duas camadas: (1) um teto de
+caracteres (`MAX_DEDICATION_LENGTH = 500`, o mesmo teto do campo `dedication` de
+`narrative-style/romantico`) e (2) mesmo dentro desse teto, o bloco de texto estimado
+(linhas ~ largura do bloco ÷ largura média de caractere) pode não caber na altura útil de
+um SKU pequeno — nesse caso a composição também é rejeitada, em vez de estourar a margem de
+segurança ou espremer a tipografia sem limite.
+
+**A estimativa de linha é heurística, não medição real de fonte.** Golden samples desta
+fase são JSON estrutural (retângulos em mm), não bitmap renderizado — igual à decisão já
+tomada para `polaroid-com-texto` (ver entrada acima). `AVG_CHAR_WIDTH_MM`/`LINE_HEIGHT_MM`
+são parâmetros documentados em `definition.md` como aproximação; o motor de geração (F2-06)
+é quem eventualmente rasteriza com a fonte real.
+
+**F2-05 (item pai) fecha neste PR.** A issue #109 (F2-05d) foi aberta quando F2-05b
+(`timeline`, #107) e F2-05c (`carta`, #108) ainda estavam com PR aberto
+(`entrega:incompleta`). Ambos foram mergeados antes deste PR resolver conflitos contra
+`origin/main`; com as quatro sub-entregas (F2-05a/b/c/d) em `[x]`, `docs/ROADMAP.md`
+marca `F2-05` como `[x]` nesta mesma resolução de conflito — regra do próprio ROADMAP
+("item pai só vira `[x]` quando todos os sub-itens estiverem `[x]`") e regra 5 do
+`CLAUDE.md`.
+
+**Renumeração de D-053 para D-055.** A entrega original desta issue registrou a decisão
+como D-053, mas F2-05b e F2-05c mergearam primeiro e já ocupavam D-053/D-054 em
+`origin/main`. Resolvida a colisão renumerando esta entrada para D-055 (próximo número
+livre), sem alterar o conteúdo das duas decisões já mergeadas.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

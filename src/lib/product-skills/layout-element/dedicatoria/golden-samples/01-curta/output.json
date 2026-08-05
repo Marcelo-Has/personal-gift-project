@@ -1,0 +1,21 @@
+{
+	"skillId": "dedicatoria",
+	"skillVersion": "1.0.0",
+	"page": {
+		"area": {
+			"xMm": 8,
+			"yMm": 8,
+			"widthMm": 140,
+			"heightMm": 140
+		}
+	},
+	"text": {
+		"content": "Para você, que transformou minha vida em uma grande história de amor. Obrigado por cada dia ao seu lado.",
+		"area": {
+			"xMm": 36,
+			"yMm": 69,
+			"widthMm": 84,
+			"heightMm": 18
+		}
+	}
+}

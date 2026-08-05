@@ -1,0 +1,21 @@
+{
+	"skillId": "dedicatoria",
+	"skillVersion": "1.0.0",
+	"page": {
+		"area": {
+			"xMm": 9,
+			"yMm": 9,
+			"widthMm": 188,
+			"heightMm": 188
+		}
+	},
+	"text": {
+		"content": "Para você, que transformou minha vida em uma grande história de amor. Obrigado por cada risada, cada abraço apertado e cada silêncio confortável que só nós dois entendemos de verdade. Desde o dia em que nos conhecemos, o mundo ficou mais leve, mais colorido e muito mais bonito. Que essa história continue sendo escrita por nós dois, página após página, ano após ano, com a mesma vontade do primeiro dia. Eu amo você mais do que qualquer palavra poderia dizer, hoje, amanhã e sempre.",
+		"area": {
+			"xMm": 46.6,
+			"yMm": 73,
+			"widthMm": 112.8,
+			"heightMm": 60
+		}
+	}
+}
