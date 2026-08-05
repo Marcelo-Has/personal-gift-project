@@ -5,11 +5,24 @@
 # Funções da Netlify escritas à mão (fila+worker de geração pesada, D-063/F2-07),
 # separadas das functions que o @sveltejs/adapter-netlify já gera para as rotas do
 # SvelteKit. `included_files`: `render-shared.ts` lê o `.woff2` da fonte do disco em
-# runtime (`readFileSync`, não `import`) — sem isto o bundler (esbuild) não empacota o
-# binário junto e a function quebra com ENOENT ao tentar incorporar a fonte no PDF.
+# runtime (`readFileSync`, não `import`) — sem isto o bundler não empacota o binário
+# junto e a function quebra com ENOENT ao tentar incorporar a fonte no PDF.
+#
+# `node_bundler = "nft"` (Node File Trace), não `esbuild`: o Deploy Preview deste PR
+# falhou com `node_bundler = "esbuild"` (ver PR #138). `playwright-core` (usado por
+# `render-shared.ts`, D-062) faz vários `require(path.join(...))` dinâmicos em tempo de
+# execução para localizar `browsers.json`/`package.json` do próprio pacote (ex.: para
+# resolver `channel: 'chrome'`) — esbuild empacota tudo num arquivo só e não consegue
+# copiar esses arquivos de dados (não-JS) referenciados dinamicamente, o que é a causa
+# mais provável do build quebrar no ambiente real da Netlify mesmo com
+# `netlify functions:build` local passando (o CLI usa `nft` por padrão quando invocado
+# solto, mascarando o problema — só apareceu no deploy real, que respeita esta config).
+# `nft` traça `require`/`import` estaticamente e copia os arquivos reais (preserva a
+# estrutura de `node_modules/playwright-core`), sem tentar bundlar tudo num único
+# arquivo — é o bundler recomendado pela Netlify para pacotes com esse padrão.
 [functions]
   directory = "netlify/functions"
-  node_bundler = "esbuild"
+  node_bundler = "nft"
   included_files = ["node_modules/@fontsource/lora/files/lora-latin-400-normal.woff2"]
 
 [build.environment]
