@@ -96,7 +96,7 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
   - [x] **F2-05a** — `polaroid-com-texto`: composição + golden samples + testes de estilo.
   - [ ] **F2-05b** — `timeline`.
   - [ ] **F2-05c** — `carta`.
-  - [ ] **F2-05d** — `dedicatória`.
+  - [x] **F2-05d** — `dedicatória`.
 - [ ] **F2-06** — Motor de geração (orquestra narrativa+foto+layout a partir do Pedido).
 - [ ] **F2-07** — Fila + worker assíncrono para a geração pesada.
 - [ ] **F2-08** — Geração do **PDF de produção** por tamanho/SKU (sangria, 300 DPI, PDF/X-4).

@@ -1955,6 +1955,34 @@ mudar o formato do contrato.
 carregador.
 
 ---
+## D-053 | 2026-08-05 | ACEITA
+**[F2-05d] Skill `layout-element/dedicatoria` v1: texto acima do limite ou do espaço
+disponível é rejeitado, nunca truncado; F2-05 (item pai) segue `[ ]` porque F2-05b/F2-05c
+ainda não fecharam.** Fecha a issue #109.
+
+**Rejeitar, não truncar — dois limites, não um.** Igual à legenda de `polaroid-com-texto`
+([F2-05a]): cortar uma dedicatória no meio arrisca uma frase sem sentido impressa na página
+de abertura do livro. `dedicatoria/compose.ts` valida em duas camadas: (1) um teto de
+caracteres (`MAX_DEDICATION_LENGTH = 500`, o mesmo teto do campo `dedication` de
+`narrative-style/romantico`) e (2) mesmo dentro desse teto, o bloco de texto estimado
+(linhas ~ largura do bloco ÷ largura média de caractere) pode não caber na altura útil de
+um SKU pequeno — nesse caso a composição também é rejeitada, em vez de estourar a margem de
+segurança ou espremer a tipografia sem limite.
+
+**A estimativa de linha é heurística, não medição real de fonte.** Golden samples desta
+fase são JSON estrutural (retângulos em mm), não bitmap renderizado — igual à decisão já
+tomada para `polaroid-com-texto` (ver entrada acima). `AVG_CHAR_WIDTH_MM`/`LINE_HEIGHT_MM`
+são parâmetros documentados em `definition.md` como aproximação; o motor de geração (F2-06)
+é quem eventualmente rasteriza com a fonte real.
+
+**F2-05 (item pai) não foi marcado `[x]` neste PR, apesar do texto original da issue #109
+supor que as quatro sub-entregas fechariam juntas.** No momento desta issue, F2-05b
+(`timeline`, #107) e F2-05c (`carta`, #108) ainda estavam com PR aberto (`entrega:incompleta`),
+não mergeados — `CLAUDE.md` regra 3/`docs/ROADMAP.md`: "item pai só vira `[x]` quando todos
+os sub-itens estiverem `[x]`". Só `F2-05d` foi marcado; o item pai fica para quem fechar o
+último dos quatro.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
