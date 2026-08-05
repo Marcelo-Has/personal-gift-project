@@ -51,6 +51,7 @@ import type {
 	NarrativeChapter,
 	PolaroidCaption
 } from '../product-skills/narrative-style/romantico/generate';
+import { resolveSkill } from '../product-skills/loader';
 import type { StylizedPhoto } from '../product-skills/photo-style/provider';
 import { defaultRegistry } from '../registry';
 
@@ -113,17 +114,73 @@ function getPageBudget(sizeId: string): number {
 	return entry.pages;
 }
 
-function composeAbertura(opening: string, sku: SkuLayoutParams): LayoutSpread {
+/** `compose*` de cada skill de `layout-element`, indexado pelo `id` que `resolveSkill`
+ * devolve — nunca chamado direto, sempre depois de resolver a skill no registry. */
+const CARTA_COMPOSERS: Record<string, typeof composeCarta> = { carta: composeCarta };
+const DEDICATORIA_COMPOSERS: Record<string, typeof composeDedicatoria> = {
+	dedicatoria: composeDedicatoria
+};
+const POLAROID_COM_TEXTO_COMPOSERS: Record<string, typeof composePolaroidComTexto> = {
+	'polaroid-com-texto': composePolaroidComTexto
+};
+const TIMELINE_COMPOSERS: Record<string, typeof composeTimeline> = { timeline: composeTimeline };
+
+/** Resolve uma skill de `layout-element` pelo registry e devolve o `compose*` cablado
+ * para o `id` resolvido. Mesmo padrão de `getPhotoStyleProvider` (`photos.ts`, F2-06b):
+ * a resolução de versão/existência é sempre via `resolveSkill`, nunca por import direto. */
+function resolveLayoutElementComposer<T>(id: string, composers: Record<string, T>): T {
+	const resolved = resolveSkill('layout-element', id);
+	const composer = composers[resolved.id];
+	if (!composer) {
+		throw new Error(
+			`generation-engine/layout: nenhum composer implementado para "layout-element/${resolved.id}" ` +
+				`(o registry resolveu v${resolved.version}, mas o motor só conhece: ` +
+				`${Object.keys(composers).join(', ')})`
+		);
+	}
+	return composer;
+}
+
+/** Composers das quatro skills de `layout-element` usadas por `composeLayoutForOrder`,
+ * já resolvidas via `resolveSkill` (registry + versão), não por import direto. */
+interface LayoutElementComposers {
+	carta: typeof composeCarta;
+	dedicatoria: typeof composeDedicatoria;
+	polaroidComTexto: typeof composePolaroidComTexto;
+	timeline: typeof composeTimeline;
+}
+
+function resolveLayoutElementComposers(): LayoutElementComposers {
 	return {
-		type: 'abertura',
-		pageCount: 1,
-		composition: composeDedicatoria({ dedication: opening }, sku)
+		carta: resolveLayoutElementComposer('carta', CARTA_COMPOSERS),
+		dedicatoria: resolveLayoutElementComposer('dedicatoria', DEDICATORIA_COMPOSERS),
+		polaroidComTexto: resolveLayoutElementComposer(
+			'polaroid-com-texto',
+			POLAROID_COM_TEXTO_COMPOSERS
+		),
+		timeline: resolveLayoutElementComposer('timeline', TIMELINE_COMPOSERS)
 	};
 }
 
-function composeCapitulos(chapters: NarrativeChapter[], sku: SkuLayoutParams): LayoutSpread[] {
+function composeAbertura(
+	opening: string,
+	sku: SkuLayoutParams,
+	composers: LayoutElementComposers
+): LayoutSpread {
+	return {
+		type: 'abertura',
+		pageCount: 1,
+		composition: composers.dedicatoria({ dedication: opening }, sku)
+	};
+}
+
+function composeCapitulos(
+	chapters: NarrativeChapter[],
+	sku: SkuLayoutParams,
+	composers: LayoutElementComposers
+): LayoutSpread[] {
 	return chapters.map((chapter) => {
-		const composition = composeCarta({ text: `${chapter.title}\n\n${chapter.text}` }, sku);
+		const composition = composers.carta({ text: `${chapter.title}\n\n${chapter.text}` }, sku);
 		return { type: 'capitulo', pageCount: composition.pageCount, composition };
 	});
 }
@@ -131,7 +188,8 @@ function composeCapitulos(chapters: NarrativeChapter[], sku: SkuLayoutParams): L
 function composePolaroids(
 	captions: PolaroidCaption[],
 	photos: StylizedPhoto[],
-	sku: SkuLayoutParams
+	sku: SkuLayoutParams,
+	composers: LayoutElementComposers
 ): LayoutSpread[] {
 	return captions.map((caption) => {
 		const photo = photos.find((candidate) => candidate.sourcePhotoId === caption.photoId);
@@ -141,7 +199,7 @@ function composePolaroids(
 					'sem StylizedPhoto correspondente entre as fotos estilizadas do pedido'
 			);
 		}
-		const composition = composePolaroidComTexto(
+		const composition = composers.polaroidComTexto(
 			{
 				image: {
 					path: photo.sourcePhotoId,
@@ -158,7 +216,8 @@ function composePolaroids(
 
 function composeTimelineSpreads(
 	entries: TimelineMarkerInput[],
-	sku: SkuLayoutParams
+	sku: SkuLayoutParams,
+	composers: LayoutElementComposers
 ): LayoutSpread[] {
 	const groups: TimelineMarkerInput[][] = [];
 	for (let i = 0; i < entries.length; i += MAX_ENTRIES_PER_SPREAD) {
@@ -167,20 +226,28 @@ function composeTimelineSpreads(
 	return groups.map((group) => ({
 		type: 'timeline',
 		pageCount: 1,
-		composition: composeTimeline(group, sku)
+		composition: composers.timeline(group, sku)
 	}));
 }
 
-function composeCartaFinal(finalLetter: string, sku: SkuLayoutParams): LayoutSpread {
-	const composition = composeCarta({ text: finalLetter }, sku);
+function composeCartaFinal(
+	finalLetter: string,
+	sku: SkuLayoutParams,
+	composers: LayoutElementComposers
+): LayoutSpread {
+	const composition = composers.carta({ text: finalLetter }, sku);
 	return { type: 'carta', pageCount: composition.pageCount, composition };
 }
 
-function composeDedicatoriaFinal(dedication: string, sku: SkuLayoutParams): LayoutSpread {
+function composeDedicatoriaFinal(
+	dedication: string,
+	sku: SkuLayoutParams,
+	composers: LayoutElementComposers
+): LayoutSpread {
 	return {
 		type: 'dedicatoria',
 		pageCount: 1,
-		composition: composeDedicatoria({ dedication }, sku)
+		composition: composers.dedicatoria({ dedication }, sku)
 	};
 }
 
@@ -203,14 +270,15 @@ export function composeLayoutForOrder(
 	const sizeId = order.choice.sizeId;
 	const sku = getSkuLayoutParams(sizeId);
 	const pageBudget = getPageBudget(sizeId);
+	const composers = resolveLayoutElementComposers();
 
 	const spreads: LayoutSpread[] = [
-		composeAbertura(narrative.opening, sku),
-		...composeCapitulos(narrative.chapters, sku),
-		...composePolaroids(narrative.polaroidCaptions, photos, sku),
-		...composeTimelineSpreads(narrative.timeline, sku),
-		composeCartaFinal(narrative.finalLetter, sku),
-		composeDedicatoriaFinal(narrative.dedication, sku)
+		composeAbertura(narrative.opening, sku, composers),
+		...composeCapitulos(narrative.chapters, sku, composers),
+		...composePolaroids(narrative.polaroidCaptions, photos, sku, composers),
+		...composeTimelineSpreads(narrative.timeline, sku, composers),
+		composeCartaFinal(narrative.finalLetter, sku, composers),
+		composeDedicatoriaFinal(narrative.dedication, sku, composers)
 	];
 
 	const totalPages = spreads.reduce((sum, spread) => sum + spread.pageCount, 0);
