@@ -30,6 +30,13 @@ export default ts.config(
 		}
 	},
 	{
+		// Netlify Functions escritas à mão (fora do bundle do SvelteKit) rodam em Node/Lambda.
+		files: ['netlify/functions/**/*.{js,ts}'],
+		languageOptions: {
+			globals: globals.node
+		}
+	},
+	{
 		// Testes de regras do Firebase: rodam em Node contra o emulador, fora do
 		// bundle do app (leem os arquivos .rules do disco).
 		files: ['tests/**/*.{js,ts}'],

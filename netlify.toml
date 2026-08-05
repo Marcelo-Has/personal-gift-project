@@ -2,6 +2,16 @@
   command = "npm run build"
   publish = "build"
 
+# Funções da Netlify escritas à mão (fila+worker de geração pesada, D-063/F2-07),
+# separadas das functions que o @sveltejs/adapter-netlify já gera para as rotas do
+# SvelteKit. `included_files`: `render-shared.ts` lê o `.woff2` da fonte do disco em
+# runtime (`readFileSync`, não `import`) — sem isto o bundler (esbuild) não empacota o
+# binário junto e a function quebra com ENOENT ao tentar incorporar a fonte no PDF.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  included_files = ["node_modules/@fontsource/lora/files/lora-latin-400-normal.woff2"]
+
 [build.environment]
   NODE_VERSION = "22"          # espelhar .github/workflows/ci.yml
   # Secrets scanning da Netlify falha o build ao encontrar o VALOR de uma variável
