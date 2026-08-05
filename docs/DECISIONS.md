@@ -1956,9 +1956,79 @@ carregador.
 
 ---
 ## D-053 | 2026-08-05 | ACEITA
+**[F2-05b] `timeline` v1: lista vazia de marcos é composição válida (`markers: []`); acima
+de 8 marcos por spread a composição é rejeitada (não trunca nem pagina); marcadores
+distribuídos uniformemente com rótulo alternando acima/abaixo da linha.** Fecha a issue
+#107, segunda das quatro entregas de F2-05 (`.claude/rules/right-sizing.md`: reaproveita a
+estrutura/convenção de `polaroid-com-texto` [D-051], sem extrair abstração compartilhada).
+
+**Lista vazia não é erro.** `narrativeBlocksSchema.timeline` (`generate.ts` de
+narrative-style/romantico) permite 0 a 20 entradas — um casal pode não ter marcos de linha
+do tempo relevantes, e isso é uma saída legítima do narrative-style, não uma falha. A skill
+devolve `markers: []` (composição válida, com a linha ainda calculada); cabe ao motor de
+orquestração (F2-06) decidir se omite o elemento inteiro no spread quando não há marcos —
+essa decisão fica fora desta skill, que só compõe o que recebe.
+
+**`MAX_ENTRIES_PER_SPREAD` = 8, rejeitar em vez de truncar/paginar.** O contrato de entrada
+permite até 20 marcos, mais do que um spread físico comporta com rótulo legível (SKU mini
+tem só 150mm de largura útil). Truncar silenciosamente arrisca descartar um marco que o
+casal considera importante num produto impresso que não se corrige depois; paginar (mais de
+um spread para a timeline) é decisão de orquestração fora do escopo desta skill isolada.
+Rejeitar com erro descritivo (`TimelineValidationError`) segue a mesma lógica de
+`polaroid-com-texto` (D-051) para legenda longa — quem decide o que fazer com o erro
+(regenerar mais curto, paginar) é o motor de geração (F2-06), não a skill.
+
+**Marcadores uniformemente distribuídos, rótulo alternando lado, tudo determinístico.**
+Sem `Math.random`/relógio — golden samples/testes de estilo exigem saída reproduzível
+(mesma convenção de D-051). O rótulo (título + descrição) alterna entre acima e abaixo da
+linha, marco a marco, para não sobrepor o vizinho; a largura do rótulo é limitada a 90% do
+espaçamento entre marcadores vizinhos (mais um teto de 40% da largura útil, para poucos
+marcos) e sempre recortada (`clamp`) para dentro da área útil, garantindo que nenhum rótulo
+invada sangria/margem mesmo nos marcos das pontas da linha.
+
+---
+## D-054 | 2026-08-05 | ACEITA
+**[F2-05c] `carta` v1: texto que não cabe numa página é paginado em até 2 páginas
+(quebrando só em limite de palavra); acima disso, rejeitada com erro descritivo — não
+truncada nem espremida.** Fecha a issue #108, terceira skill `layout-element` seguindo a
+convenção de `polaroid-com-texto` ([D-051]).
+
+**Paginação, não rejeição, como comportamento padrão para texto longo.** Diferente da
+legenda de `polaroid-com-texto` (rejeita texto acima de 80 caracteres, porque a legenda é
+curta por natureza e pode ser regenerada mais curta pelo narrative-style), o texto de
+`finalLetter` pode legitimamente chegar a 3000 caracteres — é o próprio teto do contrato
+de `narrative-style/romantico`. Rejeitar toda carta que não coubesse numa única página do
+SKU tornaria inviável boa parte das cartas válidas geradas pela skill de narrativa; a
+carta final é um elemento central do livro (`docs/PRODUCT.md` §2), não um texto acessório.
+
+**`MAX_PAGES = 2`, não ilimitado.** O SKU tem orçamento de página fixo (32 páginas / 16
+spreads, `docs/PRODUCT.md` §5) compartilhado por vários elementos narrativos (abertura,
+capítulos, polaroids, timeline, carta, dedicatória) — deixar a carta paginar sem limite
+deixaria o comprimento do texto gerado pela IA controlar quantas páginas do livro físico
+são impressas, o que é caro de reverter depois de o motor de geração (F2-06) orquestrar
+sobre esse orçamento. Duas páginas (um spread) cobre a grande maioria dos textos até 3000
+caracteres nos SKUs do catálogo atual e mantém a carta como um elemento limitado do livro.
+Acima disso — SKU pequeno combinado com carta muito próxima do limite —, a composição é
+rejeitada com `CartaValidationError` descritivo, análoga à rejeição de legenda longa em
+`polaroid-com-texto`; o motor de geração decide o que fazer com o erro (não é
+responsabilidade desta skill).
+
+**Quebra só em limite de palavra, nunca no meio.** Mesma decisão de [D-051] para a
+legenda: cortar uma palavra ao meio arrisca imprimir algo sem sentido num produto físico
+que não se corrige depois de impresso.
+
+**Área de texto = área útil inteira da página (menos respiro), não calculada por
+linha/glifo real.** A capacidade estimada de caracteres por página (`FONT_SIZE_MM` ×
+`LINE_HEIGHT_RATIO` × `AVG_CHAR_WIDTH_RATIO`) decide só **quantas páginas** o texto ocupa;
+a tipografia/rasterização linha a linha de verdade é responsabilidade da geração real de
+imagem/PDF, fora de escopo desta issue (golden sample é estrutura posicionada, não bitmap
+renderizado — mesma decisão de [D-051] para `polaroid-com-texto`).
+
+---
+## D-055 | 2026-08-05 | ACEITA
 **[F2-05d] Skill `layout-element/dedicatoria` v1: texto acima do limite ou do espaço
-disponível é rejeitado, nunca truncado; F2-05 (item pai) segue `[ ]` porque F2-05b/F2-05c
-ainda não fecharam.** Fecha a issue #109.
+disponível é rejeitado, nunca truncado; com F2-05b/F2-05c já mergeados, este PR fecha
+F2-05 (item pai).** Fecha a issue #109.
 
 **Rejeitar, não truncar — dois limites, não um.** Igual à legenda de `polaroid-com-texto`
 ([F2-05a]): cortar uma dedicatória no meio arrisca uma frase sem sentido impressa na página
@@ -1975,12 +2045,18 @@ tomada para `polaroid-com-texto` (ver entrada acima). `AVG_CHAR_WIDTH_MM`/`LINE_
 são parâmetros documentados em `definition.md` como aproximação; o motor de geração (F2-06)
 é quem eventualmente rasteriza com a fonte real.
 
-**F2-05 (item pai) não foi marcado `[x]` neste PR, apesar do texto original da issue #109
-supor que as quatro sub-entregas fechariam juntas.** No momento desta issue, F2-05b
-(`timeline`, #107) e F2-05c (`carta`, #108) ainda estavam com PR aberto (`entrega:incompleta`),
-não mergeados — `CLAUDE.md` regra 3/`docs/ROADMAP.md`: "item pai só vira `[x]` quando todos
-os sub-itens estiverem `[x]`". Só `F2-05d` foi marcado; o item pai fica para quem fechar o
-último dos quatro.
+**F2-05 (item pai) fecha neste PR.** A issue #109 (F2-05d) foi aberta quando F2-05b
+(`timeline`, #107) e F2-05c (`carta`, #108) ainda estavam com PR aberto
+(`entrega:incompleta`). Ambos foram mergeados antes deste PR resolver conflitos contra
+`origin/main`; com as quatro sub-entregas (F2-05a/b/c/d) em `[x]`, `docs/ROADMAP.md`
+marca `F2-05` como `[x]` nesta mesma resolução de conflito — regra do próprio ROADMAP
+("item pai só vira `[x]` quando todos os sub-itens estiverem `[x]`") e regra 5 do
+`CLAUDE.md`.
+
+**Renumeração de D-053 para D-055.** A entrega original desta issue registrou a decisão
+como D-053, mas F2-05b e F2-05c mergearam primeiro e já ocupavam D-053/D-054 em
+`origin/main`. Resolvida a colisão renumerando esta entrada para D-055 (próximo número
+livre), sem alterar o conteúdo das duas decisões já mergeadas.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)

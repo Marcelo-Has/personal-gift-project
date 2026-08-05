@@ -1,0 +1,132 @@
+{
+	"skillId": "timeline",
+	"skillVersion": "1.0.0",
+	"line": {
+		"xMm": 16.4,
+		"yMm": 77.5,
+		"widthMm": 123.19999999999999,
+		"heightMm": 1
+	},
+	"markers": [
+		{
+			"title": "Como nos conhecemos",
+			"description": "Foi num café perto da faculdade, em março de 2018.",
+			"point": {
+				"xMm": 16.4,
+				"yMm": 78
+			},
+			"labelSide": "above",
+			"labelArea": {
+				"xMm": 8.48,
+				"yMm": 8,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Primeiro encontro",
+			"description": "Cinema e depois uma pizza, conversamos até fechar o lugar.",
+			"point": {
+				"xMm": 34,
+				"yMm": 78
+			},
+			"labelSide": "below",
+			"labelArea": {
+				"xMm": 26.080000000000002,
+				"yMm": 82.5,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Primeira viagem juntos",
+			"description": "Fim de semana em Paraty, chuva o tempo todo e nem ligamos.",
+			"point": {
+				"xMm": 51.599999999999994,
+				"yMm": 78
+			},
+			"labelSide": "above",
+			"labelArea": {
+				"xMm": 43.67999999999999,
+				"yMm": 8,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Mudança para o mesmo apê",
+			"description": "Junho de 2020, no meio da pandemia, decisão rápida.",
+			"point": {
+				"xMm": 69.19999999999999,
+				"yMm": 78
+			},
+			"labelSide": "below",
+			"labelArea": {
+				"xMm": 61.27999999999999,
+				"yMm": 82.5,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Adoção da Nina",
+			"description": "A cachorra apareceu na rua e nunca mais foi embora de casa.",
+			"point": {
+				"xMm": 86.79999999999998,
+				"yMm": 78
+			},
+			"labelSide": "above",
+			"labelArea": {
+				"xMm": 78.87999999999998,
+				"yMm": 8,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Pedido de casamento",
+			"description": "Na praia, ao pôr do sol, com os dois cachorros por perto.",
+			"point": {
+				"xMm": 104.4,
+				"yMm": 78
+			},
+			"labelSide": "below",
+			"labelArea": {
+				"xMm": 96.48,
+				"yMm": 82.5,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Casamento",
+			"description": "Cerimônia pequena, só a família e os amigos mais próximos.",
+			"point": {
+				"xMm": 122,
+				"yMm": 78
+			},
+			"labelSide": "above",
+			"labelArea": {
+				"xMm": 114.08,
+				"yMm": 8,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Hoje",
+			"description": "Ainda escolhendo um ao outro, todos os dias, sem exceção.",
+			"point": {
+				"xMm": 139.59999999999997,
+				"yMm": 78
+			},
+			"labelSide": "below",
+			"labelArea": {
+				"xMm": 131.67999999999998,
+				"yMm": 82.5,
+				"widthMm": 15.839999999999998,
+				"heightMm": 65.5
+			}
+		}
+	]
+}

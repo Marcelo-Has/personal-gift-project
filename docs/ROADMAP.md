@@ -91,11 +91,11 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
 - [x] **F2-02** — Skill `narrative-style/romantico` v1 (definição + golden samples + testes de estilo).
 - [x] **F2-03** — Skill `photo-style` (mecanismo que abstrai o provedor) + golden samples.
 - [ ] **F2-04** — [gate D-102] Integração do provedor de imagem nas `photo-style`.
-- [ ] **F2-05** — Skills `layout-element` (polaroid+texto, timeline, carta, dedicatória).
+- [x] **F2-05** — Skills `layout-element` (polaroid+texto, timeline, carta, dedicatória).
       Decomposto em quatro entregas; o pai fecha quando as quatro fecharem.
   - [x] **F2-05a** — `polaroid-com-texto`: composição + golden samples + testes de estilo.
-  - [ ] **F2-05b** — `timeline`.
-  - [ ] **F2-05c** — `carta`.
+  - [x] **F2-05b** — `timeline`.
+  - [x] **F2-05c** — `carta`.
   - [x] **F2-05d** — `dedicatória`.
 - [ ] **F2-06** — Motor de geração (orquestra narrativa+foto+layout a partir do Pedido).
 - [ ] **F2-07** — Fila + worker assíncrono para a geração pesada.
