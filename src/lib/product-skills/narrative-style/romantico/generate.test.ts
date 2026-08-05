@@ -103,12 +103,12 @@ describe('gerarNarrativaRomantica — golden samples (Claude API mockada)', () =
 		await gerarNarrativaRomantica(completoInput as CoupleQuestionnaire, { client, skill });
 
 		// Teto de caracteres que o schema permite (mesma conta do comentário de MAX_TOKENS em
-		// generate.ts): opening 1.000 + chapters 20×(120+2.000)=42.400 + polaroidCaptions
+		// generate.ts): opening 500 + chapters 20×(120+2.000)=42.400 + polaroidCaptions
 		// 20×200=4.000 + timeline 20×(120+500)=12.400 + finalLetter 3.000 + dedication 500.
 		// Calculado aqui de forma independente (não copiando o valor de MAX_TOKENS) para que
 		// o teste falhe se `narrativeBlocksSchema` crescer sem `MAX_TOKENS` acompanhar.
 		const tetoCaracteresSchema =
-			1000 + 20 * (120 + 2000) + 20 * 200 + 20 * (120 + 500) + 3000 + 500;
+			500 + 20 * (120 + 2000) + 20 * 200 + 20 * (120 + 500) + 3000 + 500;
 		// Piso conservador de 3 caracteres/token (pior que os ~4 chars/token do inglês, para
 		// sobrar espaço para acentuação em português e pontuação de JSON).
 		const tokensMinimosNecessarios = Math.ceil(tetoCaracteresSchema / 3);
@@ -178,6 +178,21 @@ describe('gerarNarrativaRomantica — respostas inválidas da API', () => {
 		await expect(
 			gerarNarrativaRomantica(completoInput as CoupleQuestionnaire, { client, skill })
 		).rejects.toThrow(/contrato de blocos de narrativa/);
+	});
+
+	it('lança NarrativaInvalidaError quando opening excede o teto de 500 caracteres', async () => {
+		// Teto de `opening` é 500, o mesmo de `dedication` — os dois mapeiam para a mesma skill
+		// de layout (`dedicatoria`, D-061), que rejeita acima de `MAX_DEDICATION_LENGTH = 500`
+		// (`layout-element/dedicatoria/compose.ts`). 'a'.repeat(501) fica só 1 acima do teto.
+		const comOpeningEnorme: Record<string, unknown> = {
+			...(completoOutput as NarrativeBlocks),
+			opening: 'a'.repeat(501)
+		};
+		const { client } = fakeClaudeClient(JSON.stringify(comOpeningEnorme));
+
+		await expect(
+			gerarNarrativaRomantica(completoInput as CoupleQuestionnaire, { client, skill })
+		).rejects.toThrow(NarrativaInvalidaError);
 	});
 
 	it('lança NarrativaInvalidaError quando uma legenda referencia um photoId inexistente', async () => {

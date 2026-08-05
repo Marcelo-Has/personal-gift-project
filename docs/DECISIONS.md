@@ -2251,6 +2251,22 @@ juntas, quem precisa garantir que elas batem antes de repassar para `composePola
 de um erro descritivo apontando a causa real (fotos e narrativa geradas para pedidos
 diferentes, por exemplo).
 
+**Correção pós-merge: teto de `opening` alinhado ao de `dedicatoria`.** A revisão do PR
+#124 encontrou que `narrativeBlocksSchema.opening` permitia até 1000 caracteres
+(`narrative-style/romantico/generate.ts`), mas `opening` mapeia para a mesma skill que
+`dedication` (`dedicatoria`, acima) — e `MAX_DEDICATION_LENGTH = 500` já era calibrado
+especificamente para o teto de `dedication` (D-055). Um `opening` gerado entre 501 e 1000
+caracteres — dentro do contrato que o schema declarava aceitar — fazia o spread de abertura
+falhar com `DedicatoriaValidationError` ao montar o livro. Corrigido apertando
+`opening` para `.max(500)`, o mesmo teto de `dedication`, mesma lógica de duplicar (não
+importar) o número entre skill de narrativa e skill de layout que já vale para
+`MAX_LETTER_LENGTH`/`finalLetter` (`carta/compose.ts`) e `MAX_DEDICATION_LENGTH`/`dedication`
+— os golden samples (123 e 168 caracteres) ficam bem abaixo do novo teto, sem impacto na
+skill de narrativa. Diferente do caso de `chapters`/`carta` (`MAX_PAGES`), que é uma
+divergência aceita e testada de propósito (texto legitimamente longo que pode não caber),
+aqui não havia razão para os dois tetos divergirem — ambos os campos existem só para
+alimentar a mesma composição de texto centralizado curto.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
