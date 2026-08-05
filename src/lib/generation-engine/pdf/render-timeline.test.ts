@@ -114,12 +114,16 @@ describe('renderTimelineSpreadToPdf', () => {
 			const pdfDoc = await PDFDocument.load(pdfBytes);
 			const { width, height } = pdfDoc.getPage(0).getSize();
 
-			expect(pointsToMm(width)).toBeGreaterThan(MINI_SKU_LAYOUT.pageWidthMm - PAGE_SIZE_TOLERANCE_MM);
+			expect(pointsToMm(width)).toBeGreaterThan(
+				MINI_SKU_LAYOUT.pageWidthMm - PAGE_SIZE_TOLERANCE_MM
+			);
 			expect(pointsToMm(width)).toBeLessThan(MINI_SKU_LAYOUT.pageWidthMm + PAGE_SIZE_TOLERANCE_MM);
 			expect(pointsToMm(height)).toBeGreaterThan(
 				MINI_SKU_LAYOUT.pageHeightMm - PAGE_SIZE_TOLERANCE_MM
 			);
-			expect(pointsToMm(height)).toBeLessThan(MINI_SKU_LAYOUT.pageHeightMm + PAGE_SIZE_TOLERANCE_MM);
+			expect(pointsToMm(height)).toBeLessThan(
+				MINI_SKU_LAYOUT.pageHeightMm + PAGE_SIZE_TOLERANCE_MM
+			);
 		});
 
 		it('a fonte usada está incorporada no PDF', async () => {

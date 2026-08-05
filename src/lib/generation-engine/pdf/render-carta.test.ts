@@ -21,7 +21,8 @@ const SHORT_LETTER_FIXTURE =
  * `MAX_PAGES` nem `MAX_LETTER_LENGTH` (~1500 caracteres, bem abaixo do teto de 3000). */
 const LONG_LETTER_FIXTURE = Array.from(
 	{ length: 18 },
-	(_, i) => `Parágrafo número ${i + 1} da nossa história, cheio de memórias boas para lembrar sempre.`
+	(_, i) =>
+		`Parágrafo número ${i + 1} da nossa história, cheio de memórias boas para lembrar sempre.`
 ).join(' ');
 
 const TEXT_POSITION_TOLERANCE_MM = 8;
@@ -85,12 +86,16 @@ describe('renderCartaSpreadToPdf', () => {
 			const pdfDoc = await PDFDocument.load(pdfBytes);
 			const { width, height } = pdfDoc.getPage(0).getSize();
 
-			expect(pointsToMm(width)).toBeGreaterThan(MINI_SKU_LAYOUT.pageWidthMm - PAGE_SIZE_TOLERANCE_MM);
+			expect(pointsToMm(width)).toBeGreaterThan(
+				MINI_SKU_LAYOUT.pageWidthMm - PAGE_SIZE_TOLERANCE_MM
+			);
 			expect(pointsToMm(width)).toBeLessThan(MINI_SKU_LAYOUT.pageWidthMm + PAGE_SIZE_TOLERANCE_MM);
 			expect(pointsToMm(height)).toBeGreaterThan(
 				MINI_SKU_LAYOUT.pageHeightMm - PAGE_SIZE_TOLERANCE_MM
 			);
-			expect(pointsToMm(height)).toBeLessThan(MINI_SKU_LAYOUT.pageHeightMm + PAGE_SIZE_TOLERANCE_MM);
+			expect(pointsToMm(height)).toBeLessThan(
+				MINI_SKU_LAYOUT.pageHeightMm + PAGE_SIZE_TOLERANCE_MM
+			);
 		});
 
 		it('a fonte usada está incorporada no PDF', async () => {
@@ -115,7 +120,9 @@ describe('renderCartaSpreadToPdf', () => {
 				expect(xMm).toBeGreaterThanOrEqual(area.xMm - TEXT_POSITION_TOLERANCE_MM);
 				expect(xMm).toBeLessThanOrEqual(area.xMm + area.widthMm + TEXT_POSITION_TOLERANCE_MM);
 				expect(yMmFromTop).toBeGreaterThanOrEqual(area.yMm - TEXT_POSITION_TOLERANCE_MM);
-				expect(yMmFromTop).toBeLessThanOrEqual(area.yMm + area.heightMm + TEXT_POSITION_TOLERANCE_MM);
+				expect(yMmFromTop).toBeLessThanOrEqual(
+					area.yMm + area.heightMm + TEXT_POSITION_TOLERANCE_MM
+				);
 			}
 		});
 
