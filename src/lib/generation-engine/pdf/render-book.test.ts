@@ -84,9 +84,9 @@ async function buildBookAndPhotos() {
 /** Junta os itens de texto extraídos de uma página, inserindo espaço onde o navegador
  * quebrou linha (`hasEOL`) — mesma técnica de `render-dedicatoria.test.ts`: o Chrome não
  * grava espaço explícito no fim de uma linha quebrada por largura. */
-function joinTextItems(items: Array<{ str?: string; hasEOL?: boolean }>): string {
+function joinTextItems(items: Array<{ str: string; hasEOL: boolean }>): string {
 	return items
-		.map((item) => ('str' in item ? item.str + (item.hasEOL ? ' ' : '') : ''))
+		.map((item) => item.str + (item.hasEOL ? ' ' : ''))
 		.join('')
 		.replace(/\s+/g, ' ')
 		.trim();
@@ -100,7 +100,7 @@ async function extractTextPerPage(pdfBytes: Uint8Array): Promise<string[]> {
 		for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
 			const page = await pdf.getPage(pageNumber);
 			const textContent = await page.getTextContent();
-			pages.push(joinTextItems(textContent.items));
+			pages.push(joinTextItems(textContent.items as Array<{ str: string; hasEOL: boolean }>));
 		}
 		return pages;
 	} finally {
