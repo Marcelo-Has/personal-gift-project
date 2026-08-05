@@ -2187,6 +2187,30 @@ upscaling artificial e com o DPI efetivo reportado nos metadados. A menção a "
 [D-057] descreve o mesmo requisito medido sem sangria — permanece como está; quem for
 implementar F2-08/F2-09 usa o número derivado, não o do texto.
 
+## D-060 | 2026-08-05 | ACEITA
+**[F2-06a] O motor de narrativa resolve a skill via `resolveSkill`, mas despacha para a
+função de geração através de um mapa estático `id → gerador` — sem import dinâmico por
+caminho de disco.** Fecha a issue #119.
+
+**Por quê não import dinâmico.** `resolveSkill` devolve metadado (entrada do registry +
+`absolutePath` confirmado no disco), não uma referência de função chamável. Resolver a
+função a partir de `absolutePath` exigiria `import()` com caminho computado em runtime, algo
+frágil sob o bundling do Vite/SvelteKit (quebra a análise estática de code-splitting) e sem
+nenhum precedente no repositório. Com uma única skill de `narrative-style` publicada hoje
+(`romantico`), o `import` estático de `generate.ts` + um mapa de uma entrada é a solução mais
+simples que resolve o problema atual (`.claude/rules/right-sizing.md`) — "novo estilo, sem
+reescrever o motor" (`.claude/rules/product-skills.md`) continua valendo: uma segunda skill
+de narrativa vira só uma nova entrada no mapa, a função `gerarNarrativaDoPedido` não muda.
+
+**Por quê a validação de `photoId` não é duplicada no motor.** A issue pedia erro tipado e
+descritivo para legenda de polaroid referenciando `photoId` fora do questionário. Essa
+checagem já existe em `gerarNarrativaRomantica` (`generate.ts`, F2-02) e roda sobre o MESMO
+questionário que o motor recebe — duplicá-la no motor seria código morto: nenhuma entrada
+jamais alcançaria a cópia do motor, porque a da skill sempre intercepta primeiro. O motor
+deixa `NarrativaInvalidaError` se propagar (já tipado, já descritivo) em vez de reimplementar
+a checagem "para o caso" de uma futura skill que não valide — isso é hipotético, sem skill
+concreta hoje, e vai contra "riscos hipotéticos se adiam" (`right-sizing.md`).
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
