@@ -102,7 +102,8 @@ export class HttpPhotoStyleProvider implements PhotoStyleProvider {
 			});
 		} catch (err) {
 			throw new Error(
-				`HttpPhotoStyleProvider (aquarela): falha ao estilizar a foto "${photo.id}": ${(err as Error).message}`
+				`HttpPhotoStyleProvider (aquarela): falha ao estilizar a foto "${photo.id}": ${(err as Error).message}`,
+				{ cause: err }
 			);
 		}
 
