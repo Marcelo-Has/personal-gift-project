@@ -1,0 +1,17 @@
+{
+	"skillId": "carta",
+	"skillVersion": "1.0.0",
+	"pageCount": 1,
+	"pages": [
+		{
+			"pageIndex": 0,
+			"text": "Nossa história começou num dia comum e virou a coisa mais bonita da minha vida. Obrigado por escolher, todos os dias, ficar ao meu lado. Te amo mais hoje do que ontem, e sei que amanhã vou te amar ainda mais.",
+			"area": {
+				"xMm": 16,
+				"yMm": 16,
+				"widthMm": 124,
+				"heightMm": 124
+			}
+		}
+	]
+}

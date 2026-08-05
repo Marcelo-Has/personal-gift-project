@@ -11,6 +11,7 @@
     { "id": "aquarela", "version": "1.0.0", "label": "Aquarela", "path": "photo-style/aquarela", "status": "draft" }
   ],
   "layout-element": [
-    { "id": "polaroid-com-texto", "version": "1.0.0", "label": "Polaroid com texto", "path": "layout-element/polaroid-com-texto", "status": "draft" }
+    { "id": "polaroid-com-texto", "version": "1.0.0", "label": "Polaroid com texto", "path": "layout-element/polaroid-com-texto", "status": "draft" },
+    { "id": "carta", "version": "1.0.0", "label": "Carta", "path": "layout-element/carta", "status": "draft" }
   ]
 }
