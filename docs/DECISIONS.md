@@ -1955,6 +1955,38 @@ mudar o formato do contrato.
 carregador.
 
 ---
+## D-053 | 2026-08-05 | ACEITA
+**[F2-05b] `timeline` v1: lista vazia de marcos é composição válida (`markers: []`); acima
+de 8 marcos por spread a composição é rejeitada (não trunca nem pagina); marcadores
+distribuídos uniformemente com rótulo alternando acima/abaixo da linha.** Fecha a issue
+#107, segunda das quatro entregas de F2-05 (`.claude/rules/right-sizing.md`: reaproveita a
+estrutura/convenção de `polaroid-com-texto` [D-051], sem extrair abstração compartilhada).
+
+**Lista vazia não é erro.** `narrativeBlocksSchema.timeline` (`generate.ts` de
+narrative-style/romantico) permite 0 a 20 entradas — um casal pode não ter marcos de linha
+do tempo relevantes, e isso é uma saída legítima do narrative-style, não uma falha. A skill
+devolve `markers: []` (composição válida, com a linha ainda calculada); cabe ao motor de
+orquestração (F2-06) decidir se omite o elemento inteiro no spread quando não há marcos —
+essa decisão fica fora desta skill, que só compõe o que recebe.
+
+**`MAX_ENTRIES_PER_SPREAD` = 8, rejeitar em vez de truncar/paginar.** O contrato de entrada
+permite até 20 marcos, mais do que um spread físico comporta com rótulo legível (SKU mini
+tem só 150mm de largura útil). Truncar silenciosamente arrisca descartar um marco que o
+casal considera importante num produto impresso que não se corrige depois; paginar (mais de
+um spread para a timeline) é decisão de orquestração fora do escopo desta skill isolada.
+Rejeitar com erro descritivo (`TimelineValidationError`) segue a mesma lógica de
+`polaroid-com-texto` (D-051) para legenda longa — quem decide o que fazer com o erro
+(regenerar mais curto, paginar) é o motor de geração (F2-06), não a skill.
+
+**Marcadores uniformemente distribuídos, rótulo alternando lado, tudo determinístico.**
+Sem `Math.random`/relógio — golden samples/testes de estilo exigem saída reproduzível
+(mesma convenção de D-051). O rótulo (título + descrição) alterna entre acima e abaixo da
+linha, marco a marco, para não sobrepor o vizinho; a largura do rótulo é limitada a 90% do
+espaçamento entre marcadores vizinhos (mais um teto de 40% da largura útil, para poucos
+marcos) e sempre recortada (`clamp`) para dentro da área útil, garantindo que nenhum rótulo
+invada sangria/margem mesmo nos marcos das pontas da linha.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

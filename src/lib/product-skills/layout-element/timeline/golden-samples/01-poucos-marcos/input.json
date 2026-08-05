@@ -1,0 +1,22 @@
+{
+	"entries": [
+		{
+			"title": "Como nos conhecemos",
+			"description": "Foi num café perto da faculdade, em março de 2018."
+		},
+		{
+			"title": "Primeira viagem juntos",
+			"description": "Fim de semana em Paraty, chuva o tempo todo e nem ligamos."
+		},
+		{
+			"title": "Pedido de casamento",
+			"description": "Na praia, ao pôr do sol, com os dois cachorros por perto."
+		}
+	],
+	"sku": {
+		"pageWidthMm": 156,
+		"pageHeightMm": 156,
+		"bleedMm": 3,
+		"safeMarginMm": 5
+	}
+}
