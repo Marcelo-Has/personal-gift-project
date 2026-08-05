@@ -2211,6 +2211,46 @@ deixa `NarrativaInvalidaError` se propagar (já tipado, já descritivo) em vez d
 a checagem "para o caso" de uma futura skill que não valide — isso é hipotético, sem skill
 concreta hoje, e vai contra "riscos hipotéticos se adiam" (`right-sizing.md`).
 
+## D-061 | 2026-08-05 | ACEITA
+**[F2-06c] O motor de layout mapeia os seis blocos de `NarrativeBlocks` às quatro skills
+de `layout-element` existentes sem criar skill nova para "capítulo"/"abertura", e mede o
+orçamento de páginas com o `sizes[].pages` do `registry.json` (32 para o SKU mini) somando
+o `pageCount` que cada composição devolve.** Fecha a issue #121 (F2-06).
+
+**Por quê reaproveitar `dedicatoria` e `carta` em vez de skills novas.** As quatro skills de
+`layout-element` publicadas (F2-05a/b/c/d) cobrem polaroid+legenda, linha do tempo, texto
+paginado livre (`carta`) e bloco de texto centralizado (`dedicatoria`) — nenhuma é
+semanticamente "capítulo" ou "abertura", mas `composeCarta`/`composeDedicatoria` não leem
+nada do conteúdo do texto, só o paginam/centralizam. `opening` e `dedication` (ambos um
+bloco curto de texto de abertura/fechamento) viram `dedicatoria`; cada `chapters[]` (título +
+texto livre, igual à forma de `finalLetter`) vira `carta`, com título e texto colados num
+único bloco. Criar uma quinta skill de `layout-element` só para repetir a mesma paginação de
+texto seria abstração sem segundo comportamento novo (`.claude/rules/right-sizing.md`) — e
+`.claude/rules/product-skills.md` já permite reaproveitar skill existente sem reescrever
+nada nela; só o motor decide o roteamento.
+
+**Por quê o orçamento é em páginas, não em "spreads" (pares de página).** A issue #121 (AC)
+pede respeitar o "orçamento de páginas do SKU", e `registry.json` > `sizes[].pages` já
+guarda esse número (32) diretamente — não uma contagem de pares. Dividir por 2 para virar
+"16 spreads" (como `docs/PRODUCT.md` §5 descreve em prosa) introduziria uma conversão sem
+uso concreto agora: cada `compose*` das quatro skills já dimensiona sua saída para UMA
+página de produção do SKU (`SkuLayoutParams` de 156×156mm), não para um par. O motor soma o
+`pageCount` de cada composição (sempre 1, exceto `carta`, que pode devolver até `MAX_PAGES`)
+e compara direto contra `sizes[].pages`. Virar "spread" (par de página) fica para quando
+F2-08/F2-09 (paginação real do PDF) precisar da distinção — riscos/necessidades hipotéticas
+se adiam (`right-sizing.md`).
+
+**Por quê `LayoutMissingStylizedPhotoError` é uma checagem nova no motor, não duplicada.**
+Diferente da validação de `photoId` de D-060 (que já existe dentro da skill de narrativa e
+roda sobre o mesmo questionário), aqui o motor está casando a saída de DOIS módulos
+independentes entre si (F2-06a produz `polaroidCaptions[].photoId`, F2-06b produz
+`StylizedPhoto.sourcePhotoId`) — nenhum dos dois sabe da existência do outro, então nenhuma
+skill existente pode validar essa junção. É o motor (F2-06c), que recebe as duas saídas
+juntas, quem precisa garantir que elas batem antes de repassar para `composePolaroidComTexto`
+— sem essa checagem, um `photoId` órfão quebraria com um erro genérico de `undefined` em vez
+de um erro descritivo apontando a causa real (fotos e narrativa geradas para pedidos
+diferentes, por exemplo).
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
