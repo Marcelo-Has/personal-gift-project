@@ -26,8 +26,7 @@ import { MINI_SKU_LAYOUT } from '../../fixtures/pedido-exemplo';
 
 /** Texto fixo de entrada — mesma composição em todo o arquivo, para o teste de
  * determinismo do fim do arquivo (mesma entrada → mesmo resultado verificável). */
-const DEDICATION_FIXTURE =
-	'Para sempre, vocês dois — obrigado por ficar na varanda comigo.';
+const DEDICATION_FIXTURE = 'Para sempre, vocês dois — obrigado por ficar na varanda comigo.';
 
 /** Tolerância de posição (mm) para o teste de área do texto: cobre a diferença entre a
  * estimativa de largura de caractere que `composeDedicatoria` usa para calcular
@@ -145,9 +144,7 @@ describe('renderDedicatoriaSpreadToPdf', () => {
 			expect(xMm).toBeGreaterThanOrEqual(area.xMm - TEXT_POSITION_TOLERANCE_MM);
 			expect(xMm).toBeLessThanOrEqual(area.xMm + area.widthMm + TEXT_POSITION_TOLERANCE_MM);
 			expect(yMmFromTop).toBeGreaterThanOrEqual(area.yMm - TEXT_POSITION_TOLERANCE_MM);
-			expect(yMmFromTop).toBeLessThanOrEqual(
-				area.yMm + area.heightMm + TEXT_POSITION_TOLERANCE_MM
-			);
+			expect(yMmFromTop).toBeLessThanOrEqual(area.yMm + area.heightMm + TEXT_POSITION_TOLERANCE_MM);
 		}
 	});
 
