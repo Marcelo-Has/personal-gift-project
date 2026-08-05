@@ -111,7 +111,7 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
       Decomposto em três entregas (D-048); o pai fecha quando as três fecharem.
   - [x] **F2-08a** — Infra de renderização headless (HTML/CSS → PDF) + spread único de
         `dedicatoria` (SKU mini): sangria, 300 DPI, fonte incorporada.
-  - [ ] **F2-08b** — Renderização de `carta`, `polaroid-com-texto` e `timeline`,
+  - [x] **F2-08b** — Renderização de `carta`, `polaroid-com-texto` e `timeline`,
         reaproveitando a infra de F2-08a. Decomposto em duas entregas; o pai fecha quando
         as duas fecharem.
     - [x] F2-08b1 - Renderizacao de carta (multi-pagina) e timeline (texto vetorial, sem
