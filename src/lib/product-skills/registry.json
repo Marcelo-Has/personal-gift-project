@@ -12,6 +12,7 @@
   ],
   "layout-element": [
     { "id": "polaroid-com-texto", "version": "1.0.0", "label": "Polaroid com texto", "path": "layout-element/polaroid-com-texto", "status": "draft" },
-    { "id": "timeline", "version": "1.0.0", "label": "Linha do tempo", "path": "layout-element/timeline", "status": "draft" }
+    { "id": "timeline", "version": "1.0.0", "label": "Linha do tempo", "path": "layout-element/timeline", "status": "draft" },
+    { "id": "carta", "version": "1.0.0", "label": "Carta", "path": "layout-element/carta", "status": "draft" }
   ]
 }
