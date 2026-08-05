@@ -19,11 +19,11 @@ import type { CoupleQuestionnaire } from '../../../order';
 
 const CLAUDE_MODEL = 'claude-sonnet-5';
 // Teto de caracteres que `narrativeBlocksSchema` permite (soma dos `.max()` de cada campo):
-//   opening 1.000 + chapters 20×(120+2.000)=42.400 + polaroidCaptions 20×200=4.000 +
-//   timeline 20×(120+500)=12.400 + finalLetter 3.000 + dedication 500 ≈ 63.300 caracteres
+//   opening 500 + chapters 20×(120+2.000)=42.400 + polaroidCaptions 20×80=1.600 +
+//   timeline 20×(120+500)=12.400 + finalLetter 3.000 + dedication 500 ≈ 60.400 caracteres
 //   de conteúdo. A ~3 caracteres/token (piso conservador — pior que os ~4 chars/token do
 //   inglês, para sobrar espaço para acentuação em português e pontuação de JSON) isso são
-//   ~21.100 tokens; +15% de overhead de sintaxe JSON (chaves, aspas, vírgulas) ≈ 24.300
+//   ~20.134 tokens; +15% de overhead de sintaxe JSON (chaves, aspas, vírgulas) ≈ 23.200
 //   tokens. MAX_TOKENS aplica uma folga de ~1,3x sobre essa estimativa (não só sobre o
 //   valor anterior) para absorver variação do tokenizer real sem truncar a resposta no
 //   meio do JSON — ver `generate.test.ts` para o teste que trava essa conta.
@@ -34,9 +34,12 @@ export const narrativeChapterSchema = z.object({
 	text: z.string().trim().min(1).max(2000)
 });
 
+/** `caption` tem o mesmo teto de `MAX_CAPTION_LENGTH` (80) de `layout-element/polaroid-com-texto`
+ * — mesma lógica de `opening`/`dedication` abaixo: os dois campos existem só para alimentar
+ * essa composição, então não há razão para os tetos divergirem (D-061). */
 export const polaroidCaptionSchema = z.object({
 	photoId: z.string().trim().min(1),
-	caption: z.string().trim().min(1).max(200)
+	caption: z.string().trim().min(1).max(80)
 });
 
 export const timelineEntrySchema = z.object({
@@ -44,9 +47,15 @@ export const timelineEntrySchema = z.object({
 	description: z.string().trim().min(1).max(500)
 });
 
-/** Blocos de narrativa do contrato de `definition.md`, mapeados aos elementos de layout. */
+/** Blocos de narrativa do contrato de `definition.md`, mapeados aos elementos de layout.
+ * `opening` tem o mesmo teto de `dedication` (500) — não porque o contrato de narrativa
+ * exija isso, mas porque o motor de layout (F2-06c/D-061) mapeia os dois para a MESMA
+ * skill de composição (`layout-element/dedicatoria`), que só comporta até
+ * `MAX_DEDICATION_LENGTH` caracteres (`dedicatoria/compose.ts`). `definition.md` já exige
+ * "Comprimento por bloco compatível com o espaço do layout" — um teto de 1000 aqui violaria
+ * esse contrato ao gerar `opening` que a skill de layout rejeitaria. */
 export const narrativeBlocksSchema = z.object({
-	opening: z.string().trim().min(1).max(1000),
+	opening: z.string().trim().min(1).max(500),
 	chapters: z.array(narrativeChapterSchema).min(1).max(20),
 	polaroidCaptions: z.array(polaroidCaptionSchema).max(20),
 	timeline: z.array(timelineEntrySchema).max(20),
