@@ -15,9 +15,8 @@ import {
 } from './layout';
 
 /** Blocos de narrativa válidos para `PEDIDO_EXEMPLO`: só referencia fotos que existem nele
- * (mesmas legendas curtas de `narrative.test.ts`, dentro do `MAX_CAPTION_LENGTH` de
- * `polaroid-com-texto` — 80 caracteres, mais apertado que o limite de 200 do schema de
- * narrativa). */
+ * (mesmas legendas curtas de `narrative.test.ts`, dentro do teto de 80 caracteres que
+ * `polaroidCaptionSchema.caption` e `MAX_CAPTION_LENGTH` de `polaroid-com-texto` compartilham). */
 const NARRATIVA_VALIDA: NarrativeBlocks = {
 	opening: 'Helena e Tomás se conheceram numa festa e nunca mais se separaram.',
 	chapters: [

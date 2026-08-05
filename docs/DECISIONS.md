@@ -2267,6 +2267,25 @@ divergência aceita e testada de propósito (texto legitimamente longo que pode 
 aqui não havia razão para os dois tetos divergirem — ambos os campos existem só para
 alimentar a mesma composição de texto centralizado curto.
 
+**Correção pós-merge: teto de `polaroidCaptions[].caption` alinhado ao de
+`polaroid-com-texto`.** A mesma classe de divergência do `opening` acima também existia
+entre `polaroidCaptionSchema.caption` (`.max(200)`, `narrative-style/romantico/generate.ts`)
+e `MAX_CAPTION_LENGTH = 80` de `layout-element/polaroid-com-texto` (D-051) — sinalizada como
+observação não bloqueante nas revisões do PR #124. Diferente de `opening`/`dedication`
+(onde o desalinhamento era um descuido), D-051 tinha decidido *de propósito* rejeitar em vez
+de truncar e deixar "o motor de geração (F2-06) decidir o que fazer com o erro (pedir
+regeneração mais curta)" — mas nenhum motor com esse retry existe hoje (F2-06a/b/c são
+orquestrações independentes; nada chama as três em sequência), então na prática uma legenda
+gerada entre 81 e 200 caracteres — dentro do contrato que o schema declarava aceitar —
+sempre derrubava a composição do spread de polaroid com `PolaroidComTextoValidationError`,
+sem que exista hoje quem trate esse erro pedindo regeneração. Corrigido apertando `caption`
+para `.max(80)`, mesmo teto de `MAX_CAPTION_LENGTH`, mesma lógica de duplicar (não importar)
+o número entre skill de narrativa e skill de layout já aplicada a `opening`/`dedication` e
+`finalLetter`/`MAX_LETTER_LENGTH`. Os golden samples (legendas de 44–53 caracteres) ficam
+bem abaixo do novo teto. Se um motor de orquestração com retry (pedir regeneração mais
+curta) vier a existir depois, o teto pode voltar a divergir — reavaliar nesse momento, não
+antes (`.claude/rules/right-sizing.md`).
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

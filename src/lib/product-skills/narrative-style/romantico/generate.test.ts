@@ -104,11 +104,11 @@ describe('gerarNarrativaRomantica — golden samples (Claude API mockada)', () =
 
 		// Teto de caracteres que o schema permite (mesma conta do comentário de MAX_TOKENS em
 		// generate.ts): opening 500 + chapters 20×(120+2.000)=42.400 + polaroidCaptions
-		// 20×200=4.000 + timeline 20×(120+500)=12.400 + finalLetter 3.000 + dedication 500.
+		// 20×80=1.600 + timeline 20×(120+500)=12.400 + finalLetter 3.000 + dedication 500.
 		// Calculado aqui de forma independente (não copiando o valor de MAX_TOKENS) para que
 		// o teste falhe se `narrativeBlocksSchema` crescer sem `MAX_TOKENS` acompanhar.
 		const tetoCaracteresSchema =
-			500 + 20 * (120 + 2000) + 20 * 200 + 20 * (120 + 500) + 3000 + 500;
+			500 + 20 * (120 + 2000) + 20 * 80 + 20 * (120 + 500) + 3000 + 500;
 		// Piso conservador de 3 caracteres/token (pior que os ~4 chars/token do inglês, para
 		// sobrar espaço para acentuação em português e pontuação de JSON).
 		const tokensMinimosNecessarios = Math.ceil(tetoCaracteresSchema / 3);
@@ -189,6 +189,26 @@ describe('gerarNarrativaRomantica — respostas inválidas da API', () => {
 			opening: 'a'.repeat(501)
 		};
 		const { client } = fakeClaudeClient(JSON.stringify(comOpeningEnorme));
+
+		await expect(
+			gerarNarrativaRomantica(completoInput as CoupleQuestionnaire, { client, skill })
+		).rejects.toThrow(NarrativaInvalidaError);
+	});
+
+	it('lança NarrativaInvalidaError quando uma legenda de polaroid excede o teto de 80 caracteres', async () => {
+		// Teto de `caption` é 80, o mesmo de `MAX_CAPTION_LENGTH` — a legenda mapeia para a
+		// skill de layout `polaroid-com-texto`, que rejeita acima disso
+		// (`layout-element/polaroid-com-texto/compose.ts`). 'a'.repeat(81) fica só 1 acima do teto.
+		const comLegendaEnorme: NarrativeBlocks = {
+			...(completoOutput as NarrativeBlocks),
+			polaroidCaptions: [
+				{
+					photoId: (completoOutput as NarrativeBlocks).polaroidCaptions[0].photoId,
+					caption: 'a'.repeat(81)
+				}
+			]
+		};
+		const { client } = fakeClaudeClient(JSON.stringify(comLegendaEnorme));
 
 		await expect(
 			gerarNarrativaRomantica(completoInput as CoupleQuestionnaire, { client, skill })
