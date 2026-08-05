@@ -116,6 +116,8 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
         as duas fecharem.
     - [x] F2-08b1 - Renderizacao de carta (multi-pagina) e timeline (texto vetorial, sem
       imagem), reaproveitando a infra de F2-08a.
+    - [x] **F2-08b2** — Renderização de polaroid-com-texto: imagem bitmap embutida a
+          300 DPI + rotação da moldura, reaproveitando a infra de F2-08a.
   - [ ] **F2-08c** — Montagem do PDF de produção do livro inteiro (`GeneratedBook`, SKU
         mini) + conformidade PDF/X-4.
 - [ ] **F2-09** — Geração do **PDF de preview** (spreads).
