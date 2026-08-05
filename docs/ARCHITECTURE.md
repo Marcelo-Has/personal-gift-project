@@ -59,7 +59,9 @@ Quando precisa de decisão humana, a IA não adivinha: cria issue `decision-need
 - **Auth + banco + storage:** Firebase (Auth, Firestore, Storage para as fotos).
 - **Pagamentos:** Stripe (checkout + webhooks com assinatura verificada).
 - **Geração de conteúdo:** Claude API, orquestrada pelas **skills do produto** (2.3).
-- **Geração de arte:** provedor de imagem a definir (Decision Gate D-102).
+- **Geração de arte:** API de imagem sob HTTP, chamada do backend por trás do contrato
+  `PhotoStyleProvider`, com teto de resolução e redimensionamento proporcional (D-102
+  respondido em [D-056]). O provedor concreto é detalhe de implementação da F2-04.
 - **PDF de impressão:** HTML/CSS → PDF com sangria (render headless), PDF/X-4, 300 DPI,
   fontes incorporadas, template por tamanho/SKU.
 - **Impressão/fulfillment:** print-on-demand (Cloudprinter candidato).

@@ -2058,13 +2058,66 @@ como D-053, mas F2-05b e F2-05c mergearam primeiro e já ocupavam D-053/D-054 em
 `origin/main`. Resolvida a colisão renumerando esta entrada para D-055 (próximo número
 livre), sem alterar o conteúdo das duas decisões já mergeadas.
 
+## D-056 | 2026-08-05 | ACEITA
+**Provedor de geração de imagem = API REST de um provedor de LLM já usado/fácil de contratar,
+chamada direto do backend, com TETO DE RESOLUÇÃO e redimensionamento proporcional automático.**
+Opção **A** da issue #111, respondendo o gate [D-102]. Fecha #111.
+
+**Decisão.** A implementação real por trás do contrato `PhotoStyleProvider` (F2-03/#102, [D-052],
+em `photo-style/provider.ts`) é uma API de imagem sob HTTP, chamada do backend, sem infra de
+modelo próprio. Começa por **um único estilo** — o `photo-style/aquarela` que já existe — para
+medir custo real por imagem antes de comprometer o resto do catálogo. Motivo:
+`.claude/rules/right-sizing.md` — a escolha é barata de reverter (trocar de provedor troca a
+implementação, não o contrato; o próprio [D-052] já registrou que F2-04 substitui o
+`AquarelaFakeProvider` "sem mudar o formato do contrato"), então não se paga hoje a complexidade
+operacional da opção B.
+
+**A emenda do gate, que é parte da decisão e não detalhe de implementação: existe um tamanho
+máximo padrão, e o sistema reduz a imagem proporcionalmente quando ele é excedido.** Resolução é
+o que dita o preço por chamada na maioria das APIs de imagem, e foto de celular moderna chega
+com muito mais pixel do que o livro consegue imprimir. Regra:
+- **Entrada:** a foto do cliente é redimensionada **antes** de subir ao provedor se o maior lado
+  passar do teto — proporcional, preservando o enquadramento (**sem crop**, que mudaria a
+  composição escolhida pelo cliente). O original enviado continua guardado como está.
+- **Saída:** pede-se a **menor resolução que ainda atenda 300 DPI no maior SKU** do pedido; não
+  se gera acima disso "por garantia".
+- O teto é **constante de configuração, não valor espalhado pelo código** — trocar é uma linha.
+  Ponto de partida a validar na F2-04: 2048 px no maior lado da entrada; para a saída, o
+  requisito de impressão do maior tamanho previsto no `PRODUCT.md` §5 (20×20 cm + 3 mm de
+  sangria ≈ 2400 px de lado). Se o teto do provedor for menor que o de impressão, isso é achado
+  da F2-04 e entra no ROADMAP/gate, não se resolve escondido no código.
+
+**Por que não B nem C.** B (Replicate/Vertex com LoRA por estilo) dá controle fino de estilo,
+mas cobra em cold start, fila e um preset por skill para manter — custo operacional antes de
+existir volume que o justifique; é para onde esta decisão migra **se** a qualidade por prompt
+não bater o golden sample ou se o volume tornar o preço por imagem relevante. C (ficar no
+provider fake) mantém F2-04, F4-04 e os números de [D-101] parados indefinidamente e empurra o
+bloqueio para perto do lançamento.
+
+**O que destrava.** **F2-04** sai do gate e pode virar `status:ready`. Com custo real medido por
+imagem, **F4-04** (custo unitário/margem por pedido) e o item (b) de [D-101] (os números de
+preço) passam a ter entrada real em vez de estimativa. **Não** decide preço ao cliente ([D-101])
+nem quais estilos vão ao catálogo da V1 ([D-105]).
+
+**O que esta entrada NÃO autoriza sozinho.** Contratar o provedor e instalar a chave é passo
+humano: a chave é segredo de repositório, e o gasto passa a ser recorrente. A issue de F2-04 deve
+falhar de forma explícita (e cair no fake) enquanto a chave não existir, nunca vazar a chave em
+log, e registrar o custo real por chamada — o `docs/ARCHITECTURE.md` já exige custo por etapa
+por pedido.
+
+**Reabrir quando.** Qualidade da estilização não alcançar o golden sample por prompt apenas;
+custo medido por livro sair fora do que [D-101] comporta; ou o catálogo crescer a ponto de o
+preço por imagem em volume justificar a infra da opção B.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
   por SKU). O *modelo* de preço já foi decidido em [D-036] (só por tamanho; estilo não altera
   preço), e não bloqueia mais a FASE 1.
-- **D-102** | Provedor de geração de imagem (qual, custo por livro, qualidade).
+- **D-102** | Provedor de geração de imagem — **RESPONDIDA** em [D-056] (opção A: API REST
+  chamada do backend, teto de resolução com redimensionamento proporcional). Custo por livro e
+  qualidade passam a ser *medição* na F2-04, não mais decisão pendente.
 - **D-103** | Prévia antes ou depois do pagamento?
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
   print-on-demand definitivo (F3-01). A hospedagem do app SvelteKit **saiu deste gate** e

@@ -90,7 +90,7 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
 - [x] **F2-01** — Contrato de skill + carregador versionado do registry (resolve versão).
 - [x] **F2-02** — Skill `narrative-style/romantico` v1 (definição + golden samples + testes de estilo).
 - [x] **F2-03** — Skill `photo-style` (mecanismo que abstrai o provedor) + golden samples.
-- [ ] **F2-04** — [gate D-102] Integração do provedor de imagem nas `photo-style`.
+- [ ] **F2-04** — Integração do provedor de imagem nas `photo-style` (gate D-102 respondido em [D-056]).
 - [x] **F2-05** — Skills `layout-element` (polaroid+texto, timeline, carta, dedicatória).
       Decomposto em quatro entregas; o pai fecha quando as quatro fecharem.
   - [x] **F2-05a** — `polaroid-com-texto`: composição + golden samples + testes de estilo.
