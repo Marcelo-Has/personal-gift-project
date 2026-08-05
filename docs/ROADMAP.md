@@ -108,6 +108,13 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
         respeitando o orçamento de páginas do SKU (D-061).
 - [ ] **F2-07** — Fila + worker assíncrono para a geração pesada.
 - [ ] **F2-08** — Geração do **PDF de produção** por tamanho/SKU (sangria, 300 DPI, PDF/X-4).
+      Decomposto em três entregas (D-048); o pai fecha quando as três fecharem.
+  - [x] **F2-08a** — Infra de renderização headless (HTML/CSS → PDF) + spread único de
+        `dedicatoria` (SKU mini): sangria, 300 DPI, fonte incorporada.
+  - [ ] **F2-08b** — Renderização de `carta`, `polaroid-com-texto` e `timeline`,
+        reaproveitando a infra de F2-08a.
+  - [ ] **F2-08c** — Montagem do PDF de produção do livro inteiro (`GeneratedBook`, SKU
+        mini) + conformidade PDF/X-4.
 - [ ] **F2-09** — Geração do **PDF de preview** (spreads).
 - [ ] **F2-10** — Testes de estilo no CI (comparação com golden samples).
 - [ ] **F2-11** — [gate D-103] Prévia no fluxo do cliente (antes ou depois do pagamento).

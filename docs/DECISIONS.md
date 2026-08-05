@@ -2286,6 +2286,43 @@ bem abaixo do novo teto. Se um motor de orquestração com retry (pedir regenera
 curta) vier a existir depois, o teto pode voltar a divergir — reavaliar nesse momento, não
 antes (`.claude/rules/right-sizing.md`).
 
+## D-062 | 2026-08-05 | ACEITA
+**[F2-08a] Render headless HTML/CSS → PDF via `playwright-core` apontando para o Chrome já
+instalado no runner (`channel: 'chrome'`), não o Chromium empacotado que `@playwright/test`
+baixa para E2E.** Fecha a issue #125 (F2-08a).
+
+**Por quê `playwright-core` + `channel: 'chrome'` em vez de reusar `@playwright/test`.**
+`docs/ARCHITECTURE.md` Parte 2 já tinha aceito a abordagem (HTML/CSS → PDF via render
+headless); esta decisão é só o mecanismo concreto. `@playwright/test` é `devDependency` só
+de E2E e baixa seu próprio Chromium isolado (~115 MB) — usá-lo como motor de geração em
+produção misturaria a dependência de teste com a de runtime e duplicaria o download de
+browser no ambiente de execução. `playwright-core` não empacota browser: `chromium.launch({
+channel: 'chrome' })` aponta para o Chrome já presente no runner (mesmo princípio de reuso
+de `.claude/rules/right-sizing.md` — não adicionar peso novo quando o ambiente já tem o que
+basta). Fica registrado como `dependency` de produção (não `devDependency`), já que
+`renderDedicatoriaSpreadToPdf` roda em runtime, não só em teste.
+
+**Por quê a fonte é incorporada via data URI (`@fontsource/lora`), não `<link>` externo.** O
+PDF final não pode depender de fonte instalada no ambiente de execução (critério de aceite
+da issue #125) nem de acesso de rede no momento do render. `@fontsource/lora` (Google Fonts,
+SIL OFL 1.1) empacota o arquivo `.woff2` localmente; o módulo lê o arquivo do disco e embute
+como `data:font/woff2;base64` dentro de um `@font-face` no HTML gerado — o Chrome incorpora
+o programa de fonte no PDF ao exportar, verificável via `FontDescriptor`/`FontFile2` do
+`pdf-lib`, sem round-trip de rede.
+
+**Por quê texto vetorial dispensa a exigência de 300 DPI.** `docs/ARCHITECTURE.md` pede
+300 DPI para a página de produção, mas essa exigência é sobre resolução de bitmap; a
+dedicatória é só texto (sem imagem, fora de escopo desta issue), renderizado como conteúdo
+real da página HTML — o Chrome exporta texto como operadores vetoriais no PDF, que escalam
+sem perda a qualquer resolução de impressão. A verificação de 300 DPI para conteúdo bitmap
+fica para quando F2-08b introduzir composições com imagem.
+
+**Por quê a verificação de dimensão física usa `pdf-lib` sobre o `MediaBox`, não comparação
+pixel a pixel.** A issue pede validar 156×156mm (SKU mini, sangria incluída) "sem precisar
+comparar pixel a pixel"; `pdf-lib` lê `MediaBox` em pontos (72/polegada) e o teste converte
+para mm com uma tolerância de arredondamento (`PAGE_SIZE_TOLERANCE_MM`) documentada no
+próprio teste — mede a garantia que importa (dimensão física), não a aparência.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
