@@ -1955,6 +1955,44 @@ mudar o formato do contrato.
 carregador.
 
 ---
+## D-053 | 2026-08-05 | ACEITA
+**[F2-05c] `carta` v1: texto que não cabe numa página é paginado em até 2 páginas
+(quebrando só em limite de palavra); acima disso, rejeitada com erro descritivo — não
+truncada nem espremida.** Fecha a issue #108, terceira skill `layout-element` seguindo a
+convenção de `polaroid-com-texto` ([D-051]).
+
+**Paginação, não rejeição, como comportamento padrão para texto longo.** Diferente da
+legenda de `polaroid-com-texto` (rejeita texto acima de 80 caracteres, porque a legenda é
+curta por natureza e pode ser regenerada mais curta pelo narrative-style), o texto de
+`finalLetter` pode legitimamente chegar a 3000 caracteres — é o próprio teto do contrato
+de `narrative-style/romantico`. Rejeitar toda carta que não coubesse numa única página do
+SKU tornaria inviável boa parte das cartas válidas geradas pela skill de narrativa; a
+carta final é um elemento central do livro (`docs/PRODUCT.md` §2), não um texto acessório.
+
+**`MAX_PAGES = 2`, não ilimitado.** O SKU tem orçamento de página fixo (32 páginas / 16
+spreads, `docs/PRODUCT.md` §5) compartilhado por vários elementos narrativos (abertura,
+capítulos, polaroids, timeline, carta, dedicatória) — deixar a carta paginar sem limite
+deixaria o comprimento do texto gerado pela IA controlar quantas páginas do livro físico
+são impressas, o que é caro de reverter depois de o motor de geração (F2-06) orquestrar
+sobre esse orçamento. Duas páginas (um spread) cobre a grande maioria dos textos até 3000
+caracteres nos SKUs do catálogo atual e mantém a carta como um elemento limitado do livro.
+Acima disso — SKU pequeno combinado com carta muito próxima do limite —, a composição é
+rejeitada com `CartaValidationError` descritivo, análoga à rejeição de legenda longa em
+`polaroid-com-texto`; o motor de geração decide o que fazer com o erro (não é
+responsabilidade desta skill).
+
+**Quebra só em limite de palavra, nunca no meio.** Mesma decisão de [D-051] para a
+legenda: cortar uma palavra ao meio arrisca imprimir algo sem sentido num produto físico
+que não se corrige depois de impresso.
+
+**Área de texto = área útil inteira da página (menos respiro), não calculada por
+linha/glifo real.** A capacidade estimada de caracteres por página (`FONT_SIZE_MM` ×
+`LINE_HEIGHT_RATIO` × `AVG_CHAR_WIDTH_RATIO`) decide só **quantas páginas** o texto ocupa;
+a tipografia/rasterização linha a linha de verdade é responsabilidade da geração real de
+imagem/PDF, fora de escopo desta issue (golden sample é estrutura posicionada, não bitmap
+renderizado — mesma decisão de [D-051] para `polaroid-com-texto`).
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
