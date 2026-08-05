@@ -101,6 +101,9 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
       Decomposto em três entregas (D-048); o pai fecha quando as três fecharem.
   - [x] **F2-06a** — Orquestração da narrativa: Pedido → `NarrativeBlocks` via skill,
         validando referência de fotos.
+  - [x] **F2-06b** — Orquestração da estilização de fotos: Pedido → `StylizedPhoto[]` via
+        `PhotoStyleProvider`.
+  - [ ] **F2-06c** — Composição de layout / spreads finais.
 - [ ] **F2-07** — Fila + worker assíncrono para a geração pesada.
 - [ ] **F2-08** — Geração do **PDF de produção** por tamanho/SKU (sangria, 300 DPI, PDF/X-4).
 - [ ] **F2-09** — Geração do **PDF de preview** (spreads).
