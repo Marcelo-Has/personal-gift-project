@@ -32,7 +32,6 @@
 		"eslint-plugin-svelte": "^3.22.0",
 		"globals": "^17.8.0",
 		"jsdom": "^30.0.0",
-		"pdf-lib": "^1.17.1",
 		"pdfjs-dist": "^6.2.108",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^4.1.1",
@@ -48,6 +47,7 @@
 		"firebase": "^12.16.0",
 		"firebase-admin": "^14.2.0",
 		"jimp": "^1.6.1",
+		"pdf-lib": "^1.17.1",
 		"playwright-core": "^1.62.0",
 		"stripe": "^22.4.0",
 		"zod": "^4.4.3"

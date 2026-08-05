@@ -2408,6 +2408,51 @@ lançando `PolaroidRenderInputError` se não bater — protege contra bug de wir
 não implementa a resolução em si.
 
 ---
+## D-065 | 2026-08-05 | ACEITA
+**[F2-08c1] `renderBookToPdf` junta os PDFs por spread com `pdf-lib` (`copyPages`), sem
+reaproveitar o processo do Chrome entre chamadas — cada `render*SpreadToPdf` mantém seu
+próprio launch/close (mesmo padrão de [D-062]).** Fecha a issue #133 (F2-08c1).
+
+**Por quê montar via `pdf-lib` em vez de gerar um único HTML com todos os spreads e uma
+única chamada a `page.pdf()`.** Os quatro `render*SpreadToPdf` (F2-08a/b1/b2) já são função
+pública, testada e usada de forma independente (ex. re-renderizar um spread isolado);
+juntar o HTML de entrada de todos exigiria reescrever os quatro módulos para compor um
+documento compartilhado, quebrando esse uso isolado sem necessidade. `pdf-lib` já é
+dependência do projeto (usada nos testes desde F2-08a) e `copyPages` resolve exatamente
+"juntar PDFs prontos, na ordem certa", sem introduzir lib nova.
+
+**Por quê NÃO reaproveitar um único processo de Chrome entre as chamadas dos quatro
+spreads.** Reaproveitar exigiria mudar a assinatura dos quatro `render*SpreadToPdf` já
+mergeados (receber um `Browser`/`Page` opcional em vez de gerenciar o próprio ciclo de
+vida) por um ganho de desempenho ainda não medido — o SKU mini tem no máximo ~16 spreads
+por livro, e cada `render*SpreadToPdf` já é rápido o bastante para não bloquear o teste
+(a suíte deste módulo roda em segundos). `.claude/rules/right-sizing.md`: sem abstração
+nova sem um segundo uso concreto que a justifique; se a fila/worker assíncrona (F2-07)
+medir que o custo de abrir/fechar Chrome por spread é o gargalo real de throughput, essa é
+a hora certa de reabrir esta decisão — não agora, especulativamente.
+
+**Como o erro de foto ausente é reportado.** `GeneratedBook` não carrega os bytes das fotos
+(só a composição de cada spread, `layout.ts`), então um spread `polaroid` sem
+`StylizedPhoto` correspondente só é detectável na hora de renderizar, não na composição do
+layout. `renderBookToPdf` lança `RenderBookMissingStylizedPhotoError` (com o
+`composition.photo.path` que faltou) em vez de propagar undefined/stack genérico do
+`render-polaroid.ts` — mesmo espírito de `LayoutMissingStylizedPhotoError` em `layout.ts`,
+mas como tipo próprio porque o defeito é detectado numa camada diferente (render, não
+layout).
+
+---
+## D-066 | 2026-08-05 | ACEITA
+**`pdf-lib` movido de `devDependencies` para `dependencies` em `package.json`.**
+Achado da revisão de segurança do PR #134 (F2-08c1): `render-book.ts` passou a importar
+`pdf-lib` em código de produção (`renderBookToPdf`), mas a lib só estava listada como
+`devDependency` (usada até então só nos testes desde F2-08a). Numa instalação de
+produção (`npm ci --omit=dev`) o módulo não resolveria — falha latente que estouraria
+quando F2-08c2/F2-07 ligarem `renderBookToPdf` ao worker. Corrige o texto de [D-065], que
+descrevia `pdf-lib` como "já dependência do projeto" — verdade só como dependência de
+teste até este PR. `pdfjs-dist` permanece em `devDependencies`: é usado só nos testes
+(extração de texto do PDF gerado), sem caminho de produção.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
