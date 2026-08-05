@@ -2109,6 +2109,40 @@ por pedido.
 custo medido por livro sair fora do que [D-101] comporta; ou o catálogo crescer a ponto de o
 preço por imagem em volume justificar a infra da opção B.
 
+## D-057 | 2026-08-05 | ACEITA
+**Provedor concreto da F2-04 = API de imagens da OpenAI (`gpt-image-1`, endpoint
+`images/edits`), chamada do backend via `src/lib/server/openai-image.ts`.** Implementa
+[D-056]/[D-102] para o estilo `aquarela` (`HttpPhotoStyleProvider`, issue #115). Fecha #115.
+
+**Custo por imagem — ESTIMADO, não medido.** Sem chave instalada nesta sessão (passo
+humano, já registrado em [D-056]), não há chamada real para medir. Pelo preço público por
+token do `gpt-image-1` no momento desta implementação (US$ 10/1M tokens de imagem de
+entrada, US$ 40/1M tokens de imagem de saída — validar antes de faturar de verdade, preço
+de API muda) uma imagem 1024×1024/1536×1024 fica entre **US$ 0,04 e US$ 0,17**, dependendo
+da qualidade pedida. `src/lib/product-skills/photo-style/aquarela/cost.ts` calcula e
+registra (`console.log` estruturado) o custo real de cada chamada a partir do `usage` que a
+API devolve, assim que a chave existir — é o dado que deve substituir esta estimativa em
+[D-101]/F4-04.
+
+**ACHADO: o teto de resolução do provedor concreto é MENOR que o requisito de impressão —
+não resolvido aqui, só reportado.** `gpt-image-1` só aceita 3 tamanhos de saída fixos
+(`1024x1024`, `1024x1536`, `1536x1024`) — maior lado 1536 px. O requisito de 300 DPI do
+`PRODUCT.md` §5 pede ~1772 px até no SKU **mini** (15×15 cm) e ~2400 px no **médio**
+(20×20 cm + sangria). Ou seja: **para os dois SKUs atuais, a saída real do `gpt-image-1`
+fica abaixo de 300 DPI.** `HttpPhotoStyleProvider` não faz upscaling artificial — pede o
+maior tamanho suportado com a orientação certa e reporta o DPI efetivo (menor que 300) nos
+metadados de saída, honestamente, em vez de mentir "300 DPI" numa imagem que não tem essa
+resolução. Fica para quando isto for de fato bloqueador (perto do golden sample real/perto
+do lançamento): trocar de provedor (reabre [D-056], opção B fica mais atrativa se qualidade
+por prompt também não bater) ou aplicar upscaling de pós-processamento — nenhuma das duas
+é resolvida nesta issue (right-sizing: sem chave real, sem golden sample de saída real
+ainda para comparar, não há como validar qual solução é a certa agora).
+
+**Sem chave configurada → `AquarelaFakeProvider`, nenhuma chamada paga.**
+`HttpPhotoStyleProvider` tenta `getOpenAiImagesClient()` (lê `OPENAI_API_KEY` de
+`$env/dynamic/private`); se a variável não existir, cai para o fake com um
+`console.warn` explícito — sem stack trace nem tentativa de rede.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
