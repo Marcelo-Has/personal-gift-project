@@ -1,0 +1,57 @@
+{
+	"skillId": "timeline",
+	"skillVersion": "1.0.0",
+	"line": {
+		"xMm": 16.4,
+		"yMm": 77.5,
+		"widthMm": 123.19999999999999,
+		"heightMm": 1
+	},
+	"markers": [
+		{
+			"title": "Como nos conhecemos",
+			"description": "Foi num café perto da faculdade, em março de 2018.",
+			"point": {
+				"xMm": 16.4,
+				"yMm": 78
+			},
+			"labelSide": "above",
+			"labelArea": {
+				"xMm": 8,
+				"yMm": 8,
+				"widthMm": 55.44,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Primeira viagem juntos",
+			"description": "Fim de semana em Paraty, chuva o tempo todo e nem ligamos.",
+			"point": {
+				"xMm": 78,
+				"yMm": 78
+			},
+			"labelSide": "below",
+			"labelArea": {
+				"xMm": 50.28,
+				"yMm": 82.5,
+				"widthMm": 55.44,
+				"heightMm": 65.5
+			}
+		},
+		{
+			"title": "Pedido de casamento",
+			"description": "Na praia, ao pôr do sol, com os dois cachorros por perto.",
+			"point": {
+				"xMm": 139.6,
+				"yMm": 78
+			},
+			"labelSide": "above",
+			"labelArea": {
+				"xMm": 92.56,
+				"yMm": 8,
+				"widthMm": 55.44,
+				"heightMm": 65.5
+			}
+		}
+	]
+}

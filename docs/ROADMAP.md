@@ -94,7 +94,7 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
 - [ ] **F2-05** — Skills `layout-element` (polaroid+texto, timeline, carta, dedicatória).
       Decomposto em quatro entregas; o pai fecha quando as quatro fecharem.
   - [x] **F2-05a** — `polaroid-com-texto`: composição + golden samples + testes de estilo.
-  - [ ] **F2-05b** — `timeline`.
+  - [x] **F2-05b** — `timeline`.
   - [ ] **F2-05c** — `carta`.
   - [ ] **F2-05d** — `dedicatória`.
 - [ ] **F2-06** — Motor de geração (orquestra narrativa+foto+layout a partir do Pedido).
