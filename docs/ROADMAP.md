@@ -98,8 +98,8 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
   - [x] **F2-05c** — `carta`.
   - [x] **F2-05d** — `dedicatória`.
 - [ ] **F2-06** — Motor de geração (orquestra narrativa+foto+layout a partir do Pedido).
-      Decomposto em três entregas; o pai fecha quando as três fecharem.
-  - [ ] **F2-06a** — Orquestração da narrativa: Pedido → `NarrativeBlocks` via skill,
+      Decomposto em três entregas (D-048); o pai fecha quando as três fecharem.
+  - [x] **F2-06a** — Orquestração da narrativa: Pedido → `NarrativeBlocks` via skill,
         validando referência de fotos.
   - [x] **F2-06b** — Orquestração da estilização de fotos: Pedido → `StylizedPhoto[]` via
         `PhotoStyleProvider`.
