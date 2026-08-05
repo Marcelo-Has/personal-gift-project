@@ -39,17 +39,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # `renderDedicatoriaSpreadToPdf` (F2-08a, D-062) lança o Chrome do sistema via
-      # `playwright-core` (`channel: 'chrome'`) — diferente do Chromium empacotado que o
-      # job `e2e` usa (esse já vem com o sandbox ajustado pelo próprio Playwright). No
-      # `ubuntu-latest` (24.04) o AppArmor restringe user namespaces sem privilégio por
-      # padrão, o que quebra o sandbox do Chrome do sistema e trava o launch (o teste falha
-      # com "Hook timed out", não com um erro claro) — ver
-      # actions/runner-images#9491. Só afeta este job, que é o único que usa `channel:
-      # 'chrome'`.
-      - name: Permitir sandbox do Chrome (AppArmor user namespaces — runner-images#9491)
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
       - name: Testes
         run: npm test
 
