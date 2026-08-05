@@ -17,9 +17,12 @@
 `golden-samples/` guarda pares aprovados (referência de entrada → saída) para os testes
 de estilo no CI.
 
-## Implementação (F2-03)
+## Implementação (F2-03 / F2-04)
 - Contrato typed em `../provider.ts` (interface `PhotoStyleProvider`).
 - Provider fake e determinístico (sem rede) em `fake-provider.ts` (`AquarelaFakeProvider`),
-  usado pelos testes e pelo motor futuro (F2-06) até a F2-04 existir.
-- O provedor real de geração de imagem entra em **F2-04**, atrás do gate **D-102** — como
-  nova implementação de `PhotoStyleProvider`, sem redesenho do contrato.
+  usado pelos testes e como fallback explícito de `HttpPhotoStyleProvider` quando não há
+  chave configurada.
+- Provider real em `http-provider.ts` (`HttpPhotoStyleProvider`, F2-04, [D-056]/[D-057]) —
+  chama a API de imagens da OpenAI (`gpt-image-1`) do backend, com o teto de resolução de
+  `../resolution-config.ts`. Ver [D-057] no `docs/DECISIONS.md` para o achado sobre o teto
+  de saída do provedor concreto ficar abaixo do requisito de 300 DPI de impressão.
