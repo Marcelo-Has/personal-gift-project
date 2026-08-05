@@ -1,0 +1,42 @@
+{
+	"entries": [
+		{
+			"title": "Como nos conhecemos",
+			"description": "Foi num café perto da faculdade, em março de 2018."
+		},
+		{
+			"title": "Primeiro encontro",
+			"description": "Cinema e depois uma pizza, conversamos até fechar o lugar."
+		},
+		{
+			"title": "Primeira viagem juntos",
+			"description": "Fim de semana em Paraty, chuva o tempo todo e nem ligamos."
+		},
+		{
+			"title": "Mudança para o mesmo apê",
+			"description": "Junho de 2020, no meio da pandemia, decisão rápida."
+		},
+		{
+			"title": "Adoção da Nina",
+			"description": "A cachorra apareceu na rua e nunca mais foi embora de casa."
+		},
+		{
+			"title": "Pedido de casamento",
+			"description": "Na praia, ao pôr do sol, com os dois cachorros por perto."
+		},
+		{
+			"title": "Casamento",
+			"description": "Cerimônia pequena, só a família e os amigos mais próximos."
+		},
+		{
+			"title": "Hoje",
+			"description": "Ainda escolhendo um ao outro, todos os dias, sem exceção."
+		}
+	],
+	"sku": {
+		"pageWidthMm": 156,
+		"pageHeightMm": 156,
+		"bleedMm": 3,
+		"safeMarginMm": 5
+	}
+}
