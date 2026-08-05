@@ -2441,6 +2441,18 @@ mas como tipo próprio porque o defeito é detectado numa camada diferente (rend
 layout).
 
 ---
+## D-066 | 2026-08-05 | ACEITA
+**`pdf-lib` movido de `devDependencies` para `dependencies` em `package.json`.**
+Achado da revisão de segurança do PR #134 (F2-08c1): `render-book.ts` passou a importar
+`pdf-lib` em código de produção (`renderBookToPdf`), mas a lib só estava listada como
+`devDependency` (usada até então só nos testes desde F2-08a). Numa instalação de
+produção (`npm ci --omit=dev`) o módulo não resolveria — falha latente que estouraria
+quando F2-08c2/F2-07 ligarem `renderBookToPdf` ao worker. Corrige o texto de [D-065], que
+descrevia `pdf-lib` como "já dependência do projeto" — verdade só como dependência de
+teste até este PR. `pdfjs-dist` permanece em `devDependencies`: é usado só nos testes
+(extração de texto do PDF gerado), sem caminho de produção.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
