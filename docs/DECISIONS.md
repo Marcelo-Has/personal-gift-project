@@ -2143,6 +2143,50 @@ ainda para comparar, não há como validar qual solução é a certa agora).
 `$env/dynamic/private`); se a variável não existir, cai para o fake com um
 `console.warn` explícito — sem stack trace nem tentativa de rede.
 
+## D-058 | 2026-08-05 | ACEITA
+**[FU-20] Foto real de pessoa nunca entra no repositório: o fixture de Pedido lê de uma
+pasta local gitignorada e, sem ela, gera placeholders sintéticos.** Fecha a issue #117.
+
+**O problema.** O motor de geração (F2-06) precisa de fotos em bytes (`SourcePhoto.data` é
+`Uint8Array`) e nada no repositório produzia uma. O caminho óbvio — commitar um punhado de
+fotos de exemplo — é justamente o que não pode: o repositório é **público** ([D-041]) e foto
+de casal é dado pessoal sensível (`PRODUCT.md` §10). Commitar contradiria a própria regra de
+que foto de usuário só vive atrás de URL assinada e expirável.
+
+**A decisão.** `loadFixturePhotos()` tem duas fontes, nesta ordem: (1) a pasta
+`src/lib/fixtures/photos-locais/`, gitignorada, onde você joga as suas fotos;
+(2) placeholders gerados com
+`jimp` (gradiente + mancha central), determinísticos a partir do `photoId`. Sem setup
+nenhum o pipeline roda ponta a ponta — em qualquer máquina e no CI, sem rede.
+
+**O que o placeholder NÃO prova.** Que a estilização ficou boa. `photo-style` só se avalia
+em rosto de gente de verdade; num gradiente, qualquer provedor "passa". Quando o golden
+sample de saída real de [D-057] for julgado, tem que ser com fotos locais reais.
+
+**O `id` vem sempre do pedido, nunca do nome do arquivo.** É a chave que junta
+`StylizedPhoto.sourcePhotoId` com o `polaroidCaptions[].photoId` que a narrativa escreveu;
+arquivo local é mapeado por posição (ordem alfabética) sobre os ids do pedido. Deixar o
+nome do arquivo virar id quebraria essa junção em silêncio — o livro sairia com a legenda
+de uma foto embaixo de outra.
+
+## D-059 | 2026-08-05 | ACEITA
+**A resolução alvo de um SKU é medida sobre a página de PRODUÇÃO (com sangria), não sobre o
+tamanho final.** Para o SKU mini: 156 mm (150 finais + 3 de sangria por lado) a 300 DPI =
+**1843 px**, não os 1772 px que sairiam dos 150 mm finais.
+
+**Por quê.** Uma foto que sangra precisa cobrir a página inteira que vai para a guilhotina,
+sangria inclusive; dimensionar pelos 150 mm finais deixaria a arte 71 px curta exatamente na
+borda que será cortada — faixa branca no livro impresso. É a mesma conta que a nota de
+`PHOTO_STYLE_OUTPUT_TARGET_MAX_SIDE_PX` já fazia para o SKU médio (206 mm ≈ 2400 px); esta
+entrada só a torna explícita e a aplica ao mini, com o número **derivado** em
+`pedido-exemplo.ts` (`mmToPx`) em vez de digitado.
+
+**Relação com o ACHADO de [D-057].** Não muda a conclusão, aumenta um pouco a lacuna: o teto
+de 1536 px do `gpt-image-1` fica abaixo de 1843 px (e não de 1772 px) no SKU mini. Segue sem
+upscaling artificial e com o DPI efetivo reportado nos metadados. A menção a "~1772 px" em
+[D-057] descreve o mesmo requisito medido sem sangria — permanece como está; quem for
+implementar F2-08/F2-09 usa o número derivado, não o do texto.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
