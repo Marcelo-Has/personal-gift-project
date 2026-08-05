@@ -116,7 +116,16 @@ export async function renderDedicatoriaSpreadToPdf(
 ): Promise<Uint8Array> {
 	const html = buildHtml(composition, sku, loadFontBase64());
 
-	const browser = await chromium.launch({ channel: 'chrome' });
+	// No `ubuntu-latest` (24.04) do GitHub Actions o AppArmor restringe user namespaces
+	// sem privilégio por padrão, o que quebra o sandbox do Chrome do sistema (diferente do
+	// Chromium empacotado pelo Playwright, que já vem ajustado para isso) — o launch trava
+	// em vez de lançar um erro claro (actions/runner-images#9491). `--no-sandbox` só entra
+	// em CI: o HTML renderizado aqui é sempre gerado por este módulo (texto escapado, sem
+	// recurso externo, sem navegação para conteúdo de terceiros), então o risco que o
+	// sandbox do Chrome mitiga (execução de conteúdo remoto não confiável) não se aplica.
+	// Em produção o sandbox continua ativo.
+	const launchArgs = process.env.CI ? ['--no-sandbox'] : [];
+	const browser = await chromium.launch({ channel: 'chrome', args: launchArgs });
 	try {
 		const page = await browser.newPage();
 		await page.setContent(html, { waitUntil: 'load' });
