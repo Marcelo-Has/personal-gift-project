@@ -2324,6 +2324,37 @@ para mm com uma tolerância de arredondamento (`PAGE_SIZE_TOLERANCE_MM`) documen
 próprio teste — mede a garantia que importa (dimensão física), não a aparência.
 
 ---
+## D-063 | 2026-08-05 | ACEITA
+**[F2-08b1] Render de `carta` (multi-página) e `timeline` reaproveita 100% do mecanismo de
+[D-062] através de um módulo comum novo, `render-shared.ts` (fonte em base64,
+launch/close do Chrome, `escapeHtml`), extraído no segundo e terceiro uso real do padrão de
+`render-dedicatoria.ts`.** Fecha a issue #127 (F2-08b1).
+
+**Por quê extrair `render-shared.ts` só agora, não em F2-08a.** `.claude/rules/right-sizing.md`
+pede abstração só com um segundo uso concreto; em F2-08a (#125) `render-dedicatoria.ts` era o
+único módulo de render, então duplicar teria sido especulativo. F2-08b1 cria o segundo e o
+terceiro uso reais (`render-carta.ts`, `render-timeline.ts`) do mesmo padrão de fonte
+incorporada + launch/close do Chrome + `@page` — o momento certo para extrair, sem inventar
+abstração além do que os três arquivos de fato repetem (`render-dedicatoria.ts` não foi
+reescrito além de trocar a duplicação pelos helpers compartilhados).
+
+**Por quê uma carta multi-página vira várias páginas de PDF com `<div>`s + `break-after: page`,
+em vez de várias chamadas a `page.pdf()` seguidas de merge.** Uma `CartaComposition` pode ter
+até `MAX_PAGES` (2) páginas; gerar um PDF por página e juntar depois exigiria uma dependência
+nova só para merge de PDF. Em vez disso, o HTML de entrada tem um `<div>` do tamanho físico
+exato da página por `CartaPage`, com quebra de página CSS entre eles — o Chrome já exporta cada
+`<div>` como uma página própria do PDF de saída, com um único `@page { size }` compartilhado
+(mesmo SKU), sem dependência nova.
+
+**Por quê a linha da timeline é verificada via lista de operadores do `pdfjs-dist`
+(`page.getOperatorList()`), não comparação de pixel.** Mesma lógica de D-062 para dimensão
+física: medir a garantia que importa, sem golden sample byte-a-byte. Como a linha é um
+retângulo preenchido (não texto), `getTextContent()` não a alcança; a lista de operadores
+(API pública do `pdfjs-dist`, já usada internamente por `getTextContent`) confirma que um
+preenchimento vetorial foi de fato desenhado, sem introduzir rasterização para imagem/canvas
+só para o teste.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
