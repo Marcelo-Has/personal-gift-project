@@ -27,7 +27,11 @@ import { escapeHtml, FONT_FAMILY, loadFontBase64, renderHtmlToPdf } from './rend
  * transborde a área na renderização real (ver comentário de topo do arquivo). */
 const FONT_SIZE_PT = 10;
 
-function buildHtml(composition: CartaComposition, sku: SkuLayoutParams, fontBase64: string): string {
+function buildHtml(
+	composition: CartaComposition,
+	sku: SkuLayoutParams,
+	fontBase64: string
+): string {
 	const pagesHtml = composition.pages
 		.map((page) => {
 			const { xMm, yMm, widthMm, heightMm } = page.area;

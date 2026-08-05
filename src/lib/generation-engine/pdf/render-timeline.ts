@@ -38,7 +38,11 @@ function buildMarkerHtml(marker: TimelineComposition['markers'][number]): string
 </div>`;
 }
 
-function buildHtml(composition: TimelineComposition, sku: SkuLayoutParams, fontBase64: string): string {
+function buildHtml(
+	composition: TimelineComposition,
+	sku: SkuLayoutParams,
+	fontBase64: string
+): string {
 	const { xMm, yMm, widthMm, heightMm } = composition.line;
 	const markersHtml = composition.markers.map(buildMarkerHtml).join('\n');
 
