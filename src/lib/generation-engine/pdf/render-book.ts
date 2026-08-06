@@ -24,6 +24,7 @@ import type {
 import type { TimelineComposition } from '../../product-skills/layout-element/timeline/compose';
 import type { StylizedPhoto } from '../../product-skills/photo-style/provider';
 import type { GeneratedBook, LayoutSpread } from '../layout';
+import { applyPdfX4Conformance } from './pdfx4';
 import { renderCartaSpreadToPdf } from './render-carta';
 import { renderDedicatoriaSpreadToPdf } from './render-dedicatoria';
 import { renderPolaroidSpreadToPdf } from './render-polaroid';
@@ -73,8 +74,9 @@ async function renderSpreadToPdf(
  *
  * `photos` precisa conter o `StylizedPhoto` de toda foto referenciada por um spread
  * `polaroid` do livro (mesmo casamento por `sourcePhotoId`/`composition.photo.path` de
- * `layout.ts`); lança `RenderBookMissingStylizedPhotoError` se faltar alguma. Sem PDF/X-4
- * (`OutputIntent`/ICC/XMP) — fica para F2-08c2.
+ * `layout.ts`); lança `RenderBookMissingStylizedPhotoError` se faltar alguma. O PDF final
+ * é conforme PDF/X-4 (`OutputIntent`/ICC + metadados XMP, F2-08c2, issue #139) — ver
+ * `applyPdfX4Conformance` em `pdfx4.ts`.
  */
 export async function renderBookToPdf(
 	book: GeneratedBook,
@@ -89,6 +91,8 @@ export async function renderBookToPdf(
 		const copiedPages = await mergedDoc.copyPages(spreadDoc, spreadDoc.getPageIndices());
 		copiedPages.forEach((page) => mergedDoc.addPage(page));
 	}
+
+	applyPdfX4Conformance(mergedDoc);
 
 	return mergedDoc.save();
 }
