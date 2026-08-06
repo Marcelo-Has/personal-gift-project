@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { homeContent } from '$lib/home-content';
 </script>
 
@@ -26,7 +27,7 @@
 
 	<p class="audience-note">{homeContent.audienceNote}</p>
 
-	<a class="cta" href={homeContent.ctaHref}>{homeContent.ctaLabel}</a>
+	<a class="cta" href={resolve(homeContent.ctaHref)}>{homeContent.ctaLabel}</a>
 </main>
 
 <style>

@@ -197,6 +197,127 @@ export async function marcarPago(
 	await ref.set({ status: 'pago', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 }
 
+export interface MarcarAguardandoGeracaoInput {
+	uid: string;
+	orderId: string;
+}
+
+/**
+ * Transição `pago` → `aguardando_geracao` (F2-07, issue #135), chamada pelo webhook do
+ * Stripe logo depois de `marcarPago`, antes de disparar a Background Function. Idempotente
+ * como `marcarPago`: se o pedido já passou deste ponto (`aguardando_geracao` em diante, por
+ * um retry do webhook do Stripe), não regrava — só o disparo da function é repetido por
+ * quem chama, o que é seguro porque `iniciarGeracao` tem a própria idempotência.
+ */
+export async function marcarAguardandoGeracao(
+	{ uid, orderId }: MarcarAguardandoGeracaoInput,
+	store: OrderStore = getAdminFirestore()
+): Promise<void> {
+	const ref = store.doc(orderPath(uid, orderId));
+	const existente = await ref.get();
+
+	const statusAtual = (existente.data() as { status?: OrderStatus } | undefined)?.status;
+	if (!existente.exists || statusAtual === 'rascunho' || statusAtual === 'aguardando_pagamento') {
+		throw new PedidoNaoEditavelError();
+	}
+
+	if (statusAtual !== 'pago') return;
+
+	await ref.set(
+		{ status: 'aguardando_geracao', updatedAt: FieldValue.serverTimestamp() },
+		{ merge: true }
+	);
+}
+
+export interface IniciarGeracaoInput {
+	uid: string;
+	orderId: string;
+}
+
+/**
+ * Reivindica o pedido para geração: `aguardando_geracao` | `erro_geracao` → `em_geracao`.
+ * Idempotência básica (F2-07, issue #135) da Background Function: mesma técnica de
+ * `marcarPago` (ler o status atual antes de escrever, sem transação do Firestore — igual
+ * ao resto deste módulo). Devolve o que o chamador (`executarGeracaoDoPedido`,
+ * `generation-engine/order-worker.ts`) precisa saber para decidir se roda o pipeline:
+ * - `'iniciado'`: reivindicado agora, pode prosseguir.
+ * - `'ja_em_andamento'`: outra invocação já está (ou ficou) `em_geracao` — não reprocessa.
+ * - `'ja_concluido'`: já `gerado` — não reprocessa.
+ *
+ * Não cobre corrida entre duas invocações simultâneas lendo o mesmo status antes de
+ * qualquer uma escrever (exigiria transação) — aceito como o mesmo risco residual que
+ * `marcarPago` já aceita neste módulo; "idempotência básica" é o que a issue pede.
+ */
+export async function iniciarGeracao(
+	{ uid, orderId }: IniciarGeracaoInput,
+	store: OrderStore = getAdminFirestore()
+): Promise<'iniciado' | 'ja_em_andamento' | 'ja_concluido'> {
+	const ref = store.doc(orderPath(uid, orderId));
+	const existente = await ref.get();
+
+	const statusAtual = (existente.data() as { status?: OrderStatus } | undefined)?.status;
+	if (!existente.exists || statusAtual === 'rascunho' || statusAtual === 'aguardando_pagamento') {
+		throw new PedidoNaoEditavelError();
+	}
+
+	if (statusAtual === 'em_geracao') return 'ja_em_andamento';
+	if (statusAtual === 'gerado') return 'ja_concluido';
+
+	await ref.set({ status: 'em_geracao', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+	return 'iniciado';
+}
+
+/**
+ * Resumo do que o worker gerou — SEM PII e sem o PDF em si (a montagem/armazenamento do
+ * PDF do livro inteiro é F2-08c, fora de escopo de F2-07). Só o suficiente para confirmar
+ * que o pipeline rodou e para o dashboard de custo (F4-02, instrumentado sem ser construído
+ * aqui, `docs/ARCHITECTURE.md`).
+ */
+export interface GeracaoResultado {
+	spreadCount: number;
+	totalPages: number;
+	pdfBytesTotalLength: number;
+	durationMs: number;
+}
+
+export interface MarcarGeradoInput {
+	uid: string;
+	orderId: string;
+	resultado: GeracaoResultado;
+}
+
+/** Transição `em_geracao` → `gerado` (F2-07), com o resumo do resultado gravado junto. */
+export async function marcarGerado(
+	{ uid, orderId, resultado }: MarcarGeradoInput,
+	store: OrderStore = getAdminFirestore()
+): Promise<void> {
+	const ref = store.doc(orderPath(uid, orderId));
+	await ref.set(
+		{ status: 'gerado', geracao: resultado, updatedAt: FieldValue.serverTimestamp() },
+		{ merge: true }
+	);
+}
+
+export interface MarcarErroGeracaoInput {
+	uid: string;
+	orderId: string;
+	/** Mensagem sanitizada (`.claude/rules/security.md`: sem PII além do necessário para
+	 * diagnosticar) — quem chama (`executarGeracaoDoPedido`) já limita o tamanho. */
+	erro: string;
+}
+
+/** Transição `em_geracao` → `erro_geracao` (F2-07), com a mensagem de erro sanitizada. */
+export async function marcarErroGeracao(
+	{ uid, orderId, erro }: MarcarErroGeracaoInput,
+	store: OrderStore = getAdminFirestore()
+): Promise<void> {
+	const ref = store.doc(orderPath(uid, orderId));
+	await ref.set(
+		{ status: 'erro_geracao', geracaoErro: erro, updatedAt: FieldValue.serverTimestamp() },
+		{ merge: true }
+	);
+}
+
 export interface CarregarRascunhoInput {
 	uid: string;
 	orderId: string;

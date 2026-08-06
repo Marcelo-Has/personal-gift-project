@@ -1,8 +1,15 @@
 import { error, json } from '@sveltejs/kit';
 import type Stripe from 'stripe';
 import { AssinaturaWebhookInvalidaError, verificarAssinaturaWebhook } from '$lib/server/stripe';
-import { marcarPago } from '$lib/server/orders';
+import { marcarAguardandoGeracao, marcarPago } from '$lib/server/orders';
 import type { RequestHandler } from './$types';
+
+/**
+ * Nome do arquivo em `netlify/functions/` (F2-07, issue #135) — Background Function que
+ * roda o pipeline completo. Caminho fixo da convenção da Netlify
+ * (`/.netlify/functions/<nome-do-arquivo-sem-extensão>`), não configurável.
+ */
+const GERAR_PEDIDO_FUNCTION_PATH = '/.netlify/functions/gerar-pedido-background';
 
 /**
  * Webhook do Stripe (F1-07b, issue #97): confirma `checkout.session.completed` e marca o
@@ -47,6 +54,23 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Falha daqui pra frente (pedido não encontrado, Firestore fora do ar) vira 500 e o
 	// Stripe reenvia nativamente — retry/dead-letter fica fora do escopo desta issue.
 	await marcarPago({ uid, orderId });
+
+	// F2-07 (issue #135): enfileira a geração pesada e dispara a Background Function que a
+	// roda de ponta a ponta (D-063). `marcarAguardandoGeracao` e o disparo abaixo são
+	// idempotentes (ver os comentários em `orders.ts`/`iniciarGeracao`) — um retry do Stripe
+	// do mesmo evento (ex.: porque o disparo abaixo falhou da primeira vez, o que faz este
+	// handler lançar e responder 500) não duplica trabalho nem regride o status.
+	await marcarAguardandoGeracao({ uid, orderId });
+
+	const gerarPedidoUrl = new URL(GERAR_PEDIDO_FUNCTION_PATH, request.url);
+	const disparo = await fetch(gerarPedidoUrl, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ uid, orderId })
+	});
+	if (!disparo.ok) {
+		error(500, 'Falha ao disparar a geração do pedido.');
+	}
 
 	return json({ recebido: true });
 };

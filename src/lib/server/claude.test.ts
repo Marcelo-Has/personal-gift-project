@@ -1,29 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getClaudeClient } from './claude';
 
 /**
- * Mesma técnica de `stripe.test.ts`: `$env/dynamic/private` só é lido quando o cliente é
- * criado, então o mock precisa existir antes do `import('./claude')`.
+ * `getClaudeClient` lê `process.env` diretamente (F2-07/D-065, não mais `$env/dynamic/private`
+ * — ver o comentário no topo de `claude.ts`), então o teste usa `vi.stubEnv`/`vi.unstubAllEnvs`
+ * (utilitário do próprio Vitest para variável de ambiente) em vez de `vi.mock` num módulo.
  */
-const mockEnv: Record<string, string | undefined> = {};
-vi.mock('$env/dynamic/private', () => ({ env: mockEnv }));
-
-const { getClaudeClient } = await import('./claude');
-
 describe('getClaudeClient', () => {
 	afterEach(() => {
-		delete mockEnv.ANTHROPIC_API_KEY;
+		vi.unstubAllEnvs();
 		vi.unstubAllGlobals();
 	});
 
 	it('deve lançar erro descritivo quando ANTHROPIC_API_KEY está ausente', () => {
-		delete mockEnv.ANTHROPIC_API_KEY;
+		vi.stubEnv('ANTHROPIC_API_KEY', '');
 
 		expect(() => getClaudeClient()).toThrow(/ANTHROPIC_API_KEY/);
 	});
 
 	describe('com a chave configurada', () => {
 		beforeEach(() => {
-			mockEnv.ANTHROPIC_API_KEY = 'chave-de-teste';
+			vi.stubEnv('ANTHROPIC_API_KEY', 'chave-de-teste');
 		});
 
 		it('deve chamar a API de Messages com os headers e o corpo certos', async () => {

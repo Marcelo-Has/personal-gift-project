@@ -3,14 +3,7 @@ import { Jimp } from 'jimp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OpenAiImageEditParams, OpenAiImageEditResult } from '$lib/server/openai-image';
 import type { PhotoStyleProvider } from '../provider';
-
-/** `$env/dynamic/private` só é lido quando o cliente real é criado (mesma técnica de
- * `openai-image.test.ts`) — aqui usamos isso para simular "sem chave configurada" sem
- * precisar mexer em `process.env` de verdade. */
-const mockEnv: Record<string, string | undefined> = {};
-vi.mock('$env/dynamic/private', () => ({ env: mockEnv }));
-
-const { HttpPhotoStyleProvider } = await import('./http-provider');
+import { HttpPhotoStyleProvider } from './http-provider';
 
 async function makePng(width: number, height: number): Promise<Uint8Array> {
 	const image = new Jimp({ width, height, color: 0x336699ff });
@@ -27,11 +20,11 @@ function stubClient(
 
 describe('HttpPhotoStyleProvider — fallback sem chave', () => {
 	afterEach(() => {
-		delete mockEnv.OPENAI_API_KEY;
+		vi.unstubAllEnvs();
 	});
 
 	it('cai para o fallback e não faz nenhuma chamada paga quando OPENAI_API_KEY está ausente', async () => {
-		delete mockEnv.OPENAI_API_KEY;
+		vi.stubEnv('OPENAI_API_KEY', '');
 		const fallbackStylize = vi.fn(async () => [
 			{
 				sourcePhotoId: 'foto-1',
@@ -56,10 +49,6 @@ describe('HttpPhotoStyleProvider — fallback sem chave', () => {
 });
 
 describe('HttpPhotoStyleProvider — com chave configurada', () => {
-	afterEach(() => {
-		delete mockEnv.OPENAI_API_KEY;
-	});
-
 	it('redimensiona a entrada proporcionalmente quando passa do teto, sem crop', async () => {
 		const client = stubClient(async () => ({
 			data: [{ b64_json: FAKE_OUTPUT_B64 }],

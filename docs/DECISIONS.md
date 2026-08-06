@@ -2408,6 +2408,91 @@ lançando `PolaroidRenderInputError` se não bater — protege contra bug de wir
 não implementa a resolução em si.
 
 ---
+## D-065 | 2026-08-06 | ACEITA (parcial — falta a verificação ao vivo)
+**[F2-07] Orquestração completa implementada (endpoint/gatilho, pipeline, status, idempotência,
+testes) em cima do bundling corrigido do PR #138 — mas a condição de [D-063] (PoC verificada
+rodando de verdade no ambiente Netlify) continua sem confirmação: esta sessão, como as
+anteriores no mesmo PR, não tem rede de saída para fazer o `POST`/`GET` reais.** Issue #135.
+
+**Achado novo, além do bloqueio de bundling do `node_bundler` já registrado no `netlify.toml`
+deste PR: `gerarNarrativaDoPedido`/`stylizePhotosForOrder` (F2-06a/b) importam, de forma
+CONCRETA (não só tipo), `$lib/server/claude` e `$lib/server/openai-image` — e esses dois módulos
+liam `$env/dynamic/private`.** Nenhum dos dois alias existe fora do build do Vite/SvelteKit;
+uma Netlify Function escrita à mão (`netlify/functions/*.js`, a mesma convenção da PoC) é
+empacotada por fora dele. Confirmado tentando empacotar com `esbuild`: `Could not resolve
+"$env/dynamic/private"`. A PoC original (`poc-render-background.js`) só exercitava
+`renderDedicatoriaSpreadToPdf` (F2-08a), que não tem essa dependência — por isso o problema não
+apareceu antes, mesmo com o Deploy Preview verde.
+
+**Correção:** `src/lib/server/claude.ts`, `openai-image.ts` e `firebase-admin.ts` passam a ler
+`process.env` direto, em vez de `$env/dynamic/private`. Comportamento idêntico em runtime nos
+adapters Node (Netlify incluído) — `$env/dynamic/private` já era um wrapper de `process.env`
+nesses adapters — então nada muda para o app SvelteKit. `generate.ts`
+(`narrative-style/romantico`) e `http-provider.ts` (`photo-style/aquarela`) trocam o import de
+`$lib/server/*` para caminho relativo, mesmo motivo. A guarda real de "nunca entra no bundle do
+navegador" é o caminho `src/lib/server/` (o SvelteKit recusa o build por causa do DIRETÓRIO, não
+do alias `$env`) — ela continua de pé, então isto não é um afrouxamento de
+`.claude/rules/security.md`, só uma troca de mecanismo de leitura de variável de ambiente.
+Verificado com `esbuild --bundle` que o pipeline inteiro (`narrative.ts` + `photos.ts` +
+`layout.ts` + `firebase-admin.ts` + `render-dedicatoria.ts`) resolve sem erro depois da troca —
+não só a fatia que a PoC original cobria.
+
+**O que foi implementado em cima disso, seguindo o desenho já registrado na issue #135:**
+- `OrderStatus` (`order.ts`) ganha `aguardando_geracao` → `em_geracao` → `gerado` |
+  `erro_geracao`, os nomes que a própria issue sugeria.
+- `orders.ts`: `marcarAguardandoGeracao` (pago → aguardando_geracao, idempotente como
+  `marcarPago`), `iniciarGeracao` (reivindica aguardando_geracao/erro_geracao → em_geracao;
+  idempotência básica por leitura-antes-de-escrever, mesma técnica já usada por `marcarPago`
+  neste módulo — não é uma transação do Firestore, é o mesmo risco residual já aceito aqui),
+  `marcarGerado` e `marcarErroGeracao`.
+- `generation-engine/order-worker.ts` (`executarGeracaoDoPedido`): orquestra narrativa
+  (F2-06a) → fotos (F2-06b) → layout (F2-06c) → render de cada spread (F2-08a/b, despachado por
+  `LayoutSpread.type`) para UM pedido, grava um RESUMO (contagem de spreads/páginas, bytes
+  totais, duração) em `gerado` — não o PDF em si, que é F2-08c (fora de escopo, como a issue já
+  registrava). Nunca lança: todo erro do pipeline vira `erro_geracao` com mensagem sanitizada
+  (truncada a 1000 caracteres, sem tentar redigir PII especificamente — mesmo nível de cuidado
+  que a PoC original já tinha para `errorMessage`).
+- `server/order-photos.ts` (`loadSourcePhotosFromStorage`): a peça que faltava entre
+  `order.questionnaire.photos` (só `photoId`) e `stylizePhotosForOrder` (`SourcePhoto[]` com
+  bytes) — baixa direto do Storage pela Admin SDK, reaproveitando `photoObjectPath` de
+  `signed-url.ts` para o caminho do objeto continuar montado num único lugar.
+- `netlify/functions/gerar-pedido-background.js`: a Background Function real (sufixo
+  `-background`, mesma convenção da PoC), que só fornece as dependências verdadeiras
+  (Firestore, Storage) para `executarGeracaoDoPedido` — toda a lógica fica em
+  `order-worker.ts`, testável sem Netlify.
+- `routes/api/webhooks/stripe/+server.ts`: depois de `marcarPago`, chama
+  `marcarAguardandoGeracao` e dispara a Background Function via `fetch` para a origem do próprio
+  request (`new URL('/.netlify/functions/gerar-pedido-background', request.url)`) — funciona
+  igual em produção e em deploy preview, sem depender de variável de ambiente da Netlify para a
+  URL do site. Se o disparo falhar, o handler responde 500 e o Stripe reenvia o evento
+  nativamente; como `marcarAguardandoGeracao`/`iniciarGeracao` já são idempotentes, o retry não
+  duplica trabalho.
+- Testes novos (mockando só a Claude API e a busca de fotos — dependências EXTERNAS,
+  `.claude/rules/testing.md`; narrativa/fotos/layout/render rodam de verdade, incluindo o Chrome
+  real, como os testes de `render-*.ts` já fazem): `orders.test.ts` (as quatro funções novas),
+  `order-worker.test.ts` (caminho feliz de ponta a ponta, as duas idempotências, os dois
+  caminhos de erro) e `server.test.ts` do webhook (o disparo e a resposta 500 quando ele falha).
+
+**O que CONTINUA em aberto, e por quê não fechar sozinho:** a condição de [D-063] — "rodar o
+render de F2-08a de verdade dentro de uma Background Function" — nunca foi confirmada ao vivo em
+nenhuma sessão deste PR, porque nenhuma delas teve rede de saída para o `POST`/`GET` que a
+verificação exige (a issue #135 é explícita: "roda contra o ambiente real da Netlify... não é
+teste automatizado do CI"). `docs/ROADMAP.md` **não** marca F2-07 como `[x]` por isso — só o
+código está pronto, não a verificação que a issue pede como pré-requisito para prosseguir.
+Próximo passo concreto, igual ao já registrado nos comentários do PR #138: alguém com rede de
+saída (ou acesso ao dashboard da Netlify) precisa invocar `poc-render-background`/`poc-status`
+(ou, agora que o resto existe, um pedido de teste ponta a ponta via `gerar-pedido-background`) no
+deploy preview atual e colar o resultado — só então esta entrada pode ser fechada e o ROADMAP
+atualizado.
+
+**Achado incidental, fora do escopo de F2-07, corrigido só para o CI não ficar vermelho por
+algo não relacionado:** `src/routes/+page.svelte` (não tocado por nenhum PR desde o #100)
+falhava `svelte/no-navigation-without-resolve` — `href={homeContent.ctaHref}` sem `resolve()`.
+Corrigido com `resolve(homeContent.ctaHref)` (`$app/paths`), mesmo padrão já usado em
+`questionario/[etapa]/+page.svelte`; `homeContent.ctaHref` é `'/questionario'` via `as const`,
+então o tipo literal bate com `resolve()` sem precisar mudar `home-content.ts`.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

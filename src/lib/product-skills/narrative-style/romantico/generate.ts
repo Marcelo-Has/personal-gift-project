@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { getClaudeClient, type ClaudeMessagesClient } from '$lib/server/claude';
+import { getClaudeClient, type ClaudeMessagesClient } from '../../../server/claude';
 import { resolveSkill, type ResolvedSkill } from '../../loader';
 import type { CoupleQuestionnaire } from '../../../order';
 

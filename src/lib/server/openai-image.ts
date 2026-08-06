@@ -3,14 +3,17 @@
  * issue #115, [D-056]).
  *
  * Mesmo padrão de `stripe.ts`/`claude.ts`: mora em `src/lib/server/` para o SvelteKit
- * recusar o build se um módulo de cliente importar (direta ou transitivamente) daqui, e a
- * chave secreta vem só de `$env/dynamic/private` (`OPENAI_API_KEY`) — nunca no bundle do
- * navegador, nunca commitada, nunca em log.
+ * recusar o build se um módulo de cliente importar (direta ou transitivamente) daqui — essa
+ * guarda continua de pé independente deste arquivo. A chave secreta vem de `process.env`
+ * (`OPENAI_API_KEY`) — nunca no bundle do navegador, nunca commitada, nunca em log.
+ *
+ * `process.env` em vez de `$env/dynamic/private`: mesmo motivo de `claude.ts` (F2-07/D-065)
+ * — este módulo, via `stylizePhotosForOrder` (F2-06b), também roda numa Netlify Background
+ * Function escrita à mão, fora do build do Vite/SvelteKit, onde o alias `$env` não resolve.
  *
  * Sem SDK novo — um POST multipart de poucas linhas evita puxar dependência (mesmo
  * racional de D-050 para a Claude API).
  */
-import { env } from '$env/dynamic/private';
 
 const OPENAI_API_KEY_VAR = 'OPENAI_API_KEY';
 const OPENAI_IMAGES_EDIT_URL = 'https://api.openai.com/v1/images/edits';
@@ -55,7 +58,7 @@ let cachedClient: OpenAiImagesClient | undefined;
 export function getOpenAiImagesClient(): OpenAiImagesClient {
 	if (cachedClient) return cachedClient;
 
-	const apiKey = env[OPENAI_API_KEY_VAR];
+	const apiKey = process.env[OPENAI_API_KEY_VAR];
 	if (!apiKey) {
 		throw new Error(
 			`Variável de ambiente ${OPENAI_API_KEY_VAR} ausente: o cliente da API de imagens da OpenAI não pode ser inicializado.`
