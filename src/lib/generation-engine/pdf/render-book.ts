@@ -65,18 +65,21 @@ async function renderSpreadToPdf(
 }
 
 /**
- * Renderiza um `GeneratedBook` (SKU mini, `composeLayoutForOrder`) inteiro para um único
- * PDF de produção: para cada `LayoutSpread` de `book.spreads`, na ordem em que aparecem,
- * chama o `render*SpreadToPdf` correspondente e copia suas páginas para o documento final
- * via `pdf-lib` (`PDFDocument.copyPages`). Os spreads são renderizados em sequência (não em
- * paralelo) — evita lançar vários processos de Chrome ao mesmo tempo para um único pedido.
+ * Composição compartilhada entre o PDF de produção (`renderBookToPdf`) e o PDF de preview
+ * (`renderBookPreviewPdf`, F2-09, `render-book-preview.ts`): para cada `LayoutSpread` de
+ * `book.spreads`, na ordem em que aparecem, chama o `render*SpreadToPdf` correspondente e
+ * copia suas páginas para o documento final via `pdf-lib` (`PDFDocument.copyPages`). Os
+ * spreads são renderizados em sequência (não em paralelo) — evita lançar vários processos
+ * de Chrome ao mesmo tempo para um único pedido.
  *
  * `photos` precisa conter o `StylizedPhoto` de toda foto referenciada por um spread
  * `polaroid` do livro (mesmo casamento por `sourcePhotoId`/`composition.photo.path` de
- * `layout.ts`); lança `RenderBookMissingStylizedPhotoError` se faltar alguma. Sem PDF/X-4
- * (`OutputIntent`/ICC/XMP) — fica para F2-08c2.
+ * `layout.ts`); lança `RenderBookMissingStylizedPhotoError` se faltar alguma. Não inclui
+ * PDF/X-4 (`OutputIntent`/ICC/XMP) — quem quiser essa conformidade aplica por cima do
+ * resultado (fica isolado em `renderBookToPdf`/F2-08c2, nunca neste módulo compartilhado,
+ * para que `renderBookPreviewPdf` nunca a herde por engano — D-067).
  */
-export async function renderBookToPdf(
+export async function composeBookPdf(
 	book: GeneratedBook,
 	photos: StylizedPhoto[],
 	sku: SkuLayoutParams
@@ -91,4 +94,19 @@ export async function renderBookToPdf(
 	}
 
 	return mergedDoc.save();
+}
+
+/**
+ * Renderiza um `GeneratedBook` (SKU mini, `composeLayoutForOrder`) inteiro para o PDF de
+ * **produção**: hoje é só `composeBookPdf` (ver acima) — a etapa de conformidade PDF/X-4
+ * (`OutputIntent`/ICC/XMP, F2-08c2/#139) ainda não foi implementada e, quando for, entra
+ * *depois* desta chamada, só aqui, nunca em `composeBookPdf`. Para o PDF de preview (sem
+ * essa exigência), use `renderBookPreviewPdf` de `render-book-preview.ts` — não este.
+ */
+export async function renderBookToPdf(
+	book: GeneratedBook,
+	photos: StylizedPhoto[],
+	sku: SkuLayoutParams
+): Promise<Uint8Array> {
+	return composeBookPdf(book, photos, sku);
 }
