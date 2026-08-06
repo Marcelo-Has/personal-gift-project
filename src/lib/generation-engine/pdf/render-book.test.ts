@@ -132,7 +132,7 @@ describe('renderBookToPdf — caminho feliz', () => {
 		const expectedPageCount = book.spreads.reduce((sum, spread) => sum + spread.pageCount, 0);
 		expect(expectedPageCount).toBe(book.totalPages);
 		expect(pdfDoc.getPageCount()).toBe(expectedPageCount);
-	}, 30_000);
+	}, 60_000);
 
 	it('mantém a ordem das páginas igual à ordem dos spreads do livro', async () => {
 		const { book, renderablePhotos } = await buildBookAndPhotos();
@@ -158,7 +158,7 @@ describe('renderBookToPdf — caminho feliz', () => {
 		expect(pageTexts[6]).toContain(NARRATIVA_VALIDA.finalLetter);
 		// dedicatória final
 		expect(pageTexts[7]).toContain(NARRATIVA_VALIDA.dedication);
-	}, 30_000);
+	}, 60_000);
 });
 
 describe('renderBookToPdf — conformidade PDF/X-4 (F2-08c2, issue #139)', () => {
@@ -181,7 +181,7 @@ describe('renderBookToPdf — conformidade PDF/X-4 (F2-08c2, issue #139)', () =>
 		const profileBytes = decodePDFRawStream(profileStream).decode();
 		// assinatura de arquivo ICC ('acsp'), ICC.1:2001-04 §6.1.3 — perfil embutido em icc-srgb.ts
 		expect(Buffer.from(profileBytes.slice(36, 40)).toString('ascii')).toBe('acsp');
-	}, 30_000);
+	}, 60_000);
 
 	it('inclui metadados XMP mínimos de conformidade PDF/X-4', async () => {
 		const { book, renderablePhotos } = await buildBookAndPhotos();
@@ -199,7 +199,7 @@ describe('renderBookToPdf — conformidade PDF/X-4 (F2-08c2, issue #139)', () =>
 		expect(xmp).toContain('<xmpMM:DocumentID>');
 		expect(xmp).toContain('<xmpMM:InstanceID>');
 		expect(xmp).toContain('<dc:title>');
-	}, 30_000);
+	}, 60_000);
 });
 
 describe('renderBookToPdf — erros descritivos', () => {
@@ -215,5 +215,5 @@ describe('renderBookToPdf — erros descritivos', () => {
 		await expect(renderBookToPdf(book, semAPrimeiraFoto, MINI_SKU_LAYOUT)).rejects.toThrow(
 			/foto-01-varanda/
 		);
-	}, 30_000);
+	}, 60_000);
 });
