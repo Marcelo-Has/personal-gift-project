@@ -20,14 +20,7 @@
  * issue.
  */
 import { describe, expect, it } from 'vitest';
-import {
-	decodePDFRawStream,
-	PDFArray,
-	PDFDict,
-	PDFDocument,
-	PDFName,
-	PDFRawStream
-} from 'pdf-lib';
+import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { Jimp, JimpMime } from 'jimp';
 import { composeLayoutForOrder } from '../layout';

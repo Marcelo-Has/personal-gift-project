@@ -19,13 +19,18 @@ import { SRGB_ICC_PROFILE } from './icc-srgb';
 const PDFX4_TITLE = 'Nossa História — livro personalizado';
 const PRODUCER = 'Personal Gift Project — generation-engine (pdf-lib)';
 
+/** BOM (U+FEFF) exigido no início do pacote XMP (`<?xpacket begin="<BOM>"`) para as
+ * ferramentas detectarem o encoding — montado via `fromCharCode` em vez de caractere
+ * literal no código-fonte para não disparar `no-irregular-whitespace` do ESLint. */
+const XMP_BOM = String.fromCharCode(0xfeff);
+
 /** Monta o pacote XMP com os campos mínimos de conformidade PDF/X-4: `pdfxid:GTS_PDFXVersion`
  * (o marcador que identifica o arquivo como PDF/X-4), `dc:title`/`dc:format` (Dublin Core) e
  * `xmpMM:DocumentID`/`InstanceID` (identidade do documento, exigida pela spec de metadados
  * do PDF/X-4). Namespace `pdfxid` é o mesmo usado por ferramentas de referência (Adobe
  * Acrobat/Distiller) para esse marcador. */
 function buildXmpPacket(documentId: string, instanceId: string): string {
-	return `<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
+	return `<?xpacket begin="${XMP_BOM}" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 <rdf:Description rdf:about=""
