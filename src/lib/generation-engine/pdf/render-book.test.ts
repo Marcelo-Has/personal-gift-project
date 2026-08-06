@@ -20,7 +20,15 @@
  * issue.
  */
 import { describe, expect, it } from 'vitest';
-import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
+import {
+	decodePDFRawStream,
+	PDFArray,
+	PDFDict,
+	PDFDocument,
+	PDFName,
+	PDFRawStream,
+	PDFStream
+} from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { Jimp, JimpMime } from 'jimp';
 import { composeLayoutForOrder } from '../layout';
@@ -169,7 +177,7 @@ describe('renderBookToPdf — conformidade PDF/X-4 (F2-08c2, issue #139)', () =>
 		expect(outputIntent.get(PDFName.of('S'))?.toString()).toBe('/GTS_PDFX');
 
 		const profileRef = outputIntent.get(PDFName.of('DestOutputProfile'));
-		const profileStream = context.lookup(profileRef, PDFRawStream);
+		const profileStream = context.lookup(profileRef, PDFStream) as PDFRawStream;
 		const profileBytes = decodePDFRawStream(profileStream).decode();
 		// assinatura de arquivo ICC ('acsp'), ICC.1:2001-04 §6.1.3 — perfil embutido em icc-srgb.ts
 		expect(Buffer.from(profileBytes.slice(36, 40)).toString('ascii')).toBe('acsp');
@@ -184,7 +192,7 @@ describe('renderBookToPdf — conformidade PDF/X-4 (F2-08c2, issue #139)', () =>
 
 		const metadataRef = pdfDoc.catalog.get(PDFName.of('Metadata'));
 		expect(metadataRef).toBeDefined();
-		const metadataStream = context.lookup(metadataRef, PDFRawStream);
+		const metadataStream = context.lookup(metadataRef, PDFStream) as PDFRawStream;
 		const xmp = Buffer.from(decodePDFRawStream(metadataStream).decode()).toString('utf8');
 
 		expect(xmp).toContain('<pdfxid:GTS_PDFXVersion>PDF/X-4</pdfxid:GTS_PDFXVersion>');
