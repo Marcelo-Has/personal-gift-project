@@ -2453,6 +2453,37 @@ teste até este PR. `pdfjs-dist` permanece em `devDependencies`: é usado só no
 (extração de texto do PDF gerado), sem caminho de produção.
 
 ---
+## D-067 | 2026-08-06 | ACEITA
+**[F2-09] `renderBookPreviewPdf` (`render-book-preview.ts`) reaproveita a composição de
+spreads de `renderBookToPdf` (F2-08c1) via uma função interna extraída, `composeBookPdf`
+(`render-book.ts`), em vez de chamar `renderBookToPdf` diretamente.** Fecha a issue #140
+(F2-09).
+
+**Por quê extrair `composeBookPdf` em vez de só chamar `renderBookToPdf` a partir do módulo
+de preview.** A composição de spreads (F2-08c1/[D-065]) é idêntica hoje entre produção e
+preview — a única diferença prevista é a conformidade PDF/X-4 (`OutputIntent`/ICC/XMP,
+F2-08c2/#139), que é exclusiva do PDF de produção. Se `renderBookPreviewPdf` chamasse
+`renderBookToPdf`, bastaria um descuido ao implementar #139 (colocar o `OutputIntent` ANTES
+de retornar de `renderBookToPdf`, em vez de numa camada por cima) para o preview herdar
+PDF/X-4 por acidente — exatamente o risco que o escopo desta issue pede para evitar. Com
+`composeBookPdf` como base comum e `renderBookToPdf`/`renderBookPreviewPdf` como duas
+funções públicas independentes que a chamam, a etapa de PDF/X-4 de #139 só pode entrar em
+`renderBookToPdf` (depois da chamada a `composeBookPdf`), sem caminho de código que a
+propague ao preview.
+
+**Por que não um parâmetro `produção: boolean` em `renderBookToPdf`.** O objetivo do escopo
+é justamente ter nome/local de módulo distintos para preview e produção (não "emprestar"
+a função de produção por um parâmetro), para reduzir o risco de troca de flag na hora de
+chamar — `.claude/rules/right-sizing.md`: preferir a solução mais simples e explícita a uma
+abstração genérica sem um segundo uso concreto além deste.
+
+**Erro de foto ausente.** `renderBookPreviewPdf` reaproveita (re-exporta)
+`RenderBookMissingStylizedPhotoError` de `render-book.ts` em vez de definir um tipo próprio
+— mesmo defeito de wiring (spread `polaroid` sem `StylizedPhoto` correspondente), detectado
+na mesma camada (`renderSpreadToPdf`, agora dentro de `composeBookPdf`), então não há
+motivo para um segundo tipo de erro.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
