@@ -2658,6 +2658,43 @@ imagem com Chrome. Isto fecha a pergunta de plataforma aberta desde D-063/D-104:
 pesada roda em container, e a Opção C está validada na prática, não só no papel.**
 
 ---
+## D-070 | 2026-08-07 | ACEITA
+**O gatilho da geração é um trigger do Eventarc sobre o documento do pedido no Firestore: a
+ESCRITA de `aguardando_geracao` é a própria fila. O webhook do Stripe não chama o worker.**
+Issue #148.
+
+**O problema.** O webhook precisa responder ao Stripe em segundos; a geração leva minutos. Ele
+não pode esperar. E `fetch` sem `await` não sobrevive na Netlify — o Lambda congela assim que a
+resposta sai —, então "chamar e seguir a vida" não é confiável.
+
+**Alternativas descartadas.**
+- **Cloud Tasks:** funcionaria e é o padrão mais convencional, mas exige uma chave de service
+  account de longa duração guardada no Netlify para enfileirar. É exatamente o passivo que
+  [D-069] acabou de eliminar do worker; reintroduzi-lo pela porta dos fundos não se justifica
+  num ganho que o Eventarc entrega sem chave nenhuma.
+- **Cloud Scheduler consultando pendentes:** obrigaria uma consulta `collectionGroup` sobre
+  `users/*/orders`, com índice novo no Firestore e ampliação da interface `OrderStore` — mais
+  código e mais infraestrutura que as outras duas, para a mesma entrega.
+
+**Consequências assumidas.**
+- **Entrega ao menos uma vez.** Coberto pela idempotência que já existe: `iniciarGeracao`
+  (`orders.ts`) só reivindica um pedido em `aguardando_geracao`/`erro_geracao`.
+- **O gatilho dispara a cada escrita no documento, inclusive as do próprio worker**
+  (`em_geracao`, `gerado`). `processarPedido` corta o laço antes de qualquer trabalho, saindo
+  com `outcome: 'ignorado'` quando o status não é um dos dois reivindicáveis.
+- **O corpo do evento é protobuf e não é lido.** O worker tira `uid`/`orderId` do cabeçalho
+  `ce-subject` (`documents/users/{uid}/orders/{orderId}`) e relê o documento do Firestore —
+  mais correto de qualquer forma, porque com entrega ao menos uma vez o evento pode chegar
+  desatualizado.
+- **Evento irrelevante ou malformado responde 2xx, não 4xx.** Para o Eventarc, 2xx confirma a
+  entrega; devolver erro faria ele reentregar para sempre algo que nunca vai dar certo. 5xx
+  fica reservado para falha transitória, onde o retry de fato ajuda.
+
+**Nota operacional descoberta na #148:** o Google Frontend devolve 404 para `GET /healthz`
+ANTES de a requisição chegar ao container, enquanto `GET /` chega normalmente. O apelido foi
+removido do worker — a rota de saúde é a raiz, que é o que o Cloud Run usa.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

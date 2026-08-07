@@ -66,6 +66,14 @@ async function processarPedido(uid: string, orderId: string): Promise<Record<str
 		return { outcome: 'nao_encontrado' };
 	}
 
+	// Corta o laço de eventos antes de qualquer trabalho: o gatilho do Eventarc dispara a
+	// CADA escrita no documento, inclusive as que o próprio worker faz (`em_geracao`,
+	// `gerado`). `iniciarGeracao` já recusaria esses casos, mas sair aqui evita uma ida ao
+	// Firestore por evento e deixa o motivo explícito no log.
+	if (draft.status !== 'aguardando_geracao' && draft.status !== 'erro_geracao') {
+		return { outcome: 'ignorado', status: draft.status };
+	}
+
 	const resultado = await executarGeracaoDoPedido(
 		{ uid, orderId, draft },
 		{ store, loadSourcePhotos: (order) => loadSourcePhotosFromStorage(order, uid, orderId) }

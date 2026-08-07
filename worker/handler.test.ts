@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { criarHandler, isSafeId, type WorkerDeps } from './handler';
+import {
+	CAMINHO_EVENTO_PEDIDO,
+	criarHandler,
+	extrairPedidoDoSubject,
+	isSafeId,
+	type WorkerDeps
+} from './handler';
 
 /**
  * O handler é exercitado por HTTP de verdade (servidor efêmero na porta 0) em vez de
@@ -57,9 +63,9 @@ describe('isSafeId', () => {
 });
 
 describe('handler do worker', () => {
-	it('deve responder 200 em /healthz para o Cloud Run considerar a instância saudável', async () => {
+	it('deve responder 200 na raiz para o Cloud Run considerar a instância saudável', async () => {
 		await comServidor({}, async (baseUrl) => {
-			const resposta = await fetch(`${baseUrl}/healthz`);
+			const resposta = await fetch(`${baseUrl}/`);
 			expect(resposta.status).toBe(200);
 			expect(await resposta.json()).toEqual({ ok: true });
 		});
@@ -124,6 +130,64 @@ describe('handler do worker', () => {
 	it('deve responder 404 para rota desconhecida', async () => {
 		await comServidor({}, async (baseUrl) => {
 			expect((await fetch(`${baseUrl}/qualquer-coisa`)).status).toBe(404);
+		});
+	});
+});
+
+describe('extrairPedidoDoSubject', () => {
+	it('deve extrair uid e orderId do subject de um evento do Firestore', () => {
+		expect(extrairPedidoDoSubject('documents/users/uid-1/orders/pedido-1')).toEqual({
+			uid: 'uid-1',
+			orderId: 'pedido-1'
+		});
+	});
+
+	it('deve recusar subject de outra coleção, incompleto ou ausente', () => {
+		expect(extrairPedidoDoSubject('documents/users/uid-1/fotos/foto-1')).toBeNull();
+		expect(extrairPedidoDoSubject('documents/users/uid-1')).toBeNull();
+		expect(extrairPedidoDoSubject('documents/users/uid-1/orders/a/b')).toBeNull();
+		expect(extrairPedidoDoSubject('')).toBeNull();
+		expect(extrairPedidoDoSubject(undefined)).toBeNull();
+	});
+
+	it('deve recusar subject cujos ids não passam na validação de formato', () => {
+		expect(extrairPedidoDoSubject('documents/users/../orders/pedido-1')).toBeNull();
+	});
+});
+
+describe('gatilho do Eventarc', () => {
+	it('deve processar o pedido identificado pelo ce-subject do evento', async () => {
+		const processarPedido = vi.fn().mockResolvedValue({ outcome: 'gerado' });
+
+		await comServidor({ processarPedido }, async (baseUrl) => {
+			const resposta = await fetch(`${baseUrl}${CAMINHO_EVENTO_PEDIDO}`, {
+				method: 'POST',
+				headers: {
+					'ce-subject': 'documents/users/uid-1/orders/pedido-1',
+					'ce-type': 'google.cloud.firestore.document.v1.written'
+				},
+				// Corpo protobuf do evento: o worker não lê, então bytes arbitrários servem.
+				body: 'protobuf-cru'
+			});
+
+			expect(resposta.status).toBe(200);
+			expect(processarPedido).toHaveBeenCalledWith('uid-1', 'pedido-1');
+		});
+	});
+
+	it('deve responder 2xx sem processar quando o subject é inválido, para o Eventarc não reentregar para sempre', async () => {
+		const processarPedido = vi.fn();
+
+		await comServidor({ processarPedido }, async (baseUrl) => {
+			const resposta = await fetch(`${baseUrl}${CAMINHO_EVENTO_PEDIDO}`, {
+				method: 'POST',
+				headers: { 'ce-subject': 'documents/outra-coisa/x' },
+				body: 'protobuf-cru'
+			});
+
+			expect(resposta.status).toBe(200);
+			expect(await resposta.json()).toMatchObject({ outcome: 'ignorado' });
+			expect(processarPedido).not.toHaveBeenCalled();
 		});
 	});
 });

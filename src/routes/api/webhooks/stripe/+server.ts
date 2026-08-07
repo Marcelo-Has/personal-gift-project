@@ -52,10 +52,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	// (ver os comentários em `orders.ts`) — um retry do Stripe do mesmo evento não duplica
 	// trabalho nem regride o status.
 	//
-	// O DISPARO do worker não acontece aqui ainda: [D-068] tirou a geração das Netlify
-	// Functions (a PoC de D-063 reprovou) e o worker dedicado, com sua URL e seu mecanismo de
-	// gatilho, é a issue de continuação. Até lá o pedido fica em `aguardando_geracao` — que é
-	// o estado correto de "pago, na fila", não um estado inconsistente.
+	// Não há chamada ao worker aqui, e isso é o desenho, não uma lacuna: por [D-070] a
+	// ESCRITA de `aguardando_geracao` é o próprio gatilho — um trigger do Eventarc observa o
+	// documento no Firestore e entrega o evento ao worker no Cloud Run. Assim o webhook
+	// responde ao Stripe em milissegundos (a geração leva minutos, não caberia aqui) e nenhuma
+	// credencial do Google precisa existir na Netlify.
 	await marcarAguardandoGeracao({ uid, orderId });
 
 	return json({ recebido: true });

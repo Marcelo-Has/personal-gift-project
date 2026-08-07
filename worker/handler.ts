@@ -16,11 +16,37 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
  * absurdo não consuma memória da instância que pode estar renderizando. */
 const MAX_BODY_BYTES = 8 * 1024;
 
+/** Rota que o gatilho do Eventarc chama ([D-070]) — precisa bater com o `--destination-run-path`
+ * configurado no trigger. */
+export const CAMINHO_EVENTO_PEDIDO = '/eventos/pedido';
+
 export interface WorkerDeps {
 	/** Roda o pipeline completo para UM pedido. Nunca lança (ver `order-worker.ts`). */
 	processarPedido: (uid: string, orderId: string) => Promise<Record<string, unknown>>;
 	/** PoC de [D-069]: renderiza um spread fixo para provar que o Chrome sobe no container. */
 	executarPocRender: () => Promise<Record<string, unknown>>;
+}
+
+/**
+ * Extrai `uid`/`orderId` do `ce-subject` de um evento do Firestore, que tem a forma
+ * `documents/users/{uid}/orders/{orderId}`.
+ *
+ * O corpo do evento é protobuf e **não é lido**: tudo que o worker precisa é a identidade do
+ * documento, e o estado atual ele relê do Firestore — que é mais correto de qualquer forma,
+ * porque a entrega é ao menos uma vez e o evento pode chegar desatualizado.
+ */
+export function extrairPedidoDoSubject(
+	subject: string | undefined
+): { uid: string; orderId: string } | null {
+	if (!subject) return null;
+
+	const partes = subject.split('/');
+	if (partes.length !== 5) return null;
+	const [documents, users, uid, orders, orderId] = partes;
+	if (documents !== 'documents' || users !== 'users' || orders !== 'orders') return null;
+	if (!isSafeId(uid) || !isSafeId(orderId)) return null;
+
+	return { uid, orderId };
 }
 
 /** Ids de pedido/usuário vêm do Firestore e do Stripe, nunca de digitação livre. */
@@ -49,9 +75,26 @@ export function criarHandler(deps: WorkerDeps) {
 	return function handler(req: IncomingMessage, res: ServerResponse): void {
 		void (async () => {
 			try {
-				// Cloud Run bate na raiz para checar saúde antes de rotear tráfego.
-				if (req.method === 'GET' && (req.url === '/' || req.url === '/healthz')) {
+				// Cloud Run bate na raiz para checar saúde antes de rotear tráfego. Só a raiz:
+				// um apelido `/healthz` foi tentado e o Google Frontend devolve 404 para ele
+				// ANTES de a requisição chegar no container (verificado em produção na #148),
+				// então a rota existiria só para confundir quem for depurar.
+				if (req.method === 'GET' && req.url === '/') {
 					return json(res, 200, { ok: true });
+				}
+
+				// Gatilho do Eventarc ([D-070]): a escrita de `aguardando_geracao` no Firestore
+				// é a própria fila. Responder 2xx é o que confirma a entrega — por isso um
+				// evento irrelevante ou malformado também sai 2xx (ver `processarPedido`):
+				// devolver 4xx faria o Eventarc reentregar para sempre algo que nunca vai dar
+				// certo. 5xx fica reservado para falha transitória, onde o retry ajuda.
+				if (req.method === 'POST' && req.url === CAMINHO_EVENTO_PEDIDO) {
+					const pedido = extrairPedidoDoSubject(req.headers['ce-subject'] as string | undefined);
+					if (!pedido) {
+						console.error('worker: evento sem ce-subject reconhecível — ignorado.');
+						return json(res, 200, { outcome: 'ignorado', motivo: 'subject_invalido' });
+					}
+					return json(res, 200, await deps.processarPedido(pedido.uid, pedido.orderId));
 				}
 
 				if (req.method === 'POST' && req.url === '/poc-render') {
