@@ -26,3 +26,6 @@ eslint.config.js
 svelte.config.js
 # Fotos reais de pessoa nunca entram em imagem publicada (PRODUCT.md §10).
 src/lib/fixtures/photos-locais
+# `COPY worker ./worker` levaria os testes junto. Inofensivo (nunca importados, e `vitest` não
+# existe na imagem por causa do `--omit=dev`), mas não há motivo para embarcá-los.
+worker/*.test.ts

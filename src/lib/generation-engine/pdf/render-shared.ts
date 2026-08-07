@@ -54,7 +54,17 @@ export async function renderHtmlToPdf(html: string): Promise<Uint8Array> {
 	// execução de conteúdo remoto não confiável — não existe neste caminho. E, no worker, o
 	// limite de isolamento é o próprio container, não o processo. Rodando localmente
 	// (nenhuma das duas variáveis presente), o sandbox continua ativo.
-	const semSandbox = Boolean(process.env.CI ?? process.env.CHROME_NO_SANDBOX);
+	//
+	// CONDIÇÃO DE INVALIDAÇÃO (revisão de segurança da PR #150): a premissa acima cai se
+	// algum render passar a carregar recurso remoto (webfont por URL, imagem por link,
+	// iframe) ou a interpolar HTML não escapado. Se isso acontecer, o sandbox precisa voltar
+	// — não basta manter o container como limite.
+	//
+	// `||`, não `??`: `??` só cai para o segundo operando quando o primeiro é `undefined`/
+	// `null`, então um `CI=""` (string vazia, que alguns ambientes exportam) resolveria para
+	// `false` e manteria o sandbox ligado mesmo com `CHROME_NO_SANDBOX=1` — dentro do
+	// container, onde ele não sobe.
+	const semSandbox = Boolean(process.env.CI) || Boolean(process.env.CHROME_NO_SANDBOX);
 	const launchArgs = semSandbox ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 	const browser = await chromium.launch({ channel: 'chrome', args: launchArgs });
 	try {

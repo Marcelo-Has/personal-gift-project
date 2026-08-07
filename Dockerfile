@@ -38,6 +38,18 @@ RUN npm ci --omit=dev
 COPY src ./src
 COPY worker ./worker
 
+# Não rodar como root (achado M-2 da revisão de segurança da PR #150). O Chrome aqui sobe
+# SEM sandbox (`CHROME_NO_SANDBOX`, ver `render-shared.ts`) e decodifica bytes de imagem
+# enviados pelo usuário: um bug de parser do Chrome executaria como uid 0 dentro do
+# container. `--no-sandbox` e root são aceitáveis isoladamente; juntos, não.
+#
+# `node:22-slim` já traz o usuário `node` (uid 1000). O `chown` cobre `/app` porque o
+# `npm ci` acima roda como root, e o `HOME` explícito existe porque o Chrome precisa de
+# diretório gravável para o perfil — sem ele, o launch falha com o usuário sem home.
+RUN chown -R node:node /app && mkdir -p /home/node && chown -R node:node /home/node
+USER node
+ENV HOME=/home/node
+
 ENV NODE_ENV=production
 # O sandbox do Chrome não sobe dentro do container (sem namespaces de usuário), e
 # `/dev/shm` é pequeno demais para o Chrome renderizando página grande. O isolamento aqui é

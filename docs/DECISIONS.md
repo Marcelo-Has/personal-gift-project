@@ -2752,6 +2752,49 @@ e nunca foi refeita. Criar infraestrutura continua sendo passo manual fora do CI
 com ela o import da fixture `MINI_SKU_LAYOUT` dentro do worker, que era o único ponto onde
 código de produção alcançava dado de exemplo.
 
+**`POST /gerar` FICA, como escotilha operacional deliberada.** Desde [D-070] o gatilho é a
+escrita no Firestore, então a rota não tem chamador em `src/` — a revisão de segurança da
+PR #150 apontou isso e pediu "remova ou registre como escolha". Registrada como escolha:
+
+- **Por que existe:** reprocessar um pedido travado sem editar o Firestore à mão. Edição manual
+  usa credencial de admin, ignora `firestore.rules` e um erro de digitação corrompe o estado de
+  um pedido pago. A rota passa pela MESMA guarda de `iniciarGeracao` que o gatilho, então não
+  permite pular etapa nem reprocessar o que não deve.
+- **Quando usar:** pedido em `erro_geracao` depois de a causa ter sido corrigida; ou em
+  `aguardando_geracao` que nunca recebeu evento — exatamente o caso desta sessão, em que o
+  trigger não existia.
+- **Quando NÃO usar:** `em_geracao` ou `gerado`. `iniciarGeracao` recusa os dois, e isso é
+  proteção: insistir significa que o problema é outro.
+- **Como chamar:** `POST /gerar` com corpo `{"uid":"…","orderId":"…"}` e
+  `Authorization: Bearer $(gcloud auth print-identity-token)`. Exige `roles/run.invoker`; sem
+  token o Cloud Run devolve 403 antes de a requisição chegar ao processo.
+
+**A service account `netlify-invoker` nunca foi criada** — e não deve ser. [D-069] a previa
+como "a credencial que o webhook do Stripe usará", mas [D-070], logo depois, decidiu que o
+webhook não invoca nada. Verificado no projeto: a SA não existe, não há binding e não há chave
+de longa duração. `worker-geracao` também não tem nenhuma chave gerenciada por usuário — a
+promessa central de [D-069] ("nenhuma chave privada no worker") se sustenta empiricamente, não
+só no texto.
+
+**O container deixou de rodar como root.** `--no-sandbox` e uid 0 são aceitáveis
+separadamente, mas não juntos: o Chrome sem sandbox decodifica bytes de imagem enviados pelo
+usuário, e um bug de parser executaria como root dentro do container. O `Dockerfile` passa a
+usar o usuário `node` que a imagem base já traz, com `HOME` próprio (o Chrome precisa de
+diretório gravável para o perfil). Verificado com um Cloud Run Job sobre a MESMA imagem,
+lançando o Chrome sem tocar em nenhuma API paga — o `/poc-render`, que era a sonda barata, já
+tinha saído.
+
+**Evidência de que o controle de acesso existe.** A revisão de segurança classificou como
+bloqueante não a ausência do controle, mas a ausência de prova dele no repositório. A política
+foi conferida: só `worker-geracao` tem `roles/run.invoker`, sem `allUsers`/`allAuthenticatedUsers`;
+`curl` sem token devolve 403 e com token 200. O comando de deploy e a conferência passam a ser
+versionados em `docs/DEPLOY-WORKER.md`, junto da dívida conhecida (o serviço ainda se chama
+`hello`, e o trigger do Cloud Build aponta para uma branch de feature em vez da `main`).
+
+**Registrado, não corrigido:** `readJsonBody` não tem teste do limite `MAX_BODY_BYTES`. O corpo
+legítimo é `{uid, orderId}`, de poucos bytes, e a rota está atrás do IAM — sem superfície atual,
+fica como sugestão, não como pendência (`right-sizing.md`).
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

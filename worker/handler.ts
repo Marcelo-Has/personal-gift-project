@@ -96,6 +96,14 @@ export function criarHandler(deps: WorkerDeps) {
 					return json(res, 200, await deps.processarPedido(pedido.uid, pedido.orderId));
 				}
 
+				// Escotilha operacional DELIBERADA, não resíduo (achado 2 da revisão de segurança
+				// da PR #150, decidido em [D-071]): desde [D-070] o gatilho é a escrita no
+				// Firestore, então esta rota não tem chamador em `src/`. Ela existe para
+				// reprocessar um pedido travado — `erro_geracao` com a causa já corrigida, ou
+				// `aguardando_geracao` que nunca recebeu evento — sem editar o Firestore à mão,
+				// que usaria credencial de admin e corromperia estado com um erro de digitação.
+				// Passa pela MESMA guarda de `iniciarGeracao` que o gatilho: não dá para pular
+				// etapa nem reprocessar o que já está `em_geracao`/`gerado`.
 				if (req.method === 'POST' && req.url === '/gerar') {
 					const body = (await readJsonBody(req)) as { uid?: unknown; orderId?: unknown };
 					if (!isSafeId(body.uid) || !isSafeId(body.orderId)) {

@@ -48,10 +48,26 @@ function requireEnv(name: string): string {
  * A escolha é pela presença das variáveis, não por uma flag: se a chave está configurada,
  * usa a chave; se não está, usa a identidade do ambiente. Isso mantém o comportamento
  * atual do app intacto e faz o worker funcionar sem nenhum `if (isCloudRun)`.
+ *
+ * Sem teste dedicado de propósito: cobrir esta função exigiria exportá-la só para isso,
+ * alargando a superfície do módulo por uma checagem de três linhas cujo comportamento é
+ * verificável por leitura (achado M-1 da revisão de segurança da PR #150).
  */
 function resolveCredential() {
 	const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 	const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+	// Meia configuração é sempre engano, nunca intenção — e o engano é plausível: rotação de
+	// chave, deploy-preview sem herdar as variáveis, `FIREBASE_PRIVATE_KEY` que virou string
+	// vazia. Sem esta guarda, o app "inicializa com sucesso" e cai em ADC, que na Netlify não
+	// acha credencial nenhuma: a falha reaparece depois, dispersa, como erro opaco de SDK no
+	// meio de um pedido, em vez de erro nomeado no arranque. As duas juntas ou nenhuma.
+	if (Boolean(clientEmail) !== Boolean(privateKey)) {
+		throw new Error(
+			'FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY devem estar ambas definidas ou ambas ausentes: ' +
+				'meia configuração de credencial não degrada para Application Default Credentials. Ver .env.example.'
+		);
+	}
 
 	if (!clientEmail || !privateKey) {
 		return applicationDefault();
