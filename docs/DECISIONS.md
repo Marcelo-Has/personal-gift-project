@@ -2682,10 +2682,13 @@ resposta sai —, então "chamar e seguir a vida" não é confiável.
 - **O gatilho dispara a cada escrita no documento, inclusive as do próprio worker**
   (`em_geracao`, `gerado`). `processarPedido` corta o laço antes de qualquer trabalho, saindo
   com `outcome: 'ignorado'` quando o status não é um dos dois reivindicáveis.
-- **O corpo do evento é protobuf e não é lido.** O worker tira `uid`/`orderId` do cabeçalho
-  `ce-subject` (`documents/users/{uid}/orders/{orderId}`) e relê o documento do Firestore —
-  mais correto de qualquer forma, porque com entrega ao menos uma vez o evento pode chegar
-  desatualizado.
+- **O corpo do evento não é lido.** O worker tira `uid`/`orderId` do cabeçalho `ce-subject`
+  (`documents/users/{uid}/orders/{orderId}`) e relê o documento do Firestore — mais correto de
+  qualquer forma, porque com entrega ao menos uma vez o evento pode chegar desatualizado. O
+  trigger é criado com `--event-data-content-type=application/json` (o Eventarc exige o campo
+  explicitamente para eventos do Firestore): como o corpo não é lido, os dois formatos
+  serviriam, e JSON foi escolhido por ficar legível no log na hora de depurar, enquanto
+  protobuf exigiria ferramenta para decodificar.
 - **Evento irrelevante ou malformado responde 2xx, não 4xx.** Para o Eventarc, 2xx confirma a
   entrega; devolver erro faria ele reentregar para sempre algo que nunca vai dar certo. 5xx
   fica reservado para falha transitória, onde o retry de fato ajuda.

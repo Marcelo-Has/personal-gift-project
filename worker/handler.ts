@@ -31,9 +31,10 @@ export interface WorkerDeps {
  * Extrai `uid`/`orderId` do `ce-subject` de um evento do Firestore, que tem a forma
  * `documents/users/{uid}/orders/{orderId}`.
  *
- * O corpo do evento é protobuf e **não é lido**: tudo que o worker precisa é a identidade do
- * documento, e o estado atual ele relê do Firestore — que é mais correto de qualquer forma,
- * porque a entrega é ao menos uma vez e o evento pode chegar desatualizado.
+ * O corpo do evento **não é lido** — nem em JSON nem em protobuf, os dois formatos que o
+ * Eventarc aceita para Firestore. Tudo que o worker precisa é a identidade do documento, e o
+ * estado atual ele relê do Firestore: mais correto de qualquer forma, porque a entrega é ao
+ * menos uma vez e o evento pode chegar desatualizado.
  */
 export function extrairPedidoDoSubject(
 	subject: string | undefined
