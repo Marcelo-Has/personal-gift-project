@@ -2647,8 +2647,15 @@ isolamento passa a ser o container.
 
 **Verificado localmente antes de qualquer deploy** — o ganho concreto sobre a Netlify, onde
 cada hipótese custava um ciclo de deploy: `npm run worker` seguido de `POST /poc-render`
-devolveu `{"ok":true,"pdfBytesLength":5745,"durationMs":1458}`. Falta a mesma prova dentro do
-container no Cloud Run, que é o critério de aceite da #148.
+devolveu `{"ok":true,"pdfBytesLength":5745,"durationMs":1458}`.
+
+**PoC CONFIRMADA no Cloud Run** (2026-08-07, invocação autenticada por humano contra o
+serviço em `us-east1`, build a partir da branch desta PR):
+`{"ok":true,"pdfBytesLength":5749,"durationMs":2352}`. O Chrome sobe e renderiza PDF dentro
+do container no ambiente real — o que [D-063] pedia e a Netlify não entregou. A diferença de
+4 bytes contra o render local é metadado do PDF; os ~900 ms a mais são cold start puxando a
+imagem com Chrome. Isto fecha a pergunta de plataforma aberta desde D-063/D-104: **a geração
+pesada roda em container, e a Opção C está validada na prática, não só no papel.**
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
