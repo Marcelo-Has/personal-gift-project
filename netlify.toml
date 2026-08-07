@@ -2,37 +2,13 @@
   command = "npm run build"
   publish = "build"
 
-# Funções da Netlify escritas à mão (fila+worker de geração pesada, D-063/F2-07),
-# separadas das functions que o @sveltejs/adapter-netlify já gera para as rotas do
-# SvelteKit. `included_files`: `render-shared.ts` lê o `.woff2` da fonte do disco em
-# runtime (`readFileSync`, não `import`) — sem isto o bundler não empacota o binário
-# junto e a function quebra com ENOENT ao tentar incorporar a fonte no PDF.
-#
-# `node_bundler` + `external_node_modules`: sozinho, nenhum dos dois bundlers da Netlify
-# atende este caso — foram necessárias as duas tentativas da PR #138 para descobrir isso.
-#
-# - Só `esbuild`: o build quebra com `Could not resolve "chromium-bidi/..."`.
-#   `playwright-core` (usado por `render-shared.ts`, D-062) faz `require(path.join(...))`
-#   dinâmicos em runtime para localizar `browsers.json`/`package.json` do próprio pacote
-#   ao resolver `channel: 'chrome'`; esbuild bundla tudo num arquivo só e não consegue
-#   seguir/copiar esses arquivos de dados referenciados dinamicamente.
-# - Só `nft` (Node File Trace): lida bem com o playwright — traça requires estaticamente e
-#   copia os arquivos reais preservando `node_modules/playwright-core` —, mas **não
-#   transpila TypeScript**. As functions daqui são `.js` importando `.ts` do `src/`, e o
-#   `.ts` simplesmente não entra no pacote. Pior: `nft` NÃO reprova o build por isso, então
-#   o Deploy Preview fica verde e a falha só aparece em runtime, como
-#   `Runtime.ImportModuleError: Cannot find module '.../render-dedicatoria'`.
-#
-# A combinação abaixo usa o comportamento certo de cada um: `esbuild` compila o TypeScript
-# das functions, e `external_node_modules` tira `playwright-core` do bundle para que a
-# Netlify o copie inteiro para `node_modules` — que é exatamente o que preserva os requires
-# dinâmicos. Ao mexer aqui, lembre que Deploy Preview verde NÃO prova que a function
-# carrega: só a invocação real (ou o log da function) prova.
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-  external_node_modules = ["playwright-core"]
-  included_files = ["node_modules/@fontsource/lora/files/lora-latin-400-normal.woff2"]
+# Sem seção `[functions]`: a geração pesada NÃO roda em Netlify Functions ([D-068]).
+# A PoC exigida por [D-063] reprovou ao vivo — não há Chrome no runtime do Lambda, nenhum
+# bundler da Netlify atende o caso (esbuild compila TS mas emite CJS, quebrando
+# `import.meta.url`; nft preserva o layout mas não compila TS) e `src/lib` pressupõe o
+# layout do repositório em disco. A geração passou a ser responsabilidade de um worker
+# dedicado em container, fora da Netlify. Aqui ficam só as functions que o
+# `@sveltejs/adapter-netlify` gera sozinho para as rotas do SvelteKit.
 
 [build.environment]
   NODE_VERSION = "22"          # espelhar .github/workflows/ci.yml

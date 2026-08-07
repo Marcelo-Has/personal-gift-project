@@ -5,13 +5,6 @@ import { marcarAguardandoGeracao, marcarPago } from '$lib/server/orders';
 import type { RequestHandler } from './$types';
 
 /**
- * Nome do arquivo em `netlify/functions/` (F2-07, issue #135) — Background Function que
- * roda o pipeline completo. Caminho fixo da convenção da Netlify
- * (`/.netlify/functions/<nome-do-arquivo-sem-extensão>`), não configurável.
- */
-const GERAR_PEDIDO_FUNCTION_PATH = '/.netlify/functions/gerar-pedido-background';
-
-/**
  * Webhook do Stripe (F1-07b, issue #97): confirma `checkout.session.completed` e marca o
  * pedido `pago`. `.claude/rules/payments.md`/`security.md`: assinatura verificada antes de
  * qualquer outra coisa — assinatura ausente/inválida nunca chega a tocar o pedido.
@@ -55,22 +48,15 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Stripe reenvia nativamente — retry/dead-letter fica fora do escopo desta issue.
 	await marcarPago({ uid, orderId });
 
-	// F2-07 (issue #135): enfileira a geração pesada e dispara a Background Function que a
-	// roda de ponta a ponta (D-063). `marcarAguardandoGeracao` e o disparo abaixo são
-	// idempotentes (ver os comentários em `orders.ts`/`iniciarGeracao`) — um retry do Stripe
-	// do mesmo evento (ex.: porque o disparo abaixo falhou da primeira vez, o que faz este
-	// handler lançar e responder 500) não duplica trabalho nem regride o status.
+	// F2-07 (issue #135): enfileira a geração pesada. `marcarAguardandoGeracao` é idempotente
+	// (ver os comentários em `orders.ts`) — um retry do Stripe do mesmo evento não duplica
+	// trabalho nem regride o status.
+	//
+	// O DISPARO do worker não acontece aqui ainda: [D-068] tirou a geração das Netlify
+	// Functions (a PoC de D-063 reprovou) e o worker dedicado, com sua URL e seu mecanismo de
+	// gatilho, é a issue de continuação. Até lá o pedido fica em `aguardando_geracao` — que é
+	// o estado correto de "pago, na fila", não um estado inconsistente.
 	await marcarAguardandoGeracao({ uid, orderId });
-
-	const gerarPedidoUrl = new URL(GERAR_PEDIDO_FUNCTION_PATH, request.url);
-	const disparo = await fetch(gerarPedidoUrl, {
-		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ uid, orderId })
-	});
-	if (!disparo.ok) {
-		error(500, 'Falha ao disparar a geração do pedido.');
-	}
 
 	return json({ recebido: true });
 };

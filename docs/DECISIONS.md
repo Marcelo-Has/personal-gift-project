@@ -2408,11 +2408,61 @@ lançando `PolaroidRenderInputError` se não bater — protege contra bug de wir
 não implementa a resolução em si.
 
 ---
-## D-065 | 2026-08-06 | ACEITA (parcial — falta a verificação ao vivo)
-**[F2-07] Orquestração completa implementada (endpoint/gatilho, pipeline, status, idempotência,
-testes) em cima do bundling corrigido do PR #138 — mas a condição de [D-063] (PoC verificada
-rodando de verdade no ambiente Netlify) continua sem confirmação: esta sessão, como as
-anteriores no mesmo PR, não tem rede de saída para fazer o `POST`/`GET` reais.** Issue #135.
+## D-065 | 2026-08-05 | ACEITA
+**[F2-08c1] `renderBookToPdf` junta os PDFs por spread com `pdf-lib` (`copyPages`), sem
+reaproveitar o processo do Chrome entre chamadas — cada `render*SpreadToPdf` mantém seu
+próprio launch/close (mesmo padrão de [D-062]).** Fecha a issue #133 (F2-08c1).
+
+**Por quê montar via `pdf-lib` em vez de gerar um único HTML com todos os spreads e uma
+única chamada a `page.pdf()`.** Os quatro `render*SpreadToPdf` (F2-08a/b1/b2) já são função
+pública, testada e usada de forma independente (ex. re-renderizar um spread isolado);
+juntar o HTML de entrada de todos exigiria reescrever os quatro módulos para compor um
+documento compartilhado, quebrando esse uso isolado sem necessidade. `pdf-lib` já é
+dependência do projeto (usada nos testes desde F2-08a) e `copyPages` resolve exatamente
+"juntar PDFs prontos, na ordem certa", sem introduzir lib nova.
+
+**Por quê NÃO reaproveitar um único processo de Chrome entre as chamadas dos quatro
+spreads.** Reaproveitar exigiria mudar a assinatura dos quatro `render*SpreadToPdf` já
+mergeados (receber um `Browser`/`Page` opcional em vez de gerenciar o próprio ciclo de
+vida) por um ganho de desempenho ainda não medido — o SKU mini tem no máximo ~16 spreads
+por livro, e cada `render*SpreadToPdf` já é rápido o bastante para não bloquear o teste
+(a suíte deste módulo roda em segundos). `.claude/rules/right-sizing.md`: sem abstração
+nova sem um segundo uso concreto que a justifique; se a fila/worker assíncrona (F2-07)
+medir que o custo de abrir/fechar Chrome por spread é o gargalo real de throughput, essa é
+a hora certa de reabrir esta decisão — não agora, especulativamente.
+
+**Como o erro de foto ausente é reportado.** `GeneratedBook` não carrega os bytes das fotos
+(só a composição de cada spread, `layout.ts`), então um spread `polaroid` sem
+`StylizedPhoto` correspondente só é detectável na hora de renderizar, não na composição do
+layout. `renderBookToPdf` lança `RenderBookMissingStylizedPhotoError` (com o
+`composition.photo.path` que faltou) em vez de propagar undefined/stack genérico do
+`render-polaroid.ts` — mesmo espírito de `LayoutMissingStylizedPhotoError` em `layout.ts`,
+mas como tipo próprio porque o defeito é detectado numa camada diferente (render, não
+layout).
+
+---
+## D-066 | 2026-08-05 | ACEITA
+**`pdf-lib` movido de `devDependencies` para `dependencies` em `package.json`.**
+Achado da revisão de segurança do PR #134 (F2-08c1): `render-book.ts` passou a importar
+`pdf-lib` em código de produção (`renderBookToPdf`), mas a lib só estava listada como
+`devDependency` (usada até então só nos testes desde F2-08a). Numa instalação de
+produção (`npm ci --omit=dev`) o módulo não resolveria — falha latente que estouraria
+quando F2-08c2/F2-07 ligarem `renderBookToPdf` ao worker. Corrige o texto de [D-065], que
+descrevia `pdf-lib` como "já dependência do projeto" — verdade só como dependência de
+teste até este PR. `pdfjs-dist` permanece em `devDependencies`: é usado só nos testes
+(extração de texto do PDF gerado), sem caminho de produção.
+
+---
+## D-067 | 2026-08-07 | ACEITA
+**[F2-07] Segredos de servidor passam a ser lidos de `process.env` em vez de
+`$env/dynamic/private`, e a orquestração do pipeline (status, idempotência, worker, testes) é
+implementada de forma independente de plataforma.** Issue #135.
+
+> **Nota (2026-08-07):** este registro descrevia a orquestração como assente sobre Netlify
+> Background Functions. A PoC que [D-063] exigia foi finalmente executada ao vivo e
+> **reprovou** — ver [D-068], que decide a plataforma e remove o código específico da Netlify.
+> O que está registrado abaixo sobre `process.env` e sobre a orquestração **permanece válido**:
+> as duas coisas são independentes de plataforma e continuam de pé no worker dedicado.
 
 **Achado novo, além do bloqueio de bundling do `node_bundler` já registrado no `netlify.toml`
 deste PR: `gerarNarrativaDoPedido`/`stylizePhotosForOrder` (F2-06a/b) importam, de forma
@@ -2493,6 +2543,70 @@ Corrigido com `resolve(homeContent.ctaHref)` (`$app/paths`), mesmo padrão já u
 então o tipo literal bate com `resolve()` sem precisar mudar `home-content.ts`.
 
 ---
+## D-068 | 2026-08-07 | ACEITA
+**A PoC exigida por [D-063] foi executada ao vivo no ambiente real da Netlify e REPROVOU. A
+geração pesada NÃO roda em Netlify Background Functions: adotada a Opção C que o próprio
+[D-063] já registrava como próximo candidato — worker dedicado em container.** Issue #135,
+PR #138. Fecha a condição em aberto de [D-063] e a parte "onde roda a geração pesada" de
+[D-104].
+
+**Como a PoC foi verificada.** Sonda mínima `netlify/functions/poc-chrome.js` (commit
+`ad7ca0e`, removida neste mesmo PR), importando só `playwright-core`, sem tocar em `src/lib`,
+sem Firestore e sem ler nada do disco — desenhada para isolar a única pergunta de D-063 depois
+de três tentativas morrerem em empacotamento antes de chegar ao Chrome. Invocada por HTTP no
+Deploy Preview da PR #138, com rede de saída real (as sessões anteriores da fábrica não tinham
+— por isso a condição de D-063 ficou meses sem resposta).
+
+**Resultado, em 39 ms:**
+`browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome`
+
+**Três incompatibilidades, na ordem em que foram descobertas.** As duas primeiras são fatais
+por si só; a terceira é estrutural e não teria aparecido sem as outras duas.
+
+1. **Não há Chrome no runtime.** Netlify Functions rodam em containers AWS Lambda.
+   [D-062] usa `channel: 'chrome'` (`render-shared.ts`), que procura o Chrome instalado no
+   sistema. A imagem de BUILD da Netlify tem Chrome; a de RUNTIME não — o que explica o CI
+   verde e o deploy verde convivendo com a falha em produção.
+2. **Nenhum bundler da Netlify atende o caso.** `esbuild` compila o TypeScript importado de
+   `src/lib`, mas emite CJS, onde `import.meta.url` é `undefined` e `createRequire` quebra
+   (`render-shared.ts:13`). `nft` preserva o layout de arquivos e lida bem com os `require`
+   dinâmicos do `playwright-core`, mas **não transpila TypeScript** — e, pior, não reprova o
+   build por isso: falha só em runtime, com Deploy Preview verde (foi o que produziu o
+   falso-verde registrado em D-067).
+3. **`src/lib` pressupõe o layout do repositório em disco.** `product-skills/loader.ts`
+   resolve as skills a partir de `path.dirname(fileURLToPath(import.meta.url))` e confirma o
+   `absolutePath` no disco; `render-shared.ts` acha a fonte via `require.resolve`. Empacotar
+   destrói essas premissas por construção — não é bug, é incompatibilidade de modelo.
+
+**Por que Opção C e não `@sparticuz/chromium`.** O Chromium-para-Lambda resolveria só o item 1.
+Os itens 2 e 3 continuariam exigindo máquina nova: um passo de build que compile `src/lib`
+preservando a estrutura de diretórios e embarque skills e fonte. Some-se o teto de 15 min da
+Background Function contra um pipeline que roda ~8 chamadas de imagem mais um processo de
+Chrome por spread, sequencialmente. Um container próprio resolve os três itens de uma vez
+(Chrome instalado de verdade, sem bundler, timeout de até 60 min) e, decisivo na prática,
+**restaura a reprodução local**: a PR #138 custou dias porque cada hipótese exigia um ciclo de
+deploy + invocação manual, sem repro na máquina.
+
+**Custo aceito.** Segunda plataforma no stack, o que tensiona [D-018] (mesma plataforma da
+app). Aceito porque D-018 decidia onde hospedar a APLICAÇÃO WEB, e esta decisão é sobre onde
+roda o processamento pesado — que D-011/`ARCHITECTURE.md` sempre previu como fila+worker
+separado. A app continua na Netlify; só o worker sai.
+
+**O que este PR faz com o código.** Removidas as três functions da Netlify, a sonda
+`poc-chrome.js`, a seção `[functions]` do `netlify.toml`, os globals de `netlify/functions/**`
+no `eslint.config.js` e o disparo HTTP no webhook do Stripe (apontava para uma function que
+deixa de existir). **Permanece** tudo que é independente de plataforma e continua válido no
+worker dedicado: `process.env` no lugar de `$env/dynamic/private` (D-067), os status de
+`order.ts`, as transições e a idempotência de `orders.ts`, `order-worker.ts`,
+`order-photos.ts` e seus testes. O webhook segue marcando `aguardando_geracao` — o pedido fica
+enfileirado esperando o worker, que é exatamente a costura que a issue de continuação assume.
+
+**Ainda em aberto, na issue de continuação:** qual provedor de container (Cloud Run, Render ou
+Fly.io), o mecanismo de gatilho e a PoC equivalente no ambiente novo — desta vez rodando o
+pipeline completo, não só o Chrome. Enquanto isso, F2-07 **não** é marcado como concluído no
+`ROADMAP.md`.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
@@ -2505,7 +2619,9 @@ então o tipo literal bate com `resolve()` sem precisar mudar `home-content.ts`.
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
   print-on-demand definitivo (F3-01). A hospedagem do app SvelteKit **saiu deste gate** e
   foi decidida em [D-018] (Netlify); a parte fila+worker (F2-07) **saiu deste gate** e foi
-  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito); só
-  o provedor de print-on-demand (F3-01) continua PENDENTE.
+  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito) e
+  **revista em [D-068]**, depois de a PoC reprovar ao vivo: worker dedicado em container
+  (Opção C), com o provedor específico a definir na issue de continuação; só o provedor de
+  print-on-demand (F3-01) continua PENDENTE.
 - **D-105** | Quais estilos entram no catálogo público da V1 (sugestão: 2–3 consistentes).
 - **D-106** | Quais tamanhos entram na V1 e a spec exata de cada SKU.
