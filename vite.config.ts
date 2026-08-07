@@ -12,6 +12,7 @@ export default defineConfig({
 		// `test:rules`).
 		include: [
 			'src/**/*.{test,spec}.{js,ts}',
+			'worker/*.{test,spec}.{js,ts}',
 			'tests/hooks/*.{test,spec}.{js,ts}',
 			'tests/workflows/*.{test,spec}.{js,ts}'
 		],

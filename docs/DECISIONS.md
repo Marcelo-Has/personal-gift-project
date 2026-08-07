@@ -2607,6 +2607,50 @@ pipeline completo, não só o Chrome. Enquanto isso, F2-07 **não** é marcado c
 `ROADMAP.md`.
 
 ---
+## D-069 | 2026-08-07 | ACEITA
+**Provedor do worker de geração: Cloud Run (região `us-east1`, a mesma do Firestore). O
+repositório roda no container em TypeScript direto, com `tsx`, sem nenhum bundler; o serviço
+exige autenticação e a identidade vem da service account anexada, sem chave privada em
+variável de ambiente.** Issue #148, decorrência de [D-068].
+
+**Por que Cloud Run entre as três opções de D-068.** O projeto já vive no GCP por causa do
+Firebase: mesmo projeto, mesma conta, IAM existente, e — o ponto que decide — a identidade da
+service account anexada dispensa distribuir chave. Render e Fly.io exigiriam uma chave de
+service account do Google guardada como segredo na plataforma, que é exatamente o passivo que
+esta decisão elimina. Escala a zero (sem pedido, sem custo, relevante numa fase sem usuário) e
+o timeout de 60 min cobre o pipeline com folga, contra os 15 min que apertavam na Netlify.
+
+**`tsx` em vez de compilar.** É a lição de [D-068] aplicada: `product-skills/loader.ts`
+resolve as skills por `import.meta.url` confirmando o caminho no disco, e `render-shared.ts`
+acha a fonte por `require.resolve`. A imagem copia `src/` e `worker/` com a estrutura intacta
+e executa o TypeScript direto — sem bundler, não há como reintroduzir a classe de problema que
+reprovou a PoC anterior. O custo é a checagem de tipos não acontecer em runtime; por isso
+`tsconfig.json` passou a incluir `worker/**` explicitamente, para o `npm run check` do CI
+cobrir o worker (o `include` do tsconfig gerado pelo SvelteKit substitui, não mescla).
+
+**Credencial por identidade anexada.** `firebase-admin.ts` passa a escolher entre
+`cert(...)` e `applicationDefault()` pela PRESENÇA de `FIREBASE_CLIENT_EMAIL`/
+`FIREBASE_PRIVATE_KEY`, não por flag de ambiente. O app na Netlify continua com chave (não há
+identidade do Google lá); o worker no Cloud Run roda sem nenhuma. Nada de `if (isCloudRun)`.
+
+**Autenticação do disparo é da plataforma, não da aplicação.** O serviço é criado com "exigir
+autenticação": só quem tem `roles/run.invoker` chega ao processo. Uma service account
+dedicada (`netlify-invoker`, sem nenhum outro papel) é a credencial que o webhook do Stripe
+usará. O worker valida o FORMATO do corpo (`isSafeId`), que é defesa contra chamada malformada
+de quem já está autorizado — não controle de acesso reimplementado.
+
+**Sandbox do Chrome desligado no container**, sinalizado por `CHROME_NO_SANDBOX`, pelo mesmo
+motivo já aceito em CI: o HTML renderizado é sempre gerado pelos módulos de
+`generation-engine/pdf/` (texto escapado, sem recurso externo, sem navegação para conteúdo de
+terceiros), então o risco que o sandbox mitiga não existe neste caminho, e o limite de
+isolamento passa a ser o container.
+
+**Verificado localmente antes de qualquer deploy** — o ganho concreto sobre a Netlify, onde
+cada hipótese custava um ciclo de deploy: `npm run worker` seguido de `POST /poc-render`
+devolveu `{"ok":true,"pdfBytesLength":5745,"durationMs":1458}`. Falta a mesma prova dentro do
+container no Cloud Run, que é o critério de aceite da #148.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

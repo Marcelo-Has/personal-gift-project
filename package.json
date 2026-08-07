@@ -18,7 +18,8 @@
 		"test": "npm run check && npm run test:unit",
 		"test:rules": "npx -y firebase-tools@15.24.0 emulators:exec --project demo-personal-gift --only auth,firestore,storage \"vitest run --config vitest.rules.config.ts\"",
 		"test:e2e": "playwright test",
-		"test:e2e:install-browsers": "playwright install --with-deps chromium"
+		"test:e2e:install-browsers": "playwright install --with-deps chromium",
+		"worker": "tsx worker/server.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -50,6 +51,7 @@
 		"pdf-lib": "^1.17.1",
 		"playwright-core": "^1.62.0",
 		"stripe": "^22.4.0",
+		"tsx": "^4.23.11",
 		"zod": "^4.4.3"
 	},
 	"overrides": {
