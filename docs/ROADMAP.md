@@ -106,7 +106,9 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
   - [x] **F2-06c** — Composição de layout / spreads finais: Pedido + `NarrativeBlocks` +
         `StylizedPhoto[]` → lista ordenada de spreads via os quatro `layout-element`,
         respeitando o orçamento de páginas do SKU (D-061).
-- [ ] **F2-07** — Fila + worker assíncrono para a geração pesada.
+- [x] **F2-07** — Fila + worker assíncrono para a geração pesada. Worker em container no
+      Cloud Run (D-069), com a escrita de `aguardando_geracao` no Firestore como fila via
+      Eventarc (D-070); ponta a ponta provado no ambiente real em D-071.
 - [ ] **F2-08** — Geração do **PDF de produção** por tamanho/SKU (sangria, 300 DPI, PDF/X-4).
       Decomposto em três entregas (D-048); o pai fecha quando as três fecharem.
   - [x] **F2-08a** — Infra de renderização headless (HTML/CSS → PDF) + spread único de
