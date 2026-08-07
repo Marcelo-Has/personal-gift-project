@@ -2814,3 +2814,8 @@ fica como sugestão, não como pendência (`right-sizing.md`).
   print-on-demand (F3-01) continua PENDENTE.
 - **D-105** | Quais estilos entram no catálogo público da V1 (sugestão: 2–3 consistentes).
 - **D-106** | Quais tamanhos entram na V1 e a spec exata de cada SKU.
+- **D-107** | A issue #151 (reapontar trigger do Cloud Build, renomear o serviço Cloud Run
+  `hello` → `worker-geracao`, reapontar Eventarc, apagar o serviço antigo, rodar um ponta a
+  ponta real) exige `gcloud` contra Cloud Build/Cloud Run/Eventarc. O `--allowed-tools` do
+  Developer automatizado em `implement.yml` não inclui `gcloud` ([D-012], menor privilégio) —
+  quem executa esse tipo de mudança de infra?
