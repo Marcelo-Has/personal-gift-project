@@ -23,8 +23,6 @@ export const CAMINHO_EVENTO_PEDIDO = '/eventos/pedido';
 export interface WorkerDeps {
 	/** Roda o pipeline completo para UM pedido. Nunca lança (ver `order-worker.ts`). */
 	processarPedido: (uid: string, orderId: string) => Promise<Record<string, unknown>>;
-	/** PoC de [D-069]: renderiza um spread fixo para provar que o Chrome sobe no container. */
-	executarPocRender: () => Promise<Record<string, unknown>>;
 }
 
 /**
@@ -96,12 +94,6 @@ export function criarHandler(deps: WorkerDeps) {
 						return json(res, 200, { outcome: 'ignorado', motivo: 'subject_invalido' });
 					}
 					return json(res, 200, await deps.processarPedido(pedido.uid, pedido.orderId));
-				}
-
-				if (req.method === 'POST' && req.url === '/poc-render') {
-					const resultado = await deps.executarPocRender();
-					console.log('worker: poc-render', JSON.stringify(resultado));
-					return json(res, resultado.ok === true ? 200 : 500, resultado);
 				}
 
 				if (req.method === 'POST' && req.url === '/gerar') {

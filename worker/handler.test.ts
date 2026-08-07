@@ -12,7 +12,7 @@ import {
  * O handler é exercitado por HTTP de verdade (servidor efêmero na porta 0) em vez de
  * chamar a função com `req`/`res` falsos: o que interessa testar é o contrato de rede
  * (método, rota, status, corpo), e dublar `IncomingMessage` mal reproduziria isso.
- * As duas operações caras entram por injeção, então nada de Chrome nem Firestore aqui.
+ * A operação cara entra por injeção, então nada de Chrome nem Firestore aqui.
  */
 function subirServidor(deps: Partial<WorkerDeps> = {}): Promise<{
 	server: Server;
@@ -20,7 +20,6 @@ function subirServidor(deps: Partial<WorkerDeps> = {}): Promise<{
 }> {
 	const completas: WorkerDeps = {
 		processarPedido: vi.fn().mockResolvedValue({ outcome: 'gerado' }),
-		executarPocRender: vi.fn().mockResolvedValue({ ok: true, pdfBytesLength: 1 }),
 		...deps
 	};
 
@@ -111,19 +110,6 @@ describe('handler do worker', () => {
 			});
 
 			expect(resposta.status).toBe(500);
-		});
-	});
-
-	it('deve devolver 500 com a mensagem de erro quando a PoC de render falha', async () => {
-		const executarPocRender = vi
-			.fn()
-			.mockResolvedValue({ ok: false, errorMessage: 'chrome não encontrado' });
-
-		await comServidor({ executarPocRender }, async (baseUrl) => {
-			const resposta = await fetch(`${baseUrl}/poc-render`, { method: 'POST' });
-
-			expect(resposta.status).toBe(500);
-			expect(await resposta.json()).toMatchObject({ ok: false });
 		});
 	});
 

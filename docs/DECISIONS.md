@@ -2698,6 +2698,61 @@ ANTES de a requisição chegar ao container, enquanto `GET /` chega normalmente.
 removido do worker — a rota de saúde é a raiz, que é o que o Cloud Run usa.
 
 ---
+## D-071 | 2026-08-07 | ACEITA
+**O pipeline de geração rodou ponta a ponta no ambiente real: um pedido `aguardando_geracao`
+gravado no Firestore disparou o Eventarc, o worker no Cloud Run executou narrativa + fotos +
+layout + render e o pedido chegou a `gerado` em 90 s. F2-07 está entregue.** Issue #148,
+PR #150. Fecha a última pergunta em aberto de [D-068]/[D-069]/[D-070] e o critério que faltava
+para marcar F2-07 no `ROADMAP.md` ([D-045]).
+
+**O que rodou.** Pedido de teste semeado com o questionário fictício de `fixtures/pedido-exemplo.ts`
+e 8 fotos sintéticas de `fixtures/photos.ts` no Storage, nos caminhos de `photoObjectPath`.
+Uma única escrita de `status: 'aguardando_geracao'` — o gatilho, por [D-070].
+
+| Medida | Valor |
+|---|---|
+| Tempo de ponta a ponta | 90 s (`durationMs: 90044`, igual ao `latency: 90.686 s` do request no Cloud Run) |
+| Spreads renderizados | 16 (`totalPages: 16`) |
+| PDF agregado | 16 723 848 bytes |
+| Chamadas ao `gpt-image-1` | 8, uma por foto |
+| Custo de imagem medido | US$ 0,9884 (soma de `photo_style_provider_call_cost`) |
+
+**A estilização foi REAL, e isso precisou ser verificado explicitamente.** `HttpPhotoStyleProvider`
+cai para `AquarelaFakeProvider` quando falta `OPENAI_API_KEY`, emitindo só um `console.warn`:
+sem a chave, o pedido chegaria a `gerado` sem nunca chamar a API paga, e o registro aqui seria
+um falso-verde. O critério de aceitação passou a ter três partes — `geracao_concluida` no log,
+o documento em `gerado`, e a **ausência** daquele aviso. As três se confirmaram, e os 8 eventos
+de custo por foto provam a chamada real. Fica a lição: para este pipeline, "status gerado" não
+é evidência suficiente de que a geração aconteceu de verdade.
+
+**A idempotência de [D-070] se comportou como desenhada.** O trigger entregou **4** eventos,
+todos com HTTP 200: um de 90,7 s (a geração) e três de 6,5 s / 0,07 s / 0,05 s que não fizeram
+trabalho nenhum — são as escritas do próprio worker (`em_geracao`, `gerado`) redisparando o
+gatilho e saindo por `outcome: 'ignorado'` antes de qualquer ida ao pipeline. `geracao_concluida`
+aparece **exatamente uma vez** no log: 4 entregas, 1 execução, nenhum gasto duplicado.
+
+**Correção de fato sobre o `--event-data-content-type`.** A nota de [D-070] registra que os dois
+formatos serviriam e que `application/json` foi escolhido por legibilidade. Na criação real o
+Eventarc recusa: `"application/json" is not supported by this event type`. O trigger foi criado
+com `application/protobuf`, o único aceito para
+`google.cloud.firestore.document.v1.written`. **Não muda comportamento nem código**: o worker
+não lê o corpo do evento (usa o `ce-subject` e relê o documento), que é exatamente a razão pela
+qual [D-070] considerou o formato indiferente. Só a justificativa "JSON fica legível no log"
+não se sustenta — o formato não era uma escolha disponível.
+
+**Achado operacional: o trigger não sobrevive sozinho ao registro em docs.** Até esta sessão o
+trigger `pedido-aguardando-geracao` **não existia** no projeto, embora [D-070] e o commit
+`a902d17` já o descrevessem — a criação tinha falhado justamente pelo `--event-data-content-type`
+e nunca foi refeita. Criar infraestrutura continua sendo passo manual fora do CI; enquanto for,
+"documentado" não é o mesmo que "existe", e vale conferir com
+`gcloud eventarc triggers list --location=-` antes de assumir que a costura está de pé.
+
+**Rota `/poc-render` removida.** Ela existia para isolar a pergunta "o Chrome sobe aqui?"
+([D-069]) e já respondeu. Com o pipeline completo provado, a ferramenta de diagnóstico sai — e
+com ela o import da fixture `MINI_SKU_LAYOUT` dentro do worker, que era o único ponto onde
+código de produção alcançava dado de exemplo.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

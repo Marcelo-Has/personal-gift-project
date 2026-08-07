@@ -21,41 +21,9 @@ import { getAdminFirestore } from '../src/lib/server/firebase-admin';
 import { loadSourcePhotosFromStorage } from '../src/lib/server/order-photos';
 import { carregarRascunho } from '../src/lib/server/orders';
 import { executarGeracaoDoPedido } from '../src/lib/generation-engine/order-worker';
-import { renderDedicatoriaSpreadToPdf } from '../src/lib/generation-engine/pdf/render-dedicatoria';
-import { composeDedicatoria } from '../src/lib/product-skills/layout-element/dedicatoria/compose';
-import { MINI_SKU_LAYOUT } from '../src/lib/fixtures/pedido-exemplo';
 import { criarHandler } from './handler';
 
 const PORT = Number(process.env.PORT ?? 8080);
-
-/**
- * PoC de [D-069]: renderiza um spread com o Chrome do container e devolve o tamanho do PDF.
- *
- * A issue #148, como a #135 antes dela, exige provar que o Chrome sobe no ambiente real
- * ANTES de comprometer o resto. Não toca em Firestore nem em dado de pedido — a entrada é
- * texto fixo —, então o resultado isola a pergunta "o Chrome funciona aqui?" de qualquer
- * outro problema de infraestrutura. Foi a falta desse isolamento que fez a PoC da #135
- * custar três ciclos até chegar à resposta.
- *
- * Rota temporária: sai junto com a fixture importada aqui assim que a PoC for registrada.
- */
-async function executarPocRender(): Promise<Record<string, unknown>> {
-	const t0 = Date.now();
-	try {
-		const composition = composeDedicatoria(
-			{ dedication: 'PoC F2-07b — render dentro do worker em container.' },
-			MINI_SKU_LAYOUT
-		);
-		const pdf = await renderDedicatoriaSpreadToPdf(composition, MINI_SKU_LAYOUT);
-		return { ok: true, pdfBytesLength: pdf.length, durationMs: Date.now() - t0 };
-	} catch (erro) {
-		return {
-			ok: false,
-			errorMessage: erro instanceof Error ? erro.message : String(erro),
-			durationMs: Date.now() - t0
-		};
-	}
-}
 
 async function processarPedido(uid: string, orderId: string): Promise<Record<string, unknown>> {
 	const store = getAdminFirestore();
@@ -84,7 +52,7 @@ async function processarPedido(uid: string, orderId: string): Promise<Record<str
 	return { outcome: resultado.outcome };
 }
 
-const server = createServer(criarHandler({ processarPedido, executarPocRender }));
+const server = createServer(criarHandler({ processarPedido }));
 
 // Sem timeout de socket: um pedido legítimo roda por minutos (8 imagens + um Chrome por
 // spread) e o corte de tempo real é o do Cloud Run, não o do Node.
