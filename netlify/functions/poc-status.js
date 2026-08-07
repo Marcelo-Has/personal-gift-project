@@ -44,6 +44,11 @@ export const handler = async () => {
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				exists: false,
+				// Identificador do projeto, não credencial (mesma justificativa de
+				// SECRETS_SCAN_OMIT_KEYS em netlify.toml / D-028): sem ele, um `5 NOT_FOUND`
+				// vazio do Firestore não diz CONTRA QUAL projeto a function está falando, e
+				// cada hipótese custa um ciclo de deploy + invocação manual.
+				projectId: process.env.FIREBASE_PROJECT_ID ?? null,
 				errorMessage: erro instanceof Error ? erro.message : String(erro)
 			})
 		};

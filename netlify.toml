@@ -8,21 +8,30 @@
 # runtime (`readFileSync`, não `import`) — sem isto o bundler não empacota o binário
 # junto e a function quebra com ENOENT ao tentar incorporar a fonte no PDF.
 #
-# `node_bundler = "nft"` (Node File Trace), não `esbuild`: o Deploy Preview deste PR
-# falhou com `node_bundler = "esbuild"` (ver PR #138). `playwright-core` (usado por
-# `render-shared.ts`, D-062) faz vários `require(path.join(...))` dinâmicos em tempo de
-# execução para localizar `browsers.json`/`package.json` do próprio pacote (ex.: para
-# resolver `channel: 'chrome'`) — esbuild empacota tudo num arquivo só e não consegue
-# copiar esses arquivos de dados (não-JS) referenciados dinamicamente, o que é a causa
-# mais provável do build quebrar no ambiente real da Netlify mesmo com
-# `netlify functions:build` local passando (o CLI usa `nft` por padrão quando invocado
-# solto, mascarando o problema — só apareceu no deploy real, que respeita esta config).
-# `nft` traça `require`/`import` estaticamente e copia os arquivos reais (preserva a
-# estrutura de `node_modules/playwright-core`), sem tentar bundlar tudo num único
-# arquivo — é o bundler recomendado pela Netlify para pacotes com esse padrão.
+# `node_bundler` + `external_node_modules`: sozinho, nenhum dos dois bundlers da Netlify
+# atende este caso — foram necessárias as duas tentativas da PR #138 para descobrir isso.
+#
+# - Só `esbuild`: o build quebra com `Could not resolve "chromium-bidi/..."`.
+#   `playwright-core` (usado por `render-shared.ts`, D-062) faz `require(path.join(...))`
+#   dinâmicos em runtime para localizar `browsers.json`/`package.json` do próprio pacote
+#   ao resolver `channel: 'chrome'`; esbuild bundla tudo num arquivo só e não consegue
+#   seguir/copiar esses arquivos de dados referenciados dinamicamente.
+# - Só `nft` (Node File Trace): lida bem com o playwright — traça requires estaticamente e
+#   copia os arquivos reais preservando `node_modules/playwright-core` —, mas **não
+#   transpila TypeScript**. As functions daqui são `.js` importando `.ts` do `src/`, e o
+#   `.ts` simplesmente não entra no pacote. Pior: `nft` NÃO reprova o build por isso, então
+#   o Deploy Preview fica verde e a falha só aparece em runtime, como
+#   `Runtime.ImportModuleError: Cannot find module '.../render-dedicatoria'`.
+#
+# A combinação abaixo usa o comportamento certo de cada um: `esbuild` compila o TypeScript
+# das functions, e `external_node_modules` tira `playwright-core` do bundle para que a
+# Netlify o copie inteiro para `node_modules` — que é exatamente o que preserva os requires
+# dinâmicos. Ao mexer aqui, lembre que Deploy Preview verde NÃO prova que a function
+# carrega: só a invocação real (ou o log da function) prova.
 [functions]
   directory = "netlify/functions"
-  node_bundler = "nft"
+  node_bundler = "esbuild"
+  external_node_modules = ["playwright-core"]
   included_files = ["node_modules/@fontsource/lora/files/lora-latin-400-normal.woff2"]
 
 [build.environment]

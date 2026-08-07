@@ -75,6 +75,13 @@ export const handler = async () => {
 		};
 	}
 
+	// Log ANTES da gravação: o veredito de [D-063] é este objeto, e amarrá-lo só ao Firestore
+	// deixa a PoC cega sempre que o banco falha — na PR #138 o Firestore respondeu
+	// `5 NOT_FOUND` e não havia canal nenhum para saber o que o render tinha feito.
+	// `resultado` não tem PII: a entrada da PoC é texto fixo e `errorMessage` só carrega
+	// falha de infraestrutura.
+	console.log('poc-render-background: resultado', JSON.stringify(resultado));
+
 	try {
 		await getAdminFirestore().doc(RESULT_DOC_PATH).set(resultado);
 	} catch (erroGravacao) {
