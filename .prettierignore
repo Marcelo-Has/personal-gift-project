@@ -8,6 +8,9 @@ package-lock.json
 playwright-report
 test-results
 
+# Saída de execução exportada para estudo (issue #151) — gitignorada, não é código
+artefatos-execucao/
+
 # Documentação e specs mantêm formatação livre (não são código do app)
 docs/
 *.md

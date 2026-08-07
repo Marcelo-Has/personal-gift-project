@@ -2796,6 +2796,89 @@ legítimo é `{uid, orderId}`, de poucos bytes, e a rota está atrás do IAM —
 fica como sugestão, não como pendência (`right-sizing.md`).
 
 ---
+## D-072 | 2026-08-07 | ACEITA
+
+**O serviço do worker passa a se chamar `worker-geracao` (era `hello`, nome herdado do
+quickstart), o trigger de deploy do Cloud Build volta a apontar para `^main$`, e um segundo
+trigger passa a apenas CONSTRUIR a imagem em PRs. Uma execução real do pipeline foi capturada
+inteira em disco.** Issue #151. Estende [D-069] (Cloud Run), [D-070] (gatilho por Eventarc) e
+[D-071] (primeiro ponta a ponta); não altera nenhuma delas.
+
+**O que estava quebrado.** As duas dívidas registradas em `docs/DEPLOY-WORKER.md` viraram falha
+real: o trigger do Cloud Build apontava para `^feat/f2-07b-worker-cloud-run$`, branch apagada no
+merge da PR #150. Nenhum push construía ou implantava o worker — ele estava congelado em
+`hello-00013-xx9` desde 2026-08-07 22:02. O modo de falha é o pior possível: silencioso. Não há
+erro, nem build vermelho; o serviço simplesmente para de acompanhar a `main`.
+
+**Renomear o serviço.** O Cloud Run não renomeia serviço no lugar. A ordem executada foi: criar
+`worker-geracao` → conferir o IAM → reapontar o trigger do Eventarc → provar com um ponta a
+ponta → atualizar `_SERVICE_NAME` no Cloud Build → só então apagar `hello`. `docs/DEPLOY-WORKER.md`
+passa a versionar essa ordem, porque apagar o antigo antes de verificar o novo derruba a fila.
+
+**Duas descobertas de infraestrutura que a documentação anterior não tinha:**
+
+1. O passo de deploy do trigger é `gcloud run services update`, **não** `run deploy` — ele não
+   CRIA o serviço. Apagar o serviço não deixa o trigger recriá-lo; passa a falhar.
+2. A service account de build (`416249419814-compute@`) não tem **nenhuma** permissão de Storage,
+   então `gcloud run deploy --source .` falha com `403 storage.objects.get denied` ao ler o zip
+   que ele mesmo acabou de subir. O fluxo do trigger funciona porque o Cloud Build busca o código
+   do GitHub, não do bucket. Registrado como dívida em `DEPLOY-WORKER.md`.
+
+**Build de PR: sim, mas como sinal, não como portão.** Criado o trigger `worker-geracao-build-pr`,
+que roda `docker build` em PRs para a `main` e **não implanta**. Motivo: nenhum job de
+`.github/workflows/ci.yml` toca o `Dockerfile`, então uma imagem quebrada só apareceria depois do
+merge — e o modo de falha é exatamente o que esta entrega conserta (o worker congela na revisão
+antiga, em silêncio). **Não** foi adicionado ao branch protection: é informação para o revisor, e
+transformá-lo em required check é decisão separada.
+
+**Captura da execução.** Uma corrida real foi exportada para `artefatos-execucao/` (gitignorada),
+com o documento do Firestore antes/depois, as transições de status, as fotos originais e
+estilizadas, a narrativa, a diagramação, os PDFs por spread, os logs, os custos e as entregas do
+Eventarc — mais um `FLUXO.md` que explica o ciclo do pagamento ao `gerado`. Para capturar os
+intermediários, o worker foi instrumentado **temporariamente** (o pipeline mantém narrativa,
+fotos, layout e PDFs apenas como variáveis locais e grava só um resumo de quatro números). A
+instrumentação foi construída a partir de uma branch descartável, nunca entrou na `main` nem na
+PR, e foi removida antes do merge; a SA do worker recebeu `roles/storage.objectCreator` no bucket
+só durante a janela, e a permissão foi revogada em seguida.
+
+**Medições da execução** (2026-08-07T23:07:48Z, revisão `worker-geracao-00004-9m4`):
+
+| Item | Valor |
+|---|---|
+| Ponta a ponta | 88,9 s (`durationMs: 88866`) |
+| Spreads / páginas | 19 / 19 |
+| PDF agregado | 16 744 205 bytes |
+| Narrativa | `claude-sonnet-5`, 2 313 entrada / 2 254 saída → US$ 0,0272 |
+| Fotos | 8 chamadas ao `gpt-image-1` → **US$ 1,1126** |
+| **Custo total** | **US$ 1,1397** |
+| Entregas do Eventarc | 4 (1 executou, 3 `ignorado`), `geracao_concluida` uma única vez |
+
+Os três critérios de [D-071] foram conferidos de novo e passaram, mais seis cruzamentos que
+amarram os arquivos à execução — o principal é que a soma dos 19 PDFs em disco bate exatamente
+com o `pdfBytesTotalLength` que o worker gravou no Firestore.
+
+**Registrado, não corrigido** (`right-sizing.md`):
+
+- **O prompt caching de [D-011] está configurado e nunca entra em ação.** O `usage` capturado
+  mostra `cache_creation_input_tokens: 0` — o cache nem é escrito. O prefixo mínimo cacheável do
+  `claude-sonnet-5` é de 1 024 tokens e o bloco de sistema (a `definition.md` da skill) tem
+  ~1 KB, algo em torno de 260 tokens. Falha silenciosa: a API não devolve erro. Impacto atual é
+  de centavos por pedido.
+- **As fotos estilizadas saem a 167 DPI**, não a 300. É o ACHADO de [D-056] agora *medido*: o
+  `gpt-image-1` devolveu 1024×1024 onde o SKU mini pede ~1772 px. O número só existe em memória —
+  nem o Firestore nem o log o guardam.
+- **O custo da narrativa não é instrumentado em produção** (`src/lib/server/claude.ts` não
+  registra `usage`); só a imagem tem custo medido. Os tokens acima vieram do wrapper temporário.
+- A configuração dos triggers do Cloud Build continua vivendo no console, não no repositório —
+  foi exatamente isso que deixou a dívida da branch invisível até quebrar. Migrar para um
+  `cloudbuild.yaml` versionado é melhoria conhecida e adiada.
+
+**Autorização para apagar recurso de produção.** Apagar o serviço `hello` cai em "ações
+irreversíveis" de `docs/AUTONOMY.md` §2. Foi autorizado explicitamente pelo humano no enunciado
+da tarefa, com a ordem exata da operação — registrado aqui em vez de virar issue
+`decision-needed`. Não havia pedido real de usuário no ambiente.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
