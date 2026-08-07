@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	carregarRascunho,
+	iniciarGeracao,
 	LimiteDeRascunhosError,
+	marcarAguardandoGeracao,
 	marcarAguardandoPagamento,
+	marcarErroGeracao,
+	marcarGerado,
 	marcarPago,
 	PedidoNaoEditavelError,
 	salvarRascunho,
@@ -423,5 +427,128 @@ describe('marcarPago', () => {
 			/orderId inválido/
 		);
 		expect(calls).toHaveLength(0);
+	});
+});
+
+describe('marcarAguardandoGeracao', () => {
+	it('deve transicionar pago para aguardando_geracao', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'pago' }
+		});
+
+		await marcarAguardandoGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(docs.get('users/uid-alice/orders/pedido-1')?.status).toBe('aguardando_geracao');
+	});
+
+	it('deve ser idempotente e não escrever de novo quando o pedido já passou de pago', async () => {
+		const { store, calls } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'em_geracao' }
+		});
+
+		await marcarAguardandoGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	it('deve lançar PedidoNaoEditavelError quando o pedido ainda não foi pago', async () => {
+		const { store } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'aguardando_pagamento' }
+		});
+
+		await expect(
+			marcarAguardandoGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store)
+		).rejects.toThrow(PedidoNaoEditavelError);
+	});
+});
+
+describe('iniciarGeracao', () => {
+	it('deve reivindicar o pedido (aguardando_geracao → em_geracao) e devolver "iniciado"', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'aguardando_geracao' }
+		});
+
+		const resultado = await iniciarGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(resultado).toBe('iniciado');
+		expect(docs.get('users/uid-alice/orders/pedido-1')?.status).toBe('em_geracao');
+	});
+
+	it('deve reivindicar um pedido em erro_geracao (retry) e devolver "iniciado"', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'erro_geracao' }
+		});
+
+		const resultado = await iniciarGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(resultado).toBe('iniciado');
+		expect(docs.get('users/uid-alice/orders/pedido-1')?.status).toBe('em_geracao');
+	});
+
+	it('deve devolver "ja_em_andamento" sem escrever quando já está em_geracao', async () => {
+		const { store, calls } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'em_geracao' }
+		});
+
+		const resultado = await iniciarGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(resultado).toBe('ja_em_andamento');
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	it('deve devolver "ja_concluido" sem escrever quando já está gerado', async () => {
+		const { store, calls } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'gerado' }
+		});
+
+		const resultado = await iniciarGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store);
+
+		expect(resultado).toBe('ja_concluido');
+		expect(calls.filter((c) => c.method === 'set')).toHaveLength(0);
+	});
+
+	it('deve lançar PedidoNaoEditavelError quando o pedido não existe', async () => {
+		const { store } = fakeStore();
+
+		await expect(iniciarGeracao({ uid: 'uid-alice', orderId: 'pedido-1' }, store)).rejects.toThrow(
+			PedidoNaoEditavelError
+		);
+	});
+});
+
+describe('marcarGerado', () => {
+	it('deve transicionar para gerado com o resumo do resultado', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'em_geracao' }
+		});
+		const resultado = {
+			spreadCount: 5,
+			totalPages: 6,
+			pdfBytesTotalLength: 12345,
+			durationMs: 42
+		};
+
+		await marcarGerado({ uid: 'uid-alice', orderId: 'pedido-1', resultado }, store);
+
+		const doc = docs.get('users/uid-alice/orders/pedido-1');
+		expect(doc?.status).toBe('gerado');
+		expect(doc?.geracao).toEqual(resultado);
+	});
+});
+
+describe('marcarErroGeracao', () => {
+	it('deve transicionar para erro_geracao com a mensagem de erro', async () => {
+		const { store, docs } = fakeStore({
+			'users/uid-alice/orders/pedido-1': { status: 'em_geracao' }
+		});
+
+		await marcarErroGeracao(
+			{ uid: 'uid-alice', orderId: 'pedido-1', erro: 'Claude API respondeu 500' },
+			store
+		);
+
+		const doc = docs.get('users/uid-alice/orders/pedido-1');
+		expect(doc?.status).toBe('erro_geracao');
+		expect(doc?.geracaoErro).toBe('Claude API respondeu 500');
 	});
 });

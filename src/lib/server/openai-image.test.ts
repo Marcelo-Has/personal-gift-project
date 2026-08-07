@@ -1,29 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getOpenAiImagesClient } from './openai-image';
 
 /**
- * Mesma técnica de `claude.test.ts`/`stripe.test.ts`: `$env/dynamic/private` só é lido
- * quando o cliente é criado, então o mock precisa existir antes do `import('./openai-image')`.
+ * `getOpenAiImagesClient` lê `process.env` diretamente (F2-07/D-065, não mais
+ * `$env/dynamic/private` — ver o comentário no topo de `openai-image.ts`), então o teste usa
+ * `vi.stubEnv`/`vi.unstubAllEnvs` em vez de `vi.mock` num módulo.
  */
-const mockEnv: Record<string, string | undefined> = {};
-vi.mock('$env/dynamic/private', () => ({ env: mockEnv }));
-
-const { getOpenAiImagesClient } = await import('./openai-image');
-
 describe('getOpenAiImagesClient', () => {
 	afterEach(() => {
-		delete mockEnv.OPENAI_API_KEY;
+		vi.unstubAllEnvs();
 		vi.unstubAllGlobals();
 	});
 
 	it('deve lançar erro descritivo quando OPENAI_API_KEY está ausente', () => {
-		delete mockEnv.OPENAI_API_KEY;
+		vi.stubEnv('OPENAI_API_KEY', '');
 
 		expect(() => getOpenAiImagesClient()).toThrow(/OPENAI_API_KEY/);
 	});
 
 	describe('com a chave configurada', () => {
 		beforeEach(() => {
-			mockEnv.OPENAI_API_KEY = 'chave-de-teste';
+			vi.stubEnv('OPENAI_API_KEY', 'chave-de-teste');
 		});
 
 		it('deve chamar /v1/images/edits com multipart e o bearer token certo', async () => {

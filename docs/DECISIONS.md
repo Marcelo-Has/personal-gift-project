@@ -2453,6 +2453,160 @@ teste até este PR. `pdfjs-dist` permanece em `devDependencies`: é usado só no
 (extração de texto do PDF gerado), sem caminho de produção.
 
 ---
+## D-067 | 2026-08-07 | ACEITA
+**[F2-07] Segredos de servidor passam a ser lidos de `process.env` em vez de
+`$env/dynamic/private`, e a orquestração do pipeline (status, idempotência, worker, testes) é
+implementada de forma independente de plataforma.** Issue #135.
+
+> **Nota (2026-08-07):** este registro descrevia a orquestração como assente sobre Netlify
+> Background Functions. A PoC que [D-063] exigia foi finalmente executada ao vivo e
+> **reprovou** — ver [D-068], que decide a plataforma e remove o código específico da Netlify.
+> O que está registrado abaixo sobre `process.env` e sobre a orquestração **permanece válido**:
+> as duas coisas são independentes de plataforma e continuam de pé no worker dedicado.
+
+**Achado novo, além do bloqueio de bundling do `node_bundler` já registrado no `netlify.toml`
+deste PR: `gerarNarrativaDoPedido`/`stylizePhotosForOrder` (F2-06a/b) importam, de forma
+CONCRETA (não só tipo), `$lib/server/claude` e `$lib/server/openai-image` — e esses dois módulos
+liam `$env/dynamic/private`.** Nenhum dos dois alias existe fora do build do Vite/SvelteKit;
+uma Netlify Function escrita à mão (`netlify/functions/*.js`, a mesma convenção da PoC) é
+empacotada por fora dele. Confirmado tentando empacotar com `esbuild`: `Could not resolve
+"$env/dynamic/private"`. A PoC original (`poc-render-background.js`) só exercitava
+`renderDedicatoriaSpreadToPdf` (F2-08a), que não tem essa dependência — por isso o problema não
+apareceu antes, mesmo com o Deploy Preview verde.
+
+**Correção:** `src/lib/server/claude.ts`, `openai-image.ts` e `firebase-admin.ts` passam a ler
+`process.env` direto, em vez de `$env/dynamic/private`. Comportamento idêntico em runtime nos
+adapters Node (Netlify incluído) — `$env/dynamic/private` já era um wrapper de `process.env`
+nesses adapters — então nada muda para o app SvelteKit. `generate.ts`
+(`narrative-style/romantico`) e `http-provider.ts` (`photo-style/aquarela`) trocam o import de
+`$lib/server/*` para caminho relativo, mesmo motivo. A guarda real de "nunca entra no bundle do
+navegador" é o caminho `src/lib/server/` (o SvelteKit recusa o build por causa do DIRETÓRIO, não
+do alias `$env`) — ela continua de pé, então isto não é um afrouxamento de
+`.claude/rules/security.md`, só uma troca de mecanismo de leitura de variável de ambiente.
+Verificado com `esbuild --bundle` que o pipeline inteiro (`narrative.ts` + `photos.ts` +
+`layout.ts` + `firebase-admin.ts` + `render-dedicatoria.ts`) resolve sem erro depois da troca —
+não só a fatia que a PoC original cobria.
+
+**O que foi implementado em cima disso, seguindo o desenho já registrado na issue #135:**
+- `OrderStatus` (`order.ts`) ganha `aguardando_geracao` → `em_geracao` → `gerado` |
+  `erro_geracao`, os nomes que a própria issue sugeria.
+- `orders.ts`: `marcarAguardandoGeracao` (pago → aguardando_geracao, idempotente como
+  `marcarPago`), `iniciarGeracao` (reivindica aguardando_geracao/erro_geracao → em_geracao;
+  idempotência básica por leitura-antes-de-escrever, mesma técnica já usada por `marcarPago`
+  neste módulo — não é uma transação do Firestore, é o mesmo risco residual já aceito aqui),
+  `marcarGerado` e `marcarErroGeracao`.
+- `generation-engine/order-worker.ts` (`executarGeracaoDoPedido`): orquestra narrativa
+  (F2-06a) → fotos (F2-06b) → layout (F2-06c) → render de cada spread (F2-08a/b, despachado por
+  `LayoutSpread.type`) para UM pedido, grava um RESUMO (contagem de spreads/páginas, bytes
+  totais, duração) em `gerado` — não o PDF em si, que é F2-08c (fora de escopo, como a issue já
+  registrava). Nunca lança: todo erro do pipeline vira `erro_geracao` com mensagem sanitizada
+  (truncada a 1000 caracteres, sem tentar redigir PII especificamente — mesmo nível de cuidado
+  que a PoC original já tinha para `errorMessage`).
+- `server/order-photos.ts` (`loadSourcePhotosFromStorage`): a peça que faltava entre
+  `order.questionnaire.photos` (só `photoId`) e `stylizePhotosForOrder` (`SourcePhoto[]` com
+  bytes) — baixa direto do Storage pela Admin SDK, reaproveitando `photoObjectPath` de
+  `signed-url.ts` para o caminho do objeto continuar montado num único lugar.
+- `netlify/functions/gerar-pedido-background.js`: a Background Function real (sufixo
+  `-background`, mesma convenção da PoC), que só fornece as dependências verdadeiras
+  (Firestore, Storage) para `executarGeracaoDoPedido` — toda a lógica fica em
+  `order-worker.ts`, testável sem Netlify.
+- `routes/api/webhooks/stripe/+server.ts`: depois de `marcarPago`, chama
+  `marcarAguardandoGeracao` e dispara a Background Function via `fetch` para a origem do próprio
+  request (`new URL('/.netlify/functions/gerar-pedido-background', request.url)`) — funciona
+  igual em produção e em deploy preview, sem depender de variável de ambiente da Netlify para a
+  URL do site. Se o disparo falhar, o handler responde 500 e o Stripe reenvia o evento
+  nativamente; como `marcarAguardandoGeracao`/`iniciarGeracao` já são idempotentes, o retry não
+  duplica trabalho.
+- Testes novos (mockando só a Claude API e a busca de fotos — dependências EXTERNAS,
+  `.claude/rules/testing.md`; narrativa/fotos/layout/render rodam de verdade, incluindo o Chrome
+  real, como os testes de `render-*.ts` já fazem): `orders.test.ts` (as quatro funções novas),
+  `order-worker.test.ts` (caminho feliz de ponta a ponta, as duas idempotências, os dois
+  caminhos de erro) e `server.test.ts` do webhook (o disparo e a resposta 500 quando ele falha).
+
+**O que CONTINUA em aberto, e por quê não fechar sozinho:** a condição de [D-063] — "rodar o
+render de F2-08a de verdade dentro de uma Background Function" — nunca foi confirmada ao vivo em
+nenhuma sessão deste PR, porque nenhuma delas teve rede de saída para o `POST`/`GET` que a
+verificação exige (a issue #135 é explícita: "roda contra o ambiente real da Netlify... não é
+teste automatizado do CI"). `docs/ROADMAP.md` **não** marca F2-07 como `[x]` por isso — só o
+código está pronto, não a verificação que a issue pede como pré-requisito para prosseguir.
+Próximo passo concreto, igual ao já registrado nos comentários do PR #138: alguém com rede de
+saída (ou acesso ao dashboard da Netlify) precisa invocar `poc-render-background`/`poc-status`
+(ou, agora que o resto existe, um pedido de teste ponta a ponta via `gerar-pedido-background`) no
+deploy preview atual e colar o resultado — só então esta entrada pode ser fechada e o ROADMAP
+atualizado.
+
+**Achado incidental, fora do escopo de F2-07, corrigido só para o CI não ficar vermelho por
+algo não relacionado:** `src/routes/+page.svelte` (não tocado por nenhum PR desde o #100)
+falhava `svelte/no-navigation-without-resolve` — `href={homeContent.ctaHref}` sem `resolve()`.
+Corrigido com `resolve(homeContent.ctaHref)` (`$app/paths`), mesmo padrão já usado em
+`questionario/[etapa]/+page.svelte`; `homeContent.ctaHref` é `'/questionario'` via `as const`,
+então o tipo literal bate com `resolve()` sem precisar mudar `home-content.ts`.
+
+---
+## D-068 | 2026-08-07 | ACEITA
+**A PoC exigida por [D-063] foi executada ao vivo no ambiente real da Netlify e REPROVOU. A
+geração pesada NÃO roda em Netlify Background Functions: adotada a Opção C que o próprio
+[D-063] já registrava como próximo candidato — worker dedicado em container.** Issue #135,
+PR #138. Fecha a condição em aberto de [D-063] e a parte "onde roda a geração pesada" de
+[D-104].
+
+**Como a PoC foi verificada.** Sonda mínima `netlify/functions/poc-chrome.js` (commit
+`ad7ca0e`, removida neste mesmo PR), importando só `playwright-core`, sem tocar em `src/lib`,
+sem Firestore e sem ler nada do disco — desenhada para isolar a única pergunta de D-063 depois
+de três tentativas morrerem em empacotamento antes de chegar ao Chrome. Invocada por HTTP no
+Deploy Preview da PR #138, com rede de saída real (as sessões anteriores da fábrica não tinham
+— por isso a condição de D-063 ficou meses sem resposta).
+
+**Resultado, em 39 ms:**
+`browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome`
+
+**Três incompatibilidades, na ordem em que foram descobertas.** As duas primeiras são fatais
+por si só; a terceira é estrutural e não teria aparecido sem as outras duas.
+
+1. **Não há Chrome no runtime.** Netlify Functions rodam em containers AWS Lambda.
+   [D-062] usa `channel: 'chrome'` (`render-shared.ts`), que procura o Chrome instalado no
+   sistema. A imagem de BUILD da Netlify tem Chrome; a de RUNTIME não — o que explica o CI
+   verde e o deploy verde convivendo com a falha em produção.
+2. **Nenhum bundler da Netlify atende o caso.** `esbuild` compila o TypeScript importado de
+   `src/lib`, mas emite CJS, onde `import.meta.url` é `undefined` e `createRequire` quebra
+   (`render-shared.ts:13`). `nft` preserva o layout de arquivos e lida bem com os `require`
+   dinâmicos do `playwright-core`, mas **não transpila TypeScript** — e, pior, não reprova o
+   build por isso: falha só em runtime, com Deploy Preview verde (foi o que produziu o
+   falso-verde registrado em D-067).
+3. **`src/lib` pressupõe o layout do repositório em disco.** `product-skills/loader.ts`
+   resolve as skills a partir de `path.dirname(fileURLToPath(import.meta.url))` e confirma o
+   `absolutePath` no disco; `render-shared.ts` acha a fonte via `require.resolve`. Empacotar
+   destrói essas premissas por construção — não é bug, é incompatibilidade de modelo.
+
+**Por que Opção C e não `@sparticuz/chromium`.** O Chromium-para-Lambda resolveria só o item 1.
+Os itens 2 e 3 continuariam exigindo máquina nova: um passo de build que compile `src/lib`
+preservando a estrutura de diretórios e embarque skills e fonte. Some-se o teto de 15 min da
+Background Function contra um pipeline que roda ~8 chamadas de imagem mais um processo de
+Chrome por spread, sequencialmente. Um container próprio resolve os três itens de uma vez
+(Chrome instalado de verdade, sem bundler, timeout de até 60 min) e, decisivo na prática,
+**restaura a reprodução local**: a PR #138 custou dias porque cada hipótese exigia um ciclo de
+deploy + invocação manual, sem repro na máquina.
+
+**Custo aceito.** Segunda plataforma no stack, o que tensiona [D-018] (mesma plataforma da
+app). Aceito porque D-018 decidia onde hospedar a APLICAÇÃO WEB, e esta decisão é sobre onde
+roda o processamento pesado — que D-011/`ARCHITECTURE.md` sempre previu como fila+worker
+separado. A app continua na Netlify; só o worker sai.
+
+**O que este PR faz com o código.** Removidas as três functions da Netlify, a sonda
+`poc-chrome.js`, a seção `[functions]` do `netlify.toml`, os globals de `netlify/functions/**`
+no `eslint.config.js` e o disparo HTTP no webhook do Stripe (apontava para uma function que
+deixa de existir). **Permanece** tudo que é independente de plataforma e continua válido no
+worker dedicado: `process.env` no lugar de `$env/dynamic/private` (D-067), os status de
+`order.ts`, as transições e a idempotência de `orders.ts`, `order-worker.ts`,
+`order-photos.ts` e seus testes. O webhook segue marcando `aguardando_geracao` — o pedido fica
+enfileirado esperando o worker, que é exatamente a costura que a issue de continuação assume.
+
+**Ainda em aberto, na issue de continuação:** qual provedor de container (Cloud Run, Render ou
+Fly.io), o mecanismo de gatilho e a PoC equivalente no ambiente novo — desta vez rodando o
+pipeline completo, não só o Chrome. Enquanto isso, F2-07 **não** é marcado como concluído no
+`ROADMAP.md`.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
@@ -2465,7 +2619,9 @@ teste até este PR. `pdfjs-dist` permanece em `devDependencies`: é usado só no
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
   print-on-demand definitivo (F3-01). A hospedagem do app SvelteKit **saiu deste gate** e
   foi decidida em [D-018] (Netlify); a parte fila+worker (F2-07) **saiu deste gate** e foi
-  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito); só
-  o provedor de print-on-demand (F3-01) continua PENDENTE.
+  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito) e
+  **revista em [D-068]**, depois de a PoC reprovar ao vivo: worker dedicado em container
+  (Opção C), com o provedor específico a definir na issue de continuação; só o provedor de
+  print-on-demand (F3-01) continua PENDENTE.
 - **D-105** | Quais estilos entram no catálogo público da V1 (sugestão: 2–3 consistentes).
 - **D-106** | Quais tamanhos entram na V1 e a spec exata de cada SKU.

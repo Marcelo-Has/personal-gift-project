@@ -2,7 +2,6 @@ import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { env } from '$env/dynamic/private';
 
 /**
  * Firebase Admin SDK — operações privilegiadas do servidor (F1-04, issue #22).
@@ -13,8 +12,13 @@ import { env } from '$env/dynamic/private';
  * convenção de nome.
  *
  * Credenciais só por variável de ambiente (ver `.env.example`); nada commitado.
- * O `$env/dynamic/private` (em vez do estático) evita que `npm run build` exija
- * as variáveis existirem — ver a explicação em `src/lib/firebase/client.ts`.
+ * Lê de `process.env` direto (F2-07/D-065, não mais `$env/dynamic/private`): este
+ * módulo também é importado pela Background Function de geração de pedido, em
+ * `netlify/functions/`, fora do build do Vite/SvelteKit, onde o alias `$env` não
+ * resolve (mesmo motivo de `claude.ts`/`openai-image.ts`, ver o comentário lá) —
+ * `$env/dynamic/private` já era um wrapper de `process.env` em runtime nos adapters
+ * Node, então o valor lido não muda. A guarda de "nunca entra no bundle do
+ * navegador" continua sendo o caminho `src/lib/server/`, não o alias `$env`.
  *
  * Atenção: o Admin SDK **ignora** `firestore.rules`/`storage.rules`. Toda rota que
  * usar este módulo precisa checar autorização por conta própria (o dono do dado é
@@ -23,7 +27,7 @@ import { env } from '$env/dynamic/private';
 const ADMIN_APP_NAME = 'personal-gift-admin';
 
 function requireEnv(name: string): string {
-	const value = env[name];
+	const value = process.env[name];
 	if (!value) {
 		throw new Error(
 			`Variável de ambiente ${name} ausente: o Firebase Admin não pode ser inicializado. Ver .env.example.`

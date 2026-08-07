@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type Stripe from 'stripe';
 import { AssinaturaWebhookInvalidaError, verificarAssinaturaWebhook } from '$lib/server/stripe';
-import { marcarPago } from '$lib/server/orders';
+import { marcarAguardandoGeracao, marcarPago } from '$lib/server/orders';
 import type { RequestHandler } from './$types';
 
 /**
@@ -47,6 +47,16 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Falha daqui pra frente (pedido não encontrado, Firestore fora do ar) vira 500 e o
 	// Stripe reenvia nativamente — retry/dead-letter fica fora do escopo desta issue.
 	await marcarPago({ uid, orderId });
+
+	// F2-07 (issue #135): enfileira a geração pesada. `marcarAguardandoGeracao` é idempotente
+	// (ver os comentários em `orders.ts`) — um retry do Stripe do mesmo evento não duplica
+	// trabalho nem regride o status.
+	//
+	// O DISPARO do worker não acontece aqui ainda: [D-068] tirou a geração das Netlify
+	// Functions (a PoC de D-063 reprovou) e o worker dedicado, com sua URL e seu mecanismo de
+	// gatilho, é a issue de continuação. Até lá o pedido fica em `aguardando_geracao` — que é
+	// o estado correto de "pago, na fila", não um estado inconsistente.
+	await marcarAguardandoGeracao({ uid, orderId });
 
 	return json({ recebido: true });
 };
