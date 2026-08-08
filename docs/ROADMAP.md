@@ -169,17 +169,27 @@ conforme a decisão de LGPD.
       (F2-12b) por **URL assinada e expirável**, nunca link público permanente
       (`.claude/rules/security.md`). Inclui re-download pelo dono do pedido. Depende de F2-12.
 - [ ] **F3-08** — **Formatos de compra no checkout** ([D-074]): escolher digital ou impresso,
-      com o impresso **já incluindo** o digital. `preço = f(tamanho, formato)` — o modelo de
-      dados do Pedido e os `Price` do Stripe passam a carregar o formato; estilo continua sem
-      alterar preço ([D-036]). **Não é `decision-needed`:** como em F1-07, pode ser construído
-      com `Price` de teste; os números reais são o item (b) do [D-101], que ganha uma pergunta
-      nova — *o digital custa o mesmo em todos os tamanhos?* (o custo de produção do digital
-      quase não varia entre SKUs, o do impresso varia).
+      com o impresso **já incluindo** o digital. ⚠️ **Os dois formatos não são simétricos:** o
+      impresso é a opção **apresentada como padrão** — é ele que é o presente e é ele que se
+      quer vender; o digital é a porta de entrada para quem não quer gastar com impressão agora.
+      Um checkout que trate os dois como equivalentes atende à letra do D-074 e falha no
+      objetivo dele. `preço = f(tamanho, formato)` — o modelo de dados do Pedido e os `Price` do
+      Stripe passam a carregar o formato; estilo continua sem alterar preço ([D-036]).
+      **Não é `decision-needed`:** como em F1-07, pode ser construído com `Price` de teste; os
+      números reais são o item (b) do [D-101], que ganha uma pergunta nova — *o digital custa o
+      mesmo em todos os tamanhos?* (o custo de produção do digital quase não varia entre SKUs,
+      o do impresso varia).
 - [ ] **F3-09** — **Upsell digital → impresso** ([D-074]): quem comprou o digital compra a
       impressão depois, como **segunda cobrança sobre o pedido existente** — não um pedido novo.
-      Reaproveita o livro guardado (F2-12): **não regera nada**, então o impresso é exatamente o
-      livro que o cliente já viu. Sem isso, a segunda compra produziria um livro diferente
-      (provedor de imagem não determinístico, D-072).
+      O campo de formato evolui de `digital` para `digital+impresso`, o pedido volta de `gerado`
+      para o ciclo de produção, e passa a ter dois pagamentos — a máquina de status deixa de ser
+      linear (F3-04) e o estorno parcial precisa saber qual cobrança estornar. Em troca,
+      "1 livro = 1 pedido" continua verdadeiro no dashboard (F4-04), sem risco de contar a
+      geração duas vezes. Reaproveita o livro guardado (F2-12): **não regera nada**, então o
+      impresso é exatamente o livro que o cliente já viu — sem isso, a segunda compra produziria
+      um livro diferente (provedor de imagem não determinístico, D-072).
+      ⚠️ **Este é o caminho principal de receita, não um extra:** precisa ser visível e sem
+      atrito, não um link escondido no pós-venda.
 - [ ] **F3-10** — **Reimpressão** a partir do arquivo guardado ([D-074]): reenviar à gráfica o
       mesmo PDF de produção, sem regerar. Cobre extravio, dano no transporte e segunda via.
 

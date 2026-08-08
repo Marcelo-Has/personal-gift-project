@@ -2960,6 +2960,15 @@ correção. Enquanto o artefato não for guardado, "vender a versão digital" é
 - **Impresso (já inclui o digital).** Compra única; o digital fica disponível para download
   assim que a geração termina, sem esperar a impressão e o frete.
 
+**A intenção comercial é assimétrica — os dois formatos não têm o mesmo peso.** O objetivo é
+vender o **impresso**: é ele que é o presente, o que se embrulha e se entrega. O digital não é
+um produto paralelo; existe porque nem todo comprador vai querer gastar com impressão logo de
+cara, e é melhor tê-lo como cliente no digital — com o livro já pronto e guardado — do que
+perdê-lo no checkout. Isso não é preferência de tom: **é requisito de desenho.** O impresso é a
+opção apresentada como padrão no checkout (F3-08), e o caminho digital → impresso (F3-09)
+precisa ser visível e sem atrito, não um link escondido no pós-venda. Uma implementação que
+trate os dois formatos como simétricos atende à letra desta decisão e falha no objetivo dela.
+
 **Modelo de preço: estende o [D-036], não o contradiz.** O D-036 decidiu que **estilo não altera
 preço** e que o preço é por tamanho. Isso continua valendo. O que muda é que passa a existir um
 **segundo eixo**: `preço = f(tamanho, formato)`. O modelo de dados do Pedido e os `Price` do

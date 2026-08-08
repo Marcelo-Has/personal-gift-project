@@ -14,15 +14,21 @@ partir de um questionário guiado.
 ## 2. O primeiro produto: "Nossa História"
 **Promessa:** *"Um pequeno livro sobre tudo aquilo que fez vocês virarem vocês."*
 
-O comprador responde a um questionário guiado, **escolhe um estilo visual, um
-tamanho e um formato**, e recebe um livro com narrativa única, ilustrações,
-polaroids, linha do tempo e uma carta final — impresso, digital, ou os dois
-(ver §6).
+O comprador responde a um questionário guiado, **escolhe um estilo visual e um
+tamanho**, e recebe um livro com narrativa única, ilustrações, polaroids, linha
+do tempo e uma carta final.
+
+**O produto é o livro impresso.** É ele que vira presente: se embrulha, se
+entrega, fica na estante. A versão digital **não é um produto paralelo** — é a
+porta de entrada para quem não quer, ou ainda não quer, pagar pela impressão. O
+livro já fica pronto e guardado, então o caminho para o impresso continua aberto
+a qualquer momento, sem refazer nada (ver §6).
 
 ### Dados coletados na compra
 nomes → fotos → como se conheceram → características de cada um → momentos
 importantes → piadas/manias → viagens → dificuldades → planos futuros → mensagem
-especial → **escolha de estilo** → **escolha de tamanho**.
+especial → **escolha de estilo** → **escolha de tamanho** → **escolha de formato**
+(impresso por padrão, ver §6).
 
 ## 3. Princípio central de geração: tudo por skills/agentes versionados
 Toda geração de conteúdo — narrativa (e seus estilos), estilização/caracterização das
@@ -63,6 +69,13 @@ colorido, tiragem mínima 1. Quais tamanhos e preços na V1 = Decision Gate (D-1
 ## 6. Formatos de compra: digital e impresso ([D-074])
 O mesmo livro é vendido em dois formatos. **O impresso já inclui o digital**; o digital
 tem upsell para o impresso.
+
+**A intenção comercial é assimétrica, e quem constrói precisa saber disso:** o objetivo é
+sempre vender o **impresso** — é ele que é o presente. O digital existe porque nem todo
+comprador vai querer gastar com impressão logo de cara, e é melhor tê-lo como cliente no
+digital, com o livro pronto e guardado, do que perdê-lo no checkout. Consequências de
+desenho: o impresso é a opção apresentada como padrão, e o caminho digital → impresso
+precisa ser visível e sem atrito — não um link escondido depois da compra.
 
 | Formato | O que o cliente recebe | Entrega |
 |---------|------------------------|---------|
