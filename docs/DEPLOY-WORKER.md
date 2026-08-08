@@ -36,7 +36,7 @@ O deploy é automático: o trigger do Cloud Build
 `Dockerfile` **a cada push na `main` que toque a imagem** e implanta com
 `gcloud run services update`.
 
-### `includedFiles` — o filtro que decide se o build roda
+### `includedFiles` — o filtro que decide se o build roda ([D-075])
 
 Os dois triggers têm o **mesmo** filtro, e ele é derivado do `Dockerfile`, não escolhido:
 
@@ -191,4 +191,6 @@ enquanto o outro observa.
 4. **O `includedFiles` é uma segunda cópia da lista de `COPY` do `Dockerfile`**, e nada verifica
    que as duas concordam. Enquanto a config do build viver no console (dívida 2), não dá para
    um teste cruzar as duas. É o preço aceito por não reconstruir a imagem a cada commit de
-   documentação — e a mitigação hoje é o aviso na seção "Deploy", não automação.
+   documentação — e a mitigação hoje é o aviso na seção "Deploy", não automação. O risco foi
+   aceito conscientemente em [D-075], que registra por quê e o que o eliminaria (a dívida 2:
+   com a config do build versionada, a conferência vira um teste barato).
