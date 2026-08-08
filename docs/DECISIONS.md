@@ -2879,6 +2879,51 @@ da tarefa, com a ordem exata da operação — registrado aqui em vez de virar i
 `decision-needed`. Não havia pedido real de usuário no ambiente.
 
 ---
+## D-073 | 2026-08-07 | ACEITA
+
+**Mudança de infraestrutura (Cloud Run, Cloud Build, Eventarc, IAM) é feita em sessão
+interativa, com credencial humana. O Developer automatizado de `implement.yml` NÃO recebe
+`gcloud` — [D-012] (menor privilégio) permanece como está.** Responde a pergunta que o próprio
+Developer levantou ao tentar pegar a issue #151.
+
+**O que aconteceu.** A issue #151 foi criada com o rótulo `status:ready`, que é o **gatilho** do
+`implement.yml`. O Developer autônomo acordou, leu o enunciado, viu que precisava de `gcloud`
+contra Cloud Build / Cloud Run / Eventarc, constatou que a ferramenta não está no seu
+`--allowed-tools`, e **parou** — sem improvisar e sem abrir PR quebrada. Registrou a pergunta
+como decision-needed, exatamente como manda a regra 1 do `CLAUDE.md`. A issue foi entregue em
+paralelo, numa sessão interativa, pela PR #154 ([D-072]).
+
+**Por que o Developer continua sem `gcloud`.** Dar `gcloud` a um agente que roda sozinho em cron
+significa dar a ele poder de apagar serviços de produção, reescrever política de IAM e gastar
+dinheiro, sem ninguém olhando na hora. O raio de dano é desproporcional ao ganho: mudança de
+infra é rara, e quando acontece precisa de julgamento sobre ordem de operações — renomear um
+serviço do Cloud Run, por exemplo, exige criar → verificar → reapontar o gatilho → provar →
+só então apagar, e inverter dois passos derruba a fila.
+
+**Consequências assumidas.**
+
+- Issue de infra **não é** trabalho da fábrica. Não rotule `status:ready` uma issue que exige
+  `gcloud`: o rótulo convoca o Developer, que vai gastar uma execução para descobrir o muro.
+  Deixe sem rótulo e execute em sessão.
+- O `docs/DEPLOY-WORKER.md` é o substituto do IaC enquanto não houver IaC. Ele **não** é
+  documentação de apoio: é a única receita que reconstrói o serviço.
+- A dívida que isso expõe continua registrada e adiada ([D-072]): o passo de deploy do trigger
+  só define `--image` e `--labels`, então memória, concorrência, timeout, segredos, service
+  account e `--no-allow-unauthenticated` existem **apenas no recurso vivo e no documento** —
+  nada no git reconstrói o serviço.
+
+**Correção de fato sobre o [D-072].** Aquela entrada registra "as fotos estilizadas saem a
+167 DPI, não a 300". A leitura está errada e fica corrigida aqui, sem alterar a entrada original
+(regra 4). O campo `metadata.dpi` é calculado por `http-provider.ts` como
+`round(300 × lado_real ÷ lado_pedido)`, isto é, **o DPI que a imagem teria se ocupasse a página
+inteira** (156 mm). O layout `polaroid-com-texto` coloca a foto num quadro de **74,1 × 74,1 mm**
+(medido no `layout-spreads.json` da execução), e nesse tamanho os 1024 px dão **351 DPI — acima
+do alvo de 300**, nas oito fotos. A limitação de resolução do `gpt-image-1` ([D-056]) é real,
+mas **não morde no layout atual**; morderia num layout que use a foto estilizada sangrando a
+página inteira, que não existe. Ao ler o manifesto, `metadata.dpi` é um piso conservador do
+provider, não uma medida do impresso: o número que vale é `px ÷ área colocada`.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
