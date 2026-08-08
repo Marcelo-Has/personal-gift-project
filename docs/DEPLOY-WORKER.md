@@ -115,10 +115,10 @@ depois do merge, e o modo de falha é o pior possível (o worker congela na revi
 nada avisa). Não é required check no branch protection: é sinal, não portão ([D-072]).
 
 Usa o **mesmo `includedFiles`** do trigger de deploy, então uma PR que só mexe em documentação
-não dispara build nenhum — e, por consequência, **não posta check algum na PR**. Ausência do
-check `worker-geracao-build-pr` numa PR de docs é o comportamento esperado, não falha. (Mais um
-motivo para não o tornar required check: uma PR que não toca a imagem ficaria esperando para
-sempre por um check que nunca vai chegar.)
+não dispara build. O check ainda aparece na PR, com estado **`skipping`** — o Cloud Build avalia
+o filtro e reporta que pulou, em vez de ficar mudo. Isso é bom: o skip é **visível**, dá para
+distinguir "não precisava rodar" de "não rodou por engano". Numa PR de docs, `skipping` é o
+comportamento correto.
 
 ## Conferência obrigatória depois de qualquer deploy
 
