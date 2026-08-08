@@ -33,7 +33,44 @@ automação de verdade, este documento vira a especificação dela.
 O deploy é automático: o trigger do Cloud Build
 `rmgpgab-hello-us-east1-Marcelo-Has-personal-gift-project--fegzg`
 (id `15a60c5b-a449-4709-a852-f11e9bf9d53a`, região `global`) constrói a imagem a partir do
-`Dockerfile` **a cada push na `main`** e implanta com `gcloud run services update`.
+`Dockerfile` **a cada push na `main` que toque a imagem** e implanta com
+`gcloud run services update`.
+
+### `includedFiles` — o filtro que decide se o build roda
+
+Os dois triggers têm o **mesmo** filtro, e ele é derivado do `Dockerfile`, não escolhido:
+
+```
+Dockerfile          .dockerignore
+package.json        package-lock.json
+src/**              worker/**
+```
+
+Um push que só mexe em `docs/`, `.github/` ou `tests/` **não** reconstrói nem reimplanta o
+worker. Antes do filtro, qualquer commit na `main` disparava um `docker build --no-cache` de
+~10 min e criava uma revisão nova do Cloud Run sem nenhuma mudança na imagem.
+
+> ⚠️ **Este filtro precisa ser mantido em sincronia com o `Dockerfile`, e a falha é
+> silenciosa.** A lista existe porque o `Dockerfile` copia exatamente isto:
+>
+> ```
+> COPY package.json package-lock.json ./     (linha 33)
+> COPY src ./src                             (linha 38)
+> COPY worker ./worker                       (linha 39)
+> ```
+>
+> mais o próprio `Dockerfile` e o `.dockerignore` (que filtra o contexto de build e, por
+> exemplo, mantém `worker/*.test.ts` fora da imagem). **Se um dia entrar um `COPY` novo e o
+> caminho não for acrescentado aqui, o worker deixa de reimplantar quando esse caminho mudar —
+> sem erro, sem build vermelho, exatamente o modo de falha que a dívida da branch em [D-072]
+> já causou uma vez.** Ao mexer nos `COPY` do `Dockerfile`, mexa no filtro no mesmo PR.
+
+Para conferir o filtro em vigor:
+
+```bash
+gcloud builds triggers describe 15a60c5b-a449-4709-a852-f11e9bf9d53a \
+  --region=global --format="value(includedFiles)"
+```
 
 O **nome** do trigger ainda contém `hello` — ele foi gerado pelo console quando o serviço tinha
 esse nome, e renomear um trigger significa recriá-lo com outro id, invalidando a referência
@@ -76,6 +113,12 @@ para a `main` e **só constrói a imagem — não implanta**. Existe porque nenh
 `.github/workflows/ci.yml` toca o `Dockerfile`: sem ele, uma imagem quebrada só apareceria
 depois do merge, e o modo de falha é o pior possível (o worker congela na revisão antiga e
 nada avisa). Não é required check no branch protection: é sinal, não portão ([D-072]).
+
+Usa o **mesmo `includedFiles`** do trigger de deploy, então uma PR que só mexe em documentação
+não dispara build. O check ainda aparece na PR, com estado **`skipping`** — o Cloud Build avalia
+o filtro e reporta que pulou, em vez de ficar mudo. Isso é bom: o skip é **visível**, dá para
+distinguir "não precisava rodar" de "não rodou por engano". Numa PR de docs, `skipping` é o
+comportamento correto.
 
 ## Conferência obrigatória depois de qualquer deploy
 
@@ -145,3 +188,7 @@ enquanto o outro observa.
    um `cloudbuild.yaml` versionado é melhoria conhecida e adiada ([D-072], `right-sizing.md`).
 3. **A SA de build não tem permissão de Storage**, o que impede `gcloud run deploy --source .`
    (ver acima).
+4. **O `includedFiles` é uma segunda cópia da lista de `COPY` do `Dockerfile`**, e nada verifica
+   que as duas concordam. Enquanto a config do build viver no console (dívida 2), não dá para
+   um teste cruzar as duas. É o preço aceito por não reconstruir a imagem a cada commit de
+   documentação — e a mitigação hoje é o aviso na seção "Deploy", não automação.
