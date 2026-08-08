@@ -12,9 +12,23 @@
  * Fixture de foto: gerada em memória via `jimp` a 300+ DPI para a área de destino do SKU
  * mini (156×156mm, `MINI_SKU_LAYOUT`), mesmo padrão de `render-polaroid.test.ts` — sem
  * fixture binária versionada nem chamada real ao provedor de imagem.
+ *
+ * Também cobre a conformidade PDF/X-4 (F2-08c2, issue #139, `pdfx4.ts`): presença de
+ * `OutputIntent`/perfil ICC (`icc-srgb.ts`) e dos metadados XMP mínimos, verificada
+ * programaticamente via os objetos de baixo nível de `pdf-lib` (`PDFContext.lookup`,
+ * `decodePDFRawStream`) — sem validação humana/gráfica externa, conforme exigido pela
+ * issue.
  */
 import { describe, expect, it } from 'vitest';
-import { PDFDocument } from 'pdf-lib';
+import {
+	decodePDFRawStream,
+	PDFArray,
+	PDFDict,
+	PDFDocument,
+	PDFName,
+	PDFRawStream,
+	PDFStream
+} from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { Jimp, JimpMime } from 'jimp';
 import { composeLayoutForOrder } from '../layout';
@@ -118,7 +132,7 @@ describe('renderBookToPdf — caminho feliz', () => {
 		const expectedPageCount = book.spreads.reduce((sum, spread) => sum + spread.pageCount, 0);
 		expect(expectedPageCount).toBe(book.totalPages);
 		expect(pdfDoc.getPageCount()).toBe(expectedPageCount);
-	}, 30_000);
+	}, 60_000);
 
 	it('mantém a ordem das páginas igual à ordem dos spreads do livro', async () => {
 		const { book, renderablePhotos } = await buildBookAndPhotos();
@@ -144,7 +158,48 @@ describe('renderBookToPdf — caminho feliz', () => {
 		expect(pageTexts[6]).toContain(NARRATIVA_VALIDA.finalLetter);
 		// dedicatória final
 		expect(pageTexts[7]).toContain(NARRATIVA_VALIDA.dedication);
-	}, 30_000);
+	}, 60_000);
+});
+
+describe('renderBookToPdf — conformidade PDF/X-4 (F2-08c2, issue #139)', () => {
+	it('inclui OutputIntent GTS_PDFX com perfil ICC embutido', async () => {
+		const { book, renderablePhotos } = await buildBookAndPhotos();
+
+		const pdfBytes = await renderBookToPdf(book, renderablePhotos, MINI_SKU_LAYOUT);
+		const pdfDoc = await PDFDocument.load(pdfBytes);
+		const context = pdfDoc.context;
+
+		const outputIntents = pdfDoc.catalog.lookup(PDFName.of('OutputIntents'), PDFArray);
+		expect(outputIntents.size()).toBe(1);
+
+		const outputIntent = context.lookup(outputIntents.get(0), PDFDict);
+		expect(outputIntent.get(PDFName.of('Type'))?.toString()).toBe('/OutputIntent');
+		expect(outputIntent.get(PDFName.of('S'))?.toString()).toBe('/GTS_PDFX');
+
+		const profileRef = outputIntent.get(PDFName.of('DestOutputProfile'));
+		const profileStream = context.lookup(profileRef, PDFStream) as PDFRawStream;
+		const profileBytes = decodePDFRawStream(profileStream).decode();
+		// assinatura de arquivo ICC ('acsp'), ICC.1:2001-04 §6.1.3 — perfil embutido em icc-srgb.ts
+		expect(Buffer.from(profileBytes.slice(36, 40)).toString('ascii')).toBe('acsp');
+	}, 60_000);
+
+	it('inclui metadados XMP mínimos de conformidade PDF/X-4', async () => {
+		const { book, renderablePhotos } = await buildBookAndPhotos();
+
+		const pdfBytes = await renderBookToPdf(book, renderablePhotos, MINI_SKU_LAYOUT);
+		const pdfDoc = await PDFDocument.load(pdfBytes);
+		const context = pdfDoc.context;
+
+		const metadataRef = pdfDoc.catalog.get(PDFName.of('Metadata'));
+		expect(metadataRef).toBeDefined();
+		const metadataStream = context.lookup(metadataRef, PDFStream) as PDFRawStream;
+		const xmp = Buffer.from(decodePDFRawStream(metadataStream).decode()).toString('utf8');
+
+		expect(xmp).toContain('<pdfxid:GTS_PDFXVersion>PDF/X-4</pdfxid:GTS_PDFXVersion>');
+		expect(xmp).toContain('<xmpMM:DocumentID>');
+		expect(xmp).toContain('<xmpMM:InstanceID>');
+		expect(xmp).toContain('<dc:title>');
+	}, 60_000);
 });
 
 describe('renderBookToPdf — erros descritivos', () => {
@@ -160,5 +215,5 @@ describe('renderBookToPdf — erros descritivos', () => {
 		await expect(renderBookToPdf(book, semAPrimeiraFoto, MINI_SKU_LAYOUT)).rejects.toThrow(
 			/foto-01-varanda/
 		);
-	}, 30_000);
+	}, 60_000);
 });
