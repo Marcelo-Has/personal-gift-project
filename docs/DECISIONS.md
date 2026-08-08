@@ -3006,6 +3006,57 @@ formatos de compra e reimpressão. As issues serão criadas pelo Supervisor a pa
 `ROADMAP.md` — esta entrada não cria issue.
 
 ---
+## D-075 | 2026-08-08 | ACEITA
+
+**Os dois triggers do Cloud Build passam a filtrar por `includedFiles`, derivado dos `COPY` do
+`Dockerfile`. Um push que não toca a imagem não reconstrói nem reimplanta o worker.** Issue
+#151, PR #157. Corrige o comportamento que [D-072] descreve como "a cada push na `main`".
+
+**O desperdício era medido, não hipotético.** As três últimas revisões do Cloud Run antes desta
+mudança:
+
+| Revisão | Commit | Conteúdo do merge |
+|---|---|---|
+| `worker-geracao-00007-h6n` | `ee57951` | PR #154 — código de verdade |
+| `worker-geracao-00008-hvr` | `f12b994` | PR #155 — **só `docs/DECISIONS.md`** |
+| `worker-geracao-00009-fcp` | `6a7bb25` | PR #156 — **só três arquivos de `docs/`** |
+
+Duas de três eram idênticas em conteúdo à `00007`: ~10 min de `docker build --no-cache` cada uma,
+mais uma revisão nova do Cloud Run, para nenhuma mudança na imagem.
+
+**O filtro não foi escolhido, foi derivado.** O `Dockerfile` determina o conteúdo da imagem em
+três linhas — `COPY package.json package-lock.json ./` (33), `COPY src ./src` (38),
+`COPY worker ./worker` (39) — mais o próprio `Dockerfile` e o `.dockerignore`, que filtra o
+contexto de build (é ele que mantém `worker/*.test.ts` fora). Daí a lista:
+`Dockerfile`, `.dockerignore`, `package.json`, `package-lock.json`, `src/**`, `worker/**`.
+
+**O risco aceito, e por que aceitá-lo.** O filtro é uma **segunda cópia** da lista de `COPY`, e
+nada verifica que as duas concordam. Se entrar um `COPY` novo e o caminho não for acrescentado,
+o worker deixa de reimplantar quando esse caminho mudar — **sem erro e sem build vermelho**. É o
+mesmo tipo de falha silenciosa que a dívida da branch causou em [D-072], então introduzir outro
+não é decisão trivial. Aceito assim mesmo por três motivos:
+
+1. **O pulo é visível.** Verificado na própria PR #157: o Cloud Build avalia o filtro e posta o
+   check com estado `skipping`, em vez de ficar mudo. Dá para distinguir "não precisava rodar"
+   de "não rodou por engano" — diferente da dívida do D-072, que não deixava rastro nenhum.
+2. **Reverter é remover uma linha de cada trigger**, sem migração nem efeito colateral.
+3. A alternativa é pagar ~10 min de build e uma revisão espúria a cada commit de documentação,
+   indefinidamente.
+
+**Por que não dá para automatizar a conferência.** Um teste que cruzasse os `COPY` do
+`Dockerfile` com o `includedFiles` do trigger precisaria ler a config do trigger — que vive no
+console, não no repositório (dívida 2 de `docs/DEPLOY-WORKER.md`, adiada em [D-072]). Enquanto
+essa dívida existir, a mitigação é o aviso escrito na seção "Deploy": ao mexer nos `COPY`, mexer
+no filtro **no mesmo PR**. Registrado como dívida 4. Se a config migrar para um `cloudbuild.yaml`
+versionado, essa conferência vira um teste barato — e aí este risco deixa de ser aceito e passa
+a ser eliminado.
+
+**Consequência visível no dia a dia:** PR que só mexe em documentação mostra
+`worker-geracao-build-pr` como `skipping`. Isso é o comportamento correto, não falha — e é mais
+um motivo para não torná-lo required check no branch protection ([D-072]): uma PR que não toca a
+imagem ficaria esperando para sempre por um check que nunca vai rodar.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
