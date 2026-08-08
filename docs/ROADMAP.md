@@ -130,30 +130,82 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
 - [ ] **F2-09** — Geração do **PDF de preview** (spreads).
 - [ ] **F2-10** — Testes de estilo no CI (comparação com golden samples).
 - [ ] **F2-11** — [gate D-103] Prévia no fluxo do cliente (antes ou depois do pagamento).
+- [ ] **F2-12** — **Persistência do livro gerado** ([D-074]). Hoje `executarGeracaoDoPedido`
+      renderiza os spreads, soma os bytes e **descarta os PDFs** (`order-worker.ts:180`); as
+      fotos estilizadas também são descartadas. Como o provedor de imagem não é determinístico,
+      regerar produz um livro **diferente** (medido em D-072) — então guardar é pré-requisito de
+      reimpressão, download e reenvio à gráfica, não otimização. Escopo: gravar no Storage o PDF
+      de produção e as fotos estilizadas ao fim da geração, e registrar os caminhos no campo
+      `geracao` do documento do pedido. Depende de F2-08c (a montagem do PDF existe em F2-08c1,
+      mas `renderBookToPdf` **não tem chamador em produção**). Nenhuma URL pública: acesso só por
+      URL assinada e expirável (`.claude/rules/security.md`).
+  - [ ] **F2-12a** — Gravar PDF de produção + fotos estilizadas no Storage e registrar os
+        caminhos no pedido; ligar `renderBookToPdf` ao pipeline.
+  - [ ] **F2-12b** — Geração do **PDF digital do cliente**: 150×150 mm já aparado, RGB, sem
+        sangria nem marcas de corte — derivado do mesmo `GeneratedBook`, **não** é o PDF de
+        produção ([D-074]). Entregar o de produção ao cliente seria erro: páginas com 6 mm
+        sobrando e conteúdo correndo até a borda.
 
 ---
 
-## FASE 3 — Fulfillment (impressão e envio)
-DoD: pagamento → geração → envio automático ao print-on-demand → tracking → e-mails,
-com retenção de fotos conforme a decisão de LGPD.
+## FASE 3 — Fulfillment (entrega digital e impressa)
+DoD: pagamento → geração → **entrega da versão digital** e/ou envio automático ao
+print-on-demand → tracking → e-mails, com retenção de fotos **e do livro guardado**
+conforme a decisão de LGPD.
 
 - [ ] **F3-01** — [gate D-104] Provedor de print-on-demand definitivo (Cloudprinter/Gelato/Gooten).
 - [ ] **F3-02** — Cliente da API do print-on-demand (criar pedido por SKU).
 - [ ] **F3-03** — Montagem do arquivo de **capa** por tamanho (lombada/wrap variável).
 - [ ] **F3-04** — Orquestração de status: pago → em geração → em produção → enviado → entregue.
+      Com [D-074], o pedido digital tem ciclo próprio e mais curto: pago → em geração →
+      **disponível para download**, sem produção nem frete.
 - [ ] **F3-05** — E-mails transacionais (confirmação, em produção, enviado + tracking).
-- [ ] **F3-06** — [gate D-100] Pipeline de retenção/exclusão das fotos (LGPD).
+      Com [D-074], inclui o e-mail de **livro digital pronto**, com o link de download.
+- [ ] **F3-06** — [gate D-100] Pipeline de retenção/exclusão das fotos (LGPD). Com [D-074],
+      cobre também o **artefato derivado**: o livro guardado contém derivados das fotos, então
+      apagar as fotos de origem **não** apaga o livro — e o cliente que comprou o digital
+      espera poder rebaixá-lo. Retenção do livro é decisão separada da retenção da foto.
+- [ ] **F3-07** — **Entrega da versão digital** ([D-074]). Download do PDF digital do cliente
+      (F2-12b) por **URL assinada e expirável**, nunca link público permanente
+      (`.claude/rules/security.md`). Inclui re-download pelo dono do pedido. Depende de F2-12.
+- [ ] **F3-08** — **Formatos de compra no checkout** ([D-074]): escolher digital ou impresso,
+      com o impresso **já incluindo** o digital. ⚠️ **Os dois formatos não são simétricos:** o
+      impresso é a opção **apresentada como padrão** — é ele que é o presente e é ele que se
+      quer vender; o digital é a porta de entrada para quem não quer gastar com impressão agora.
+      Um checkout que trate os dois como equivalentes atende à letra do D-074 e falha no
+      objetivo dele. `preço = f(tamanho, formato)` — o modelo de dados do Pedido e os `Price` do
+      Stripe passam a carregar o formato; estilo continua sem alterar preço ([D-036]).
+      **Não é `decision-needed`:** como em F1-07, pode ser construído com `Price` de teste; os
+      números reais são o item (b) do [D-101], que ganha uma pergunta nova — *o digital custa o
+      mesmo em todos os tamanhos?* (o custo de produção do digital quase não varia entre SKUs,
+      o do impresso varia).
+- [ ] **F3-09** — **Upsell digital → impresso** ([D-074]): quem comprou o digital compra a
+      impressão depois, como **segunda cobrança sobre o pedido existente** — não um pedido novo.
+      O campo de formato evolui de `digital` para `digital+impresso`, o pedido volta de `gerado`
+      para o ciclo de produção, e passa a ter dois pagamentos — a máquina de status deixa de ser
+      linear (F3-04) e o estorno parcial precisa saber qual cobrança estornar. Em troca,
+      "1 livro = 1 pedido" continua verdadeiro no dashboard (F4-04), sem risco de contar a
+      geração duas vezes. Reaproveita o livro guardado (F2-12): **não regera nada**, então o
+      impresso é exatamente o livro que o cliente já viu — sem isso, a segunda compra produziria
+      um livro diferente (provedor de imagem não determinístico, D-072).
+      ⚠️ **Este é o caminho principal de receita, não um extra:** precisa ser visível e sem
+      atrito, não um link escondido no pós-venda.
+- [ ] **F3-10** — **Reimpressão** a partir do arquivo guardado ([D-074]): reenviar à gráfica o
+      mesmo PDF de produção, sem regerar. Cobre extravio, dano no transporte e segunda via.
 
 ---
 
 ## FASE 4 — Dashboard admin + observabilidade
 DoD: uma página `/admin` protegida onde você acompanha vendas, custo unitário, margem,
-status, envios, logs e alertas — por estilo e por tamanho.
+status, envios, logs e alertas — por estilo, por tamanho e **por formato** ([D-074]).
 
 - [ ] **F4-01** — Página `/admin` protegida (authZ forte + MFA).
 - [ ] **F4-02** — Instrumentação: cada etapa do pipeline emite **custo real** + eventos.
 - [ ] **F4-03** — Vendas: receita, nº de pedidos, ticket médio, conversão do funil.
-- [ ] **F4-04** — **Custo unitário e margem por pedido** (impressão+frete+IA+imagem), por estilo/tamanho.
+- [ ] **F4-04** — **Custo unitário e margem por pedido** (impressão+frete+IA+imagem), por
+      estilo/tamanho/**formato** ([D-074]). O recorte por formato é o que mais muda a leitura:
+      o digital não tem impressão nem frete, e o upsell é receita adicional **sem** custo de
+      geração — o livro já estava guardado (F2-12).
 - [ ] **F4-05** — Pedidos: status de cada um + envios/tracking.
 - [ ] **F4-06** — Logs, erros e alertas (custo e falhas).
 

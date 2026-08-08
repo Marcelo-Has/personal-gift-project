@@ -2924,6 +2924,88 @@ página inteira, que não existe. Ao ler o manifesto, `metadata.dpi` é um piso 
 provider, não uma medida do impresso: o número que vale é `px ÷ área colocada`.
 
 ---
+## D-074 | 2026-08-07 | ACEITA
+
+**O livro gerado passa a ser GUARDADO, e "Nossa História" passa a ser vendido em dois
+formatos: digital e impresso. O impresso já inclui o digital; o digital tem upsell para o
+impresso. O preço passa a variar por tamanho E por formato — estilo continua não alterando
+preço.** Decisão de produto tomada pelo humano em 2026-08-07, respondendo ao gate de
+`docs/AUTONOMY.md` §2 ("mudanças de produto"). Altera `docs/PRODUCT.md` e `docs/ROADMAP.md`
+com essa autorização; estende [D-036] (modelo de preço) e [D-072] (o que a execução mede).
+
+**Por que guardar o livro é requisito de PRODUTO, não detalhe de infraestrutura.** O worker
+renderiza os spreads, soma os bytes e **descarta os PDFs** (`order-worker.ts:180`); as fotos
+estilizadas também são descartadas. A consequência medida em [D-072] é que **o livro não é
+reproduzível**: regerar o mesmo pedido chama o `gpt-image-1` de novo — US$ 1,11 por execução — e
+o `gpt-image-1` não é determinístico, então sairiam **imagens diferentes**. O livro reimpresso
+não seria o mesmo livro que o cliente aprovou.
+
+Isso torna a persistência pré-requisito de qualquer coisa depois da geração: reimpressão,
+download, reenvio à gráfica, suporte, e disputa de cartão. Não é otimização de custo — é
+correção. Enquanto o artefato não for guardado, "vender a versão digital" é impossível e
+"reimprimir" significa produzir um livro diferente.
+
+**Os dois formatos.**
+
+| Formato | O que o cliente recebe | Observações |
+|---|---|---|
+| **Digital** | PDF do livro para download, por URL assinada e expirável | Entrega imediata após a geração; sem custo de impressão nem frete |
+| **Impresso** | Livro físico + **o digital incluído** | O digital vem junto, não é venda separada |
+
+**Os dois caminhos de compra.**
+
+- **Digital → upsell para impresso.** O cliente compra o digital, recebe o livro, e pode
+  comprar a impressão depois. A segunda compra **reaproveita o arquivo guardado** — não regera
+  nada, portanto não gasta geração nem produz um livro diferente do que ele já viu.
+- **Impresso (já inclui o digital).** Compra única; o digital fica disponível para download
+  assim que a geração termina, sem esperar a impressão e o frete.
+
+**A intenção comercial é assimétrica — os dois formatos não têm o mesmo peso.** O objetivo é
+vender o **impresso**: é ele que é o presente, o que se embrulha e se entrega. O digital não é
+um produto paralelo; existe porque nem todo comprador vai querer gastar com impressão logo de
+cara, e é melhor tê-lo como cliente no digital — com o livro já pronto e guardado — do que
+perdê-lo no checkout. Isso não é preferência de tom: **é requisito de desenho.** O impresso é a
+opção apresentada como padrão no checkout (F3-08), e o caminho digital → impresso (F3-09)
+precisa ser visível e sem atrito, não um link escondido no pós-venda. Uma implementação que
+trate os dois formatos como simétricos atende à letra desta decisão e falha no objetivo dela.
+
+**Modelo de preço: estende o [D-036], não o contradiz.** O D-036 decidiu que **estilo não altera
+preço** e que o preço é por tamanho. Isso continua valendo. O que muda é que passa a existir um
+**segundo eixo**: `preço = f(tamanho, formato)`. O modelo de dados do Pedido e os `Price` do
+Stripe passam a carregar o formato, e o upsell é uma segunda cobrança sobre um pedido existente,
+não um pedido novo. O motivo para o formato entrar no preço — e o estilo não — é o mesmo
+critério do D-036: **há custo diferencial real** (impressão + frete existem num formato e não no
+outro), enquanto entre estilos não há.
+
+**O que esta decisão NÃO decide.**
+
+- **Os números.** Continuam no [D-101], PENDENTE. Inclui uma pergunta nova que não existia
+  antes: *o digital custa o mesmo em todos os tamanhos?* O custo de produção do digital é
+  praticamente o mesmo entre SKUs (só a geração), enquanto o do impresso não é.
+- **Por quanto tempo o arquivo guardado fica disponível**, e se o upsell tem prazo. Estende o
+  [D-100] (retenção/exclusão das fotos, LGPD) com uma pergunta que ele não cobria: o PDF
+  guardado **contém derivados das fotos do casal**, então apagar as fotos de origem **não**
+  apaga o livro. Retenção do artefato derivado é decisão separada da retenção da matéria-prima.
+- **Se a prévia (F2-09/F2-11, gate [D-103]) muda** por existir um formato digital.
+
+**Consequência técnica que precisa estar clara antes de virar issue: são TRÊS PDFs distintos,
+não um.**
+
+| Artefato | Geometria | Para quem |
+|---|---|---|
+| PDF de produção | 156×156 mm (150 final + 3 mm de sangria/lado), PDF/X-4, CMYK | Gráfica |
+| PDF de preview | spreads em baixa resolução | Prévia no site |
+| **PDF digital do cliente** | 150×150 mm aparado, RGB, sem marcas de corte | Comprador |
+
+Entregar o PDF de produção como "versão digital" seria erro: o cliente receberia páginas com
+6 mm sobrando, conteúdo correndo até a borda e intenção de cor de gráfica. O digital é um
+terceiro artefato, derivado do mesmo `GeneratedBook`.
+
+**O que destrava.** A FASE 2 ganha a persistência do livro; a FASE 3 ganha entrega digital,
+formatos de compra e reimpressão. As issues serão criadas pelo Supervisor a partir do
+`ROADMAP.md` — esta entrada não cria issue.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
