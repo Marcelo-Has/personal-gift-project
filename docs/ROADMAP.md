@@ -128,7 +128,11 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
     - [ ] **F2-08c2** — Conformidade PDF/X-4 (`OutputIntent`/ICC, metadados) do PDF de
           produção.
 - [ ] **F2-09** — Geração do **PDF de preview** (spreads).
-- [ ] **F2-10** — Testes de estilo no CI (comparação com golden samples).
+- [x] **F2-10** — Testes de estilo no CI (comparação com golden samples). Entregue junto com
+      cada skill: `narrative-style/romantico` (#101), `photo-style/aquarela` (#102),
+      `layout-element/polaroid-com-texto` (#104), `layout-element/timeline` (#107),
+      `layout-element/carta` (#108), `layout-element/dedicatoria` (#109) — todos os testes
+      de golden sample já rodam em `npm test` (job `ci`); confirmado em #144.
 - [ ] **F2-11** — [gate D-103] Prévia no fluxo do cliente (antes ou depois do pagamento).
 - [ ] **F2-12** — **Persistência do livro gerado** ([D-074]). Hoje `executarGeracaoDoPedido`
       renderiza os spreads, soma os bytes e **descarta os PDFs** (`order-worker.ts:180`); as
