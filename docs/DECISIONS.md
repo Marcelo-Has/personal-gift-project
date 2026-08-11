@@ -2453,7 +2453,640 @@ teste até este PR. `pdfjs-dist` permanece em `devDependencies`: é usado só no
 (extração de texto do PDF gerado), sem caminho de produção.
 
 ---
-## D-067 | 2026-08-06 | ACEITA
+## D-067 | 2026-08-07 | ACEITA
+**[F2-07] Segredos de servidor passam a ser lidos de `process.env` em vez de
+`$env/dynamic/private`, e a orquestração do pipeline (status, idempotência, worker, testes) é
+implementada de forma independente de plataforma.** Issue #135.
+
+> **Nota (2026-08-07):** este registro descrevia a orquestração como assente sobre Netlify
+> Background Functions. A PoC que [D-063] exigia foi finalmente executada ao vivo e
+> **reprovou** — ver [D-068], que decide a plataforma e remove o código específico da Netlify.
+> O que está registrado abaixo sobre `process.env` e sobre a orquestração **permanece válido**:
+> as duas coisas são independentes de plataforma e continuam de pé no worker dedicado.
+
+**Achado novo, além do bloqueio de bundling do `node_bundler` já registrado no `netlify.toml`
+deste PR: `gerarNarrativaDoPedido`/`stylizePhotosForOrder` (F2-06a/b) importam, de forma
+CONCRETA (não só tipo), `$lib/server/claude` e `$lib/server/openai-image` — e esses dois módulos
+liam `$env/dynamic/private`.** Nenhum dos dois alias existe fora do build do Vite/SvelteKit;
+uma Netlify Function escrita à mão (`netlify/functions/*.js`, a mesma convenção da PoC) é
+empacotada por fora dele. Confirmado tentando empacotar com `esbuild`: `Could not resolve
+"$env/dynamic/private"`. A PoC original (`poc-render-background.js`) só exercitava
+`renderDedicatoriaSpreadToPdf` (F2-08a), que não tem essa dependência — por isso o problema não
+apareceu antes, mesmo com o Deploy Preview verde.
+
+**Correção:** `src/lib/server/claude.ts`, `openai-image.ts` e `firebase-admin.ts` passam a ler
+`process.env` direto, em vez de `$env/dynamic/private`. Comportamento idêntico em runtime nos
+adapters Node (Netlify incluído) — `$env/dynamic/private` já era um wrapper de `process.env`
+nesses adapters — então nada muda para o app SvelteKit. `generate.ts`
+(`narrative-style/romantico`) e `http-provider.ts` (`photo-style/aquarela`) trocam o import de
+`$lib/server/*` para caminho relativo, mesmo motivo. A guarda real de "nunca entra no bundle do
+navegador" é o caminho `src/lib/server/` (o SvelteKit recusa o build por causa do DIRETÓRIO, não
+do alias `$env`) — ela continua de pé, então isto não é um afrouxamento de
+`.claude/rules/security.md`, só uma troca de mecanismo de leitura de variável de ambiente.
+Verificado com `esbuild --bundle` que o pipeline inteiro (`narrative.ts` + `photos.ts` +
+`layout.ts` + `firebase-admin.ts` + `render-dedicatoria.ts`) resolve sem erro depois da troca —
+não só a fatia que a PoC original cobria.
+
+**O que foi implementado em cima disso, seguindo o desenho já registrado na issue #135:**
+- `OrderStatus` (`order.ts`) ganha `aguardando_geracao` → `em_geracao` → `gerado` |
+  `erro_geracao`, os nomes que a própria issue sugeria.
+- `orders.ts`: `marcarAguardandoGeracao` (pago → aguardando_geracao, idempotente como
+  `marcarPago`), `iniciarGeracao` (reivindica aguardando_geracao/erro_geracao → em_geracao;
+  idempotência básica por leitura-antes-de-escrever, mesma técnica já usada por `marcarPago`
+  neste módulo — não é uma transação do Firestore, é o mesmo risco residual já aceito aqui),
+  `marcarGerado` e `marcarErroGeracao`.
+- `generation-engine/order-worker.ts` (`executarGeracaoDoPedido`): orquestra narrativa
+  (F2-06a) → fotos (F2-06b) → layout (F2-06c) → render de cada spread (F2-08a/b, despachado por
+  `LayoutSpread.type`) para UM pedido, grava um RESUMO (contagem de spreads/páginas, bytes
+  totais, duração) em `gerado` — não o PDF em si, que é F2-08c (fora de escopo, como a issue já
+  registrava). Nunca lança: todo erro do pipeline vira `erro_geracao` com mensagem sanitizada
+  (truncada a 1000 caracteres, sem tentar redigir PII especificamente — mesmo nível de cuidado
+  que a PoC original já tinha para `errorMessage`).
+- `server/order-photos.ts` (`loadSourcePhotosFromStorage`): a peça que faltava entre
+  `order.questionnaire.photos` (só `photoId`) e `stylizePhotosForOrder` (`SourcePhoto[]` com
+  bytes) — baixa direto do Storage pela Admin SDK, reaproveitando `photoObjectPath` de
+  `signed-url.ts` para o caminho do objeto continuar montado num único lugar.
+- `netlify/functions/gerar-pedido-background.js`: a Background Function real (sufixo
+  `-background`, mesma convenção da PoC), que só fornece as dependências verdadeiras
+  (Firestore, Storage) para `executarGeracaoDoPedido` — toda a lógica fica em
+  `order-worker.ts`, testável sem Netlify.
+- `routes/api/webhooks/stripe/+server.ts`: depois de `marcarPago`, chama
+  `marcarAguardandoGeracao` e dispara a Background Function via `fetch` para a origem do próprio
+  request (`new URL('/.netlify/functions/gerar-pedido-background', request.url)`) — funciona
+  igual em produção e em deploy preview, sem depender de variável de ambiente da Netlify para a
+  URL do site. Se o disparo falhar, o handler responde 500 e o Stripe reenvia o evento
+  nativamente; como `marcarAguardandoGeracao`/`iniciarGeracao` já são idempotentes, o retry não
+  duplica trabalho.
+- Testes novos (mockando só a Claude API e a busca de fotos — dependências EXTERNAS,
+  `.claude/rules/testing.md`; narrativa/fotos/layout/render rodam de verdade, incluindo o Chrome
+  real, como os testes de `render-*.ts` já fazem): `orders.test.ts` (as quatro funções novas),
+  `order-worker.test.ts` (caminho feliz de ponta a ponta, as duas idempotências, os dois
+  caminhos de erro) e `server.test.ts` do webhook (o disparo e a resposta 500 quando ele falha).
+
+**O que CONTINUA em aberto, e por quê não fechar sozinho:** a condição de [D-063] — "rodar o
+render de F2-08a de verdade dentro de uma Background Function" — nunca foi confirmada ao vivo em
+nenhuma sessão deste PR, porque nenhuma delas teve rede de saída para o `POST`/`GET` que a
+verificação exige (a issue #135 é explícita: "roda contra o ambiente real da Netlify... não é
+teste automatizado do CI"). `docs/ROADMAP.md` **não** marca F2-07 como `[x]` por isso — só o
+código está pronto, não a verificação que a issue pede como pré-requisito para prosseguir.
+Próximo passo concreto, igual ao já registrado nos comentários do PR #138: alguém com rede de
+saída (ou acesso ao dashboard da Netlify) precisa invocar `poc-render-background`/`poc-status`
+(ou, agora que o resto existe, um pedido de teste ponta a ponta via `gerar-pedido-background`) no
+deploy preview atual e colar o resultado — só então esta entrada pode ser fechada e o ROADMAP
+atualizado.
+
+**Achado incidental, fora do escopo de F2-07, corrigido só para o CI não ficar vermelho por
+algo não relacionado:** `src/routes/+page.svelte` (não tocado por nenhum PR desde o #100)
+falhava `svelte/no-navigation-without-resolve` — `href={homeContent.ctaHref}` sem `resolve()`.
+Corrigido com `resolve(homeContent.ctaHref)` (`$app/paths`), mesmo padrão já usado em
+`questionario/[etapa]/+page.svelte`; `homeContent.ctaHref` é `'/questionario'` via `as const`,
+então o tipo literal bate com `resolve()` sem precisar mudar `home-content.ts`.
+
+---
+## D-068 | 2026-08-07 | ACEITA
+**A PoC exigida por [D-063] foi executada ao vivo no ambiente real da Netlify e REPROVOU. A
+geração pesada NÃO roda em Netlify Background Functions: adotada a Opção C que o próprio
+[D-063] já registrava como próximo candidato — worker dedicado em container.** Issue #135,
+PR #138. Fecha a condição em aberto de [D-063] e a parte "onde roda a geração pesada" de
+[D-104].
+
+**Como a PoC foi verificada.** Sonda mínima `netlify/functions/poc-chrome.js` (commit
+`ad7ca0e`, removida neste mesmo PR), importando só `playwright-core`, sem tocar em `src/lib`,
+sem Firestore e sem ler nada do disco — desenhada para isolar a única pergunta de D-063 depois
+de três tentativas morrerem em empacotamento antes de chegar ao Chrome. Invocada por HTTP no
+Deploy Preview da PR #138, com rede de saída real (as sessões anteriores da fábrica não tinham
+— por isso a condição de D-063 ficou meses sem resposta).
+
+**Resultado, em 39 ms:**
+`browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome`
+
+**Três incompatibilidades, na ordem em que foram descobertas.** As duas primeiras são fatais
+por si só; a terceira é estrutural e não teria aparecido sem as outras duas.
+
+1. **Não há Chrome no runtime.** Netlify Functions rodam em containers AWS Lambda.
+   [D-062] usa `channel: 'chrome'` (`render-shared.ts`), que procura o Chrome instalado no
+   sistema. A imagem de BUILD da Netlify tem Chrome; a de RUNTIME não — o que explica o CI
+   verde e o deploy verde convivendo com a falha em produção.
+2. **Nenhum bundler da Netlify atende o caso.** `esbuild` compila o TypeScript importado de
+   `src/lib`, mas emite CJS, onde `import.meta.url` é `undefined` e `createRequire` quebra
+   (`render-shared.ts:13`). `nft` preserva o layout de arquivos e lida bem com os `require`
+   dinâmicos do `playwright-core`, mas **não transpila TypeScript** — e, pior, não reprova o
+   build por isso: falha só em runtime, com Deploy Preview verde (foi o que produziu o
+   falso-verde registrado em D-067).
+3. **`src/lib` pressupõe o layout do repositório em disco.** `product-skills/loader.ts`
+   resolve as skills a partir de `path.dirname(fileURLToPath(import.meta.url))` e confirma o
+   `absolutePath` no disco; `render-shared.ts` acha a fonte via `require.resolve`. Empacotar
+   destrói essas premissas por construção — não é bug, é incompatibilidade de modelo.
+
+**Por que Opção C e não `@sparticuz/chromium`.** O Chromium-para-Lambda resolveria só o item 1.
+Os itens 2 e 3 continuariam exigindo máquina nova: um passo de build que compile `src/lib`
+preservando a estrutura de diretórios e embarque skills e fonte. Some-se o teto de 15 min da
+Background Function contra um pipeline que roda ~8 chamadas de imagem mais um processo de
+Chrome por spread, sequencialmente. Um container próprio resolve os três itens de uma vez
+(Chrome instalado de verdade, sem bundler, timeout de até 60 min) e, decisivo na prática,
+**restaura a reprodução local**: a PR #138 custou dias porque cada hipótese exigia um ciclo de
+deploy + invocação manual, sem repro na máquina.
+
+**Custo aceito.** Segunda plataforma no stack, o que tensiona [D-018] (mesma plataforma da
+app). Aceito porque D-018 decidia onde hospedar a APLICAÇÃO WEB, e esta decisão é sobre onde
+roda o processamento pesado — que D-011/`ARCHITECTURE.md` sempre previu como fila+worker
+separado. A app continua na Netlify; só o worker sai.
+
+**O que este PR faz com o código.** Removidas as três functions da Netlify, a sonda
+`poc-chrome.js`, a seção `[functions]` do `netlify.toml`, os globals de `netlify/functions/**`
+no `eslint.config.js` e o disparo HTTP no webhook do Stripe (apontava para uma function que
+deixa de existir). **Permanece** tudo que é independente de plataforma e continua válido no
+worker dedicado: `process.env` no lugar de `$env/dynamic/private` (D-067), os status de
+`order.ts`, as transições e a idempotência de `orders.ts`, `order-worker.ts`,
+`order-photos.ts` e seus testes. O webhook segue marcando `aguardando_geracao` — o pedido fica
+enfileirado esperando o worker, que é exatamente a costura que a issue de continuação assume.
+
+**Ainda em aberto, na issue de continuação:** qual provedor de container (Cloud Run, Render ou
+Fly.io), o mecanismo de gatilho e a PoC equivalente no ambiente novo — desta vez rodando o
+pipeline completo, não só o Chrome. Enquanto isso, F2-07 **não** é marcado como concluído no
+`ROADMAP.md`.
+
+---
+## D-069 | 2026-08-07 | ACEITA
+**Provedor do worker de geração: Cloud Run (região `us-east1`, a mesma do Firestore). O
+repositório roda no container em TypeScript direto, com `tsx`, sem nenhum bundler; o serviço
+exige autenticação e a identidade vem da service account anexada, sem chave privada em
+variável de ambiente.** Issue #148, decorrência de [D-068].
+
+**Por que Cloud Run entre as três opções de D-068.** O projeto já vive no GCP por causa do
+Firebase: mesmo projeto, mesma conta, IAM existente, e — o ponto que decide — a identidade da
+service account anexada dispensa distribuir chave. Render e Fly.io exigiriam uma chave de
+service account do Google guardada como segredo na plataforma, que é exatamente o passivo que
+esta decisão elimina. Escala a zero (sem pedido, sem custo, relevante numa fase sem usuário) e
+o timeout de 60 min cobre o pipeline com folga, contra os 15 min que apertavam na Netlify.
+
+**`tsx` em vez de compilar.** É a lição de [D-068] aplicada: `product-skills/loader.ts`
+resolve as skills por `import.meta.url` confirmando o caminho no disco, e `render-shared.ts`
+acha a fonte por `require.resolve`. A imagem copia `src/` e `worker/` com a estrutura intacta
+e executa o TypeScript direto — sem bundler, não há como reintroduzir a classe de problema que
+reprovou a PoC anterior. O custo é a checagem de tipos não acontecer em runtime; por isso
+`tsconfig.json` passou a incluir `worker/**` explicitamente, para o `npm run check` do CI
+cobrir o worker (o `include` do tsconfig gerado pelo SvelteKit substitui, não mescla).
+
+**Credencial por identidade anexada.** `firebase-admin.ts` passa a escolher entre
+`cert(...)` e `applicationDefault()` pela PRESENÇA de `FIREBASE_CLIENT_EMAIL`/
+`FIREBASE_PRIVATE_KEY`, não por flag de ambiente. O app na Netlify continua com chave (não há
+identidade do Google lá); o worker no Cloud Run roda sem nenhuma. Nada de `if (isCloudRun)`.
+
+**Autenticação do disparo é da plataforma, não da aplicação.** O serviço é criado com "exigir
+autenticação": só quem tem `roles/run.invoker` chega ao processo. Uma service account
+dedicada (`netlify-invoker`, sem nenhum outro papel) é a credencial que o webhook do Stripe
+usará. O worker valida o FORMATO do corpo (`isSafeId`), que é defesa contra chamada malformada
+de quem já está autorizado — não controle de acesso reimplementado.
+
+**Sandbox do Chrome desligado no container**, sinalizado por `CHROME_NO_SANDBOX`, pelo mesmo
+motivo já aceito em CI: o HTML renderizado é sempre gerado pelos módulos de
+`generation-engine/pdf/` (texto escapado, sem recurso externo, sem navegação para conteúdo de
+terceiros), então o risco que o sandbox mitiga não existe neste caminho, e o limite de
+isolamento passa a ser o container.
+
+**Verificado localmente antes de qualquer deploy** — o ganho concreto sobre a Netlify, onde
+cada hipótese custava um ciclo de deploy: `npm run worker` seguido de `POST /poc-render`
+devolveu `{"ok":true,"pdfBytesLength":5745,"durationMs":1458}`.
+
+**PoC CONFIRMADA no Cloud Run** (2026-08-07, invocação autenticada por humano contra o
+serviço em `us-east1`, build a partir da branch desta PR):
+`{"ok":true,"pdfBytesLength":5749,"durationMs":2352}`. O Chrome sobe e renderiza PDF dentro
+do container no ambiente real — o que [D-063] pedia e a Netlify não entregou. A diferença de
+4 bytes contra o render local é metadado do PDF; os ~900 ms a mais são cold start puxando a
+imagem com Chrome. Isto fecha a pergunta de plataforma aberta desde D-063/D-104: **a geração
+pesada roda em container, e a Opção C está validada na prática, não só no papel.**
+
+---
+## D-070 | 2026-08-07 | ACEITA
+**O gatilho da geração é um trigger do Eventarc sobre o documento do pedido no Firestore: a
+ESCRITA de `aguardando_geracao` é a própria fila. O webhook do Stripe não chama o worker.**
+Issue #148.
+
+**O problema.** O webhook precisa responder ao Stripe em segundos; a geração leva minutos. Ele
+não pode esperar. E `fetch` sem `await` não sobrevive na Netlify — o Lambda congela assim que a
+resposta sai —, então "chamar e seguir a vida" não é confiável.
+
+**Alternativas descartadas.**
+- **Cloud Tasks:** funcionaria e é o padrão mais convencional, mas exige uma chave de service
+  account de longa duração guardada no Netlify para enfileirar. É exatamente o passivo que
+  [D-069] acabou de eliminar do worker; reintroduzi-lo pela porta dos fundos não se justifica
+  num ganho que o Eventarc entrega sem chave nenhuma.
+- **Cloud Scheduler consultando pendentes:** obrigaria uma consulta `collectionGroup` sobre
+  `users/*/orders`, com índice novo no Firestore e ampliação da interface `OrderStore` — mais
+  código e mais infraestrutura que as outras duas, para a mesma entrega.
+
+**Consequências assumidas.**
+- **Entrega ao menos uma vez.** Coberto pela idempotência que já existe: `iniciarGeracao`
+  (`orders.ts`) só reivindica um pedido em `aguardando_geracao`/`erro_geracao`.
+- **O gatilho dispara a cada escrita no documento, inclusive as do próprio worker**
+  (`em_geracao`, `gerado`). `processarPedido` corta o laço antes de qualquer trabalho, saindo
+  com `outcome: 'ignorado'` quando o status não é um dos dois reivindicáveis.
+- **O corpo do evento não é lido.** O worker tira `uid`/`orderId` do cabeçalho `ce-subject`
+  (`documents/users/{uid}/orders/{orderId}`) e relê o documento do Firestore — mais correto de
+  qualquer forma, porque com entrega ao menos uma vez o evento pode chegar desatualizado. O
+  trigger é criado com `--event-data-content-type=application/json` (o Eventarc exige o campo
+  explicitamente para eventos do Firestore): como o corpo não é lido, os dois formatos
+  serviriam, e JSON foi escolhido por ficar legível no log na hora de depurar, enquanto
+  protobuf exigiria ferramenta para decodificar.
+- **Evento irrelevante ou malformado responde 2xx, não 4xx.** Para o Eventarc, 2xx confirma a
+  entrega; devolver erro faria ele reentregar para sempre algo que nunca vai dar certo. 5xx
+  fica reservado para falha transitória, onde o retry de fato ajuda.
+
+**Nota operacional descoberta na #148:** o Google Frontend devolve 404 para `GET /healthz`
+ANTES de a requisição chegar ao container, enquanto `GET /` chega normalmente. O apelido foi
+removido do worker — a rota de saúde é a raiz, que é o que o Cloud Run usa.
+
+---
+## D-071 | 2026-08-07 | ACEITA
+**O pipeline de geração rodou ponta a ponta no ambiente real: um pedido `aguardando_geracao`
+gravado no Firestore disparou o Eventarc, o worker no Cloud Run executou narrativa + fotos +
+layout + render e o pedido chegou a `gerado` em 90 s. F2-07 está entregue.** Issue #148,
+PR #150. Fecha a última pergunta em aberto de [D-068]/[D-069]/[D-070] e o critério que faltava
+para marcar F2-07 no `ROADMAP.md` ([D-045]).
+
+**O que rodou.** Pedido de teste semeado com o questionário fictício de `fixtures/pedido-exemplo.ts`
+e 8 fotos sintéticas de `fixtures/photos.ts` no Storage, nos caminhos de `photoObjectPath`.
+Uma única escrita de `status: 'aguardando_geracao'` — o gatilho, por [D-070].
+
+| Medida | Valor |
+|---|---|
+| Tempo de ponta a ponta | 90 s (`durationMs: 90044`, igual ao `latency: 90.686 s` do request no Cloud Run) |
+| Spreads renderizados | 16 (`totalPages: 16`) |
+| PDF agregado | 16 723 848 bytes |
+| Chamadas ao `gpt-image-1` | 8, uma por foto |
+| Custo de imagem medido | US$ 0,9884 (soma de `photo_style_provider_call_cost`) |
+
+**A estilização foi REAL, e isso precisou ser verificado explicitamente.** `HttpPhotoStyleProvider`
+cai para `AquarelaFakeProvider` quando falta `OPENAI_API_KEY`, emitindo só um `console.warn`:
+sem a chave, o pedido chegaria a `gerado` sem nunca chamar a API paga, e o registro aqui seria
+um falso-verde. O critério de aceitação passou a ter três partes — `geracao_concluida` no log,
+o documento em `gerado`, e a **ausência** daquele aviso. As três se confirmaram, e os 8 eventos
+de custo por foto provam a chamada real. Fica a lição: para este pipeline, "status gerado" não
+é evidência suficiente de que a geração aconteceu de verdade.
+
+**A idempotência de [D-070] se comportou como desenhada.** O trigger entregou **4** eventos,
+todos com HTTP 200: um de 90,7 s (a geração) e três de 6,5 s / 0,07 s / 0,05 s que não fizeram
+trabalho nenhum — são as escritas do próprio worker (`em_geracao`, `gerado`) redisparando o
+gatilho e saindo por `outcome: 'ignorado'` antes de qualquer ida ao pipeline. `geracao_concluida`
+aparece **exatamente uma vez** no log: 4 entregas, 1 execução, nenhum gasto duplicado.
+
+**Correção de fato sobre o `--event-data-content-type`.** A nota de [D-070] registra que os dois
+formatos serviriam e que `application/json` foi escolhido por legibilidade. Na criação real o
+Eventarc recusa: `"application/json" is not supported by this event type`. O trigger foi criado
+com `application/protobuf`, o único aceito para
+`google.cloud.firestore.document.v1.written`. **Não muda comportamento nem código**: o worker
+não lê o corpo do evento (usa o `ce-subject` e relê o documento), que é exatamente a razão pela
+qual [D-070] considerou o formato indiferente. Só a justificativa "JSON fica legível no log"
+não se sustenta — o formato não era uma escolha disponível.
+
+**Achado operacional: o trigger não sobrevive sozinho ao registro em docs.** Até esta sessão o
+trigger `pedido-aguardando-geracao` **não existia** no projeto, embora [D-070] e o commit
+`a902d17` já o descrevessem — a criação tinha falhado justamente pelo `--event-data-content-type`
+e nunca foi refeita. Criar infraestrutura continua sendo passo manual fora do CI; enquanto for,
+"documentado" não é o mesmo que "existe", e vale conferir com
+`gcloud eventarc triggers list --location=-` antes de assumir que a costura está de pé.
+
+**Rota `/poc-render` removida.** Ela existia para isolar a pergunta "o Chrome sobe aqui?"
+([D-069]) e já respondeu. Com o pipeline completo provado, a ferramenta de diagnóstico sai — e
+com ela o import da fixture `MINI_SKU_LAYOUT` dentro do worker, que era o único ponto onde
+código de produção alcançava dado de exemplo.
+
+**`POST /gerar` FICA, como escotilha operacional deliberada.** Desde [D-070] o gatilho é a
+escrita no Firestore, então a rota não tem chamador em `src/` — a revisão de segurança da
+PR #150 apontou isso e pediu "remova ou registre como escolha". Registrada como escolha:
+
+- **Por que existe:** reprocessar um pedido travado sem editar o Firestore à mão. Edição manual
+  usa credencial de admin, ignora `firestore.rules` e um erro de digitação corrompe o estado de
+  um pedido pago. A rota passa pela MESMA guarda de `iniciarGeracao` que o gatilho, então não
+  permite pular etapa nem reprocessar o que não deve.
+- **Quando usar:** pedido em `erro_geracao` depois de a causa ter sido corrigida; ou em
+  `aguardando_geracao` que nunca recebeu evento — exatamente o caso desta sessão, em que o
+  trigger não existia.
+- **Quando NÃO usar:** `em_geracao` ou `gerado`. `iniciarGeracao` recusa os dois, e isso é
+  proteção: insistir significa que o problema é outro.
+- **Como chamar:** `POST /gerar` com corpo `{"uid":"…","orderId":"…"}` e
+  `Authorization: Bearer $(gcloud auth print-identity-token)`. Exige `roles/run.invoker`; sem
+  token o Cloud Run devolve 403 antes de a requisição chegar ao processo.
+
+**A service account `netlify-invoker` nunca foi criada** — e não deve ser. [D-069] a previa
+como "a credencial que o webhook do Stripe usará", mas [D-070], logo depois, decidiu que o
+webhook não invoca nada. Verificado no projeto: a SA não existe, não há binding e não há chave
+de longa duração. `worker-geracao` também não tem nenhuma chave gerenciada por usuário — a
+promessa central de [D-069] ("nenhuma chave privada no worker") se sustenta empiricamente, não
+só no texto.
+
+**O container deixou de rodar como root.** `--no-sandbox` e uid 0 são aceitáveis
+separadamente, mas não juntos: o Chrome sem sandbox decodifica bytes de imagem enviados pelo
+usuário, e um bug de parser executaria como root dentro do container. O `Dockerfile` passa a
+usar o usuário `node` que a imagem base já traz, com `HOME` próprio (o Chrome precisa de
+diretório gravável para o perfil). Verificado com um Cloud Run Job sobre a MESMA imagem,
+lançando o Chrome sem tocar em nenhuma API paga — o `/poc-render`, que era a sonda barata, já
+tinha saído.
+
+**Evidência de que o controle de acesso existe.** A revisão de segurança classificou como
+bloqueante não a ausência do controle, mas a ausência de prova dele no repositório. A política
+foi conferida: só `worker-geracao` tem `roles/run.invoker`, sem `allUsers`/`allAuthenticatedUsers`;
+`curl` sem token devolve 403 e com token 200. O comando de deploy e a conferência passam a ser
+versionados em `docs/DEPLOY-WORKER.md`, junto da dívida conhecida (o serviço ainda se chama
+`hello`, e o trigger do Cloud Build aponta para uma branch de feature em vez da `main`).
+
+**Registrado, não corrigido:** `readJsonBody` não tem teste do limite `MAX_BODY_BYTES`. O corpo
+legítimo é `{uid, orderId}`, de poucos bytes, e a rota está atrás do IAM — sem superfície atual,
+fica como sugestão, não como pendência (`right-sizing.md`).
+
+---
+## D-072 | 2026-08-07 | ACEITA
+
+**O serviço do worker passa a se chamar `worker-geracao` (era `hello`, nome herdado do
+quickstart), o trigger de deploy do Cloud Build volta a apontar para `^main$`, e um segundo
+trigger passa a apenas CONSTRUIR a imagem em PRs. Uma execução real do pipeline foi capturada
+inteira em disco.** Issue #151. Estende [D-069] (Cloud Run), [D-070] (gatilho por Eventarc) e
+[D-071] (primeiro ponta a ponta); não altera nenhuma delas.
+
+**O que estava quebrado.** As duas dívidas registradas em `docs/DEPLOY-WORKER.md` viraram falha
+real: o trigger do Cloud Build apontava para `^feat/f2-07b-worker-cloud-run$`, branch apagada no
+merge da PR #150. Nenhum push construía ou implantava o worker — ele estava congelado em
+`hello-00013-xx9` desde 2026-08-07 22:02. O modo de falha é o pior possível: silencioso. Não há
+erro, nem build vermelho; o serviço simplesmente para de acompanhar a `main`.
+
+**Renomear o serviço.** O Cloud Run não renomeia serviço no lugar. A ordem executada foi: criar
+`worker-geracao` → conferir o IAM → reapontar o trigger do Eventarc → provar com um ponta a
+ponta → atualizar `_SERVICE_NAME` no Cloud Build → só então apagar `hello`. `docs/DEPLOY-WORKER.md`
+passa a versionar essa ordem, porque apagar o antigo antes de verificar o novo derruba a fila.
+
+**Duas descobertas de infraestrutura que a documentação anterior não tinha:**
+
+1. O passo de deploy do trigger é `gcloud run services update`, **não** `run deploy` — ele não
+   CRIA o serviço. Apagar o serviço não deixa o trigger recriá-lo; passa a falhar.
+2. A service account de build (`416249419814-compute@`) não tem **nenhuma** permissão de Storage,
+   então `gcloud run deploy --source .` falha com `403 storage.objects.get denied` ao ler o zip
+   que ele mesmo acabou de subir. O fluxo do trigger funciona porque o Cloud Build busca o código
+   do GitHub, não do bucket. Registrado como dívida em `DEPLOY-WORKER.md`.
+
+**Build de PR: sim, mas como sinal, não como portão.** Criado o trigger `worker-geracao-build-pr`,
+que roda `docker build` em PRs para a `main` e **não implanta**. Motivo: nenhum job de
+`.github/workflows/ci.yml` toca o `Dockerfile`, então uma imagem quebrada só apareceria depois do
+merge — e o modo de falha é exatamente o que esta entrega conserta (o worker congela na revisão
+antiga, em silêncio). **Não** foi adicionado ao branch protection: é informação para o revisor, e
+transformá-lo em required check é decisão separada.
+
+**Captura da execução.** Uma corrida real foi exportada para `artefatos-execucao/` (gitignorada),
+com o documento do Firestore antes/depois, as transições de status, as fotos originais e
+estilizadas, a narrativa, a diagramação, os PDFs por spread, os logs, os custos e as entregas do
+Eventarc — mais um `FLUXO.md` que explica o ciclo do pagamento ao `gerado`. Para capturar os
+intermediários, o worker foi instrumentado **temporariamente** (o pipeline mantém narrativa,
+fotos, layout e PDFs apenas como variáveis locais e grava só um resumo de quatro números). A
+instrumentação foi construída a partir de uma branch descartável, nunca entrou na `main` nem na
+PR, e foi removida antes do merge; a SA do worker recebeu `roles/storage.objectCreator` no bucket
+só durante a janela, e a permissão foi revogada em seguida.
+
+**Medições da execução** (2026-08-07T23:07:48Z, revisão `worker-geracao-00004-9m4`):
+
+| Item | Valor |
+|---|---|
+| Ponta a ponta | 88,9 s (`durationMs: 88866`) |
+| Spreads / páginas | 19 / 19 |
+| PDF agregado | 16 744 205 bytes |
+| Narrativa | `claude-sonnet-5`, 2 313 entrada / 2 254 saída → US$ 0,0272 |
+| Fotos | 8 chamadas ao `gpt-image-1` → **US$ 1,1126** |
+| **Custo total** | **US$ 1,1397** |
+| Entregas do Eventarc | 4 (1 executou, 3 `ignorado`), `geracao_concluida` uma única vez |
+
+Os três critérios de [D-071] foram conferidos de novo e passaram, mais seis cruzamentos que
+amarram os arquivos à execução — o principal é que a soma dos 19 PDFs em disco bate exatamente
+com o `pdfBytesTotalLength` que o worker gravou no Firestore.
+
+**Registrado, não corrigido** (`right-sizing.md`):
+
+- **O prompt caching de [D-011] está configurado e nunca entra em ação.** O `usage` capturado
+  mostra `cache_creation_input_tokens: 0` — o cache nem é escrito. O prefixo mínimo cacheável do
+  `claude-sonnet-5` é de 1 024 tokens e o bloco de sistema (a `definition.md` da skill) tem
+  ~1 KB, algo em torno de 260 tokens. Falha silenciosa: a API não devolve erro. Impacto atual é
+  de centavos por pedido.
+- **As fotos estilizadas saem a 167 DPI**, não a 300. É o ACHADO de [D-056] agora *medido*: o
+  `gpt-image-1` devolveu 1024×1024 onde o SKU mini pede ~1772 px. O número só existe em memória —
+  nem o Firestore nem o log o guardam.
+- **O custo da narrativa não é instrumentado em produção** (`src/lib/server/claude.ts` não
+  registra `usage`); só a imagem tem custo medido. Os tokens acima vieram do wrapper temporário.
+- A configuração dos triggers do Cloud Build continua vivendo no console, não no repositório —
+  foi exatamente isso que deixou a dívida da branch invisível até quebrar. Migrar para um
+  `cloudbuild.yaml` versionado é melhoria conhecida e adiada.
+
+**Autorização para apagar recurso de produção.** Apagar o serviço `hello` cai em "ações
+irreversíveis" de `docs/AUTONOMY.md` §2. Foi autorizado explicitamente pelo humano no enunciado
+da tarefa, com a ordem exata da operação — registrado aqui em vez de virar issue
+`decision-needed`. Não havia pedido real de usuário no ambiente.
+
+---
+## D-073 | 2026-08-07 | ACEITA
+
+**Mudança de infraestrutura (Cloud Run, Cloud Build, Eventarc, IAM) é feita em sessão
+interativa, com credencial humana. O Developer automatizado de `implement.yml` NÃO recebe
+`gcloud` — [D-012] (menor privilégio) permanece como está.** Responde a pergunta que o próprio
+Developer levantou ao tentar pegar a issue #151.
+
+**O que aconteceu.** A issue #151 foi criada com o rótulo `status:ready`, que é o **gatilho** do
+`implement.yml`. O Developer autônomo acordou, leu o enunciado, viu que precisava de `gcloud`
+contra Cloud Build / Cloud Run / Eventarc, constatou que a ferramenta não está no seu
+`--allowed-tools`, e **parou** — sem improvisar e sem abrir PR quebrada. Registrou a pergunta
+como decision-needed, exatamente como manda a regra 1 do `CLAUDE.md`. A issue foi entregue em
+paralelo, numa sessão interativa, pela PR #154 ([D-072]).
+
+**Por que o Developer continua sem `gcloud`.** Dar `gcloud` a um agente que roda sozinho em cron
+significa dar a ele poder de apagar serviços de produção, reescrever política de IAM e gastar
+dinheiro, sem ninguém olhando na hora. O raio de dano é desproporcional ao ganho: mudança de
+infra é rara, e quando acontece precisa de julgamento sobre ordem de operações — renomear um
+serviço do Cloud Run, por exemplo, exige criar → verificar → reapontar o gatilho → provar →
+só então apagar, e inverter dois passos derruba a fila.
+
+**Consequências assumidas.**
+
+- Issue de infra **não é** trabalho da fábrica. Não rotule `status:ready` uma issue que exige
+  `gcloud`: o rótulo convoca o Developer, que vai gastar uma execução para descobrir o muro.
+  Deixe sem rótulo e execute em sessão.
+- O `docs/DEPLOY-WORKER.md` é o substituto do IaC enquanto não houver IaC. Ele **não** é
+  documentação de apoio: é a única receita que reconstrói o serviço.
+- A dívida que isso expõe continua registrada e adiada ([D-072]): o passo de deploy do trigger
+  só define `--image` e `--labels`, então memória, concorrência, timeout, segredos, service
+  account e `--no-allow-unauthenticated` existem **apenas no recurso vivo e no documento** —
+  nada no git reconstrói o serviço.
+
+**Correção de fato sobre o [D-072].** Aquela entrada registra "as fotos estilizadas saem a
+167 DPI, não a 300". A leitura está errada e fica corrigida aqui, sem alterar a entrada original
+(regra 4). O campo `metadata.dpi` é calculado por `http-provider.ts` como
+`round(300 × lado_real ÷ lado_pedido)`, isto é, **o DPI que a imagem teria se ocupasse a página
+inteira** (156 mm). O layout `polaroid-com-texto` coloca a foto num quadro de **74,1 × 74,1 mm**
+(medido no `layout-spreads.json` da execução), e nesse tamanho os 1024 px dão **351 DPI — acima
+do alvo de 300**, nas oito fotos. A limitação de resolução do `gpt-image-1` ([D-056]) é real,
+mas **não morde no layout atual**; morderia num layout que use a foto estilizada sangrando a
+página inteira, que não existe. Ao ler o manifesto, `metadata.dpi` é um piso conservador do
+provider, não uma medida do impresso: o número que vale é `px ÷ área colocada`.
+
+---
+## D-074 | 2026-08-07 | ACEITA
+
+**O livro gerado passa a ser GUARDADO, e "Nossa História" passa a ser vendido em dois
+formatos: digital e impresso. O impresso já inclui o digital; o digital tem upsell para o
+impresso. O preço passa a variar por tamanho E por formato — estilo continua não alterando
+preço.** Decisão de produto tomada pelo humano em 2026-08-07, respondendo ao gate de
+`docs/AUTONOMY.md` §2 ("mudanças de produto"). Altera `docs/PRODUCT.md` e `docs/ROADMAP.md`
+com essa autorização; estende [D-036] (modelo de preço) e [D-072] (o que a execução mede).
+
+**Por que guardar o livro é requisito de PRODUTO, não detalhe de infraestrutura.** O worker
+renderiza os spreads, soma os bytes e **descarta os PDFs** (`order-worker.ts:180`); as fotos
+estilizadas também são descartadas. A consequência medida em [D-072] é que **o livro não é
+reproduzível**: regerar o mesmo pedido chama o `gpt-image-1` de novo — US$ 1,11 por execução — e
+o `gpt-image-1` não é determinístico, então sairiam **imagens diferentes**. O livro reimpresso
+não seria o mesmo livro que o cliente aprovou.
+
+Isso torna a persistência pré-requisito de qualquer coisa depois da geração: reimpressão,
+download, reenvio à gráfica, suporte, e disputa de cartão. Não é otimização de custo — é
+correção. Enquanto o artefato não for guardado, "vender a versão digital" é impossível e
+"reimprimir" significa produzir um livro diferente.
+
+**Os dois formatos.**
+
+| Formato | O que o cliente recebe | Observações |
+|---|---|---|
+| **Digital** | PDF do livro para download, por URL assinada e expirável | Entrega imediata após a geração; sem custo de impressão nem frete |
+| **Impresso** | Livro físico + **o digital incluído** | O digital vem junto, não é venda separada |
+
+**Os dois caminhos de compra.**
+
+- **Digital → upsell para impresso.** O cliente compra o digital, recebe o livro, e pode
+  comprar a impressão depois. A segunda compra **reaproveita o arquivo guardado** — não regera
+  nada, portanto não gasta geração nem produz um livro diferente do que ele já viu.
+- **Impresso (já inclui o digital).** Compra única; o digital fica disponível para download
+  assim que a geração termina, sem esperar a impressão e o frete.
+
+**A intenção comercial é assimétrica — os dois formatos não têm o mesmo peso.** O objetivo é
+vender o **impresso**: é ele que é o presente, o que se embrulha e se entrega. O digital não é
+um produto paralelo; existe porque nem todo comprador vai querer gastar com impressão logo de
+cara, e é melhor tê-lo como cliente no digital — com o livro já pronto e guardado — do que
+perdê-lo no checkout. Isso não é preferência de tom: **é requisito de desenho.** O impresso é a
+opção apresentada como padrão no checkout (F3-08), e o caminho digital → impresso (F3-09)
+precisa ser visível e sem atrito, não um link escondido no pós-venda. Uma implementação que
+trate os dois formatos como simétricos atende à letra desta decisão e falha no objetivo dela.
+
+**Modelo de preço: estende o [D-036], não o contradiz.** O D-036 decidiu que **estilo não altera
+preço** e que o preço é por tamanho. Isso continua valendo. O que muda é que passa a existir um
+**segundo eixo**: `preço = f(tamanho, formato)`. O modelo de dados do Pedido e os `Price` do
+Stripe passam a carregar o formato, e o upsell é uma segunda cobrança sobre um pedido existente,
+não um pedido novo. O motivo para o formato entrar no preço — e o estilo não — é o mesmo
+critério do D-036: **há custo diferencial real** (impressão + frete existem num formato e não no
+outro), enquanto entre estilos não há.
+
+**O que esta decisão NÃO decide.**
+
+- **Os números.** Continuam no [D-101], PENDENTE. Inclui uma pergunta nova que não existia
+  antes: *o digital custa o mesmo em todos os tamanhos?* O custo de produção do digital é
+  praticamente o mesmo entre SKUs (só a geração), enquanto o do impresso não é.
+- **Por quanto tempo o arquivo guardado fica disponível**, e se o upsell tem prazo. Estende o
+  [D-100] (retenção/exclusão das fotos, LGPD) com uma pergunta que ele não cobria: o PDF
+  guardado **contém derivados das fotos do casal**, então apagar as fotos de origem **não**
+  apaga o livro. Retenção do artefato derivado é decisão separada da retenção da matéria-prima.
+- **Se a prévia (F2-09/F2-11, gate [D-103]) muda** por existir um formato digital.
+
+**Consequência técnica que precisa estar clara antes de virar issue: são TRÊS PDFs distintos,
+não um.**
+
+| Artefato | Geometria | Para quem |
+|---|---|---|
+| PDF de produção | 156×156 mm (150 final + 3 mm de sangria/lado), PDF/X-4, CMYK | Gráfica |
+| PDF de preview | spreads em baixa resolução | Prévia no site |
+| **PDF digital do cliente** | 150×150 mm aparado, RGB, sem marcas de corte | Comprador |
+
+Entregar o PDF de produção como "versão digital" seria erro: o cliente receberia páginas com
+6 mm sobrando, conteúdo correndo até a borda e intenção de cor de gráfica. O digital é um
+terceiro artefato, derivado do mesmo `GeneratedBook`.
+
+**O que destrava.** A FASE 2 ganha a persistência do livro; a FASE 3 ganha entrega digital,
+formatos de compra e reimpressão. As issues serão criadas pelo Supervisor a partir do
+`ROADMAP.md` — esta entrada não cria issue.
+
+---
+## D-075 | 2026-08-08 | ACEITA
+
+**Os dois triggers do Cloud Build passam a filtrar por `includedFiles`, derivado dos `COPY` do
+`Dockerfile`. Um push que não toca a imagem não reconstrói nem reimplanta o worker.** Issue
+#151, PR #157. Corrige o comportamento que [D-072] descreve como "a cada push na `main`".
+
+**O desperdício era medido, não hipotético.** As três últimas revisões do Cloud Run antes desta
+mudança:
+
+| Revisão | Commit | Conteúdo do merge |
+|---|---|---|
+| `worker-geracao-00007-h6n` | `ee57951` | PR #154 — código de verdade |
+| `worker-geracao-00008-hvr` | `f12b994` | PR #155 — **só `docs/DECISIONS.md`** |
+| `worker-geracao-00009-fcp` | `6a7bb25` | PR #156 — **só três arquivos de `docs/`** |
+
+Duas de três eram idênticas em conteúdo à `00007`: ~10 min de `docker build --no-cache` cada uma,
+mais uma revisão nova do Cloud Run, para nenhuma mudança na imagem.
+
+**O filtro não foi escolhido, foi derivado.** O `Dockerfile` determina o conteúdo da imagem em
+três linhas — `COPY package.json package-lock.json ./` (33), `COPY src ./src` (38),
+`COPY worker ./worker` (39) — mais o próprio `Dockerfile` e o `.dockerignore`, que filtra o
+contexto de build (é ele que mantém `worker/*.test.ts` fora). Daí a lista:
+`Dockerfile`, `.dockerignore`, `package.json`, `package-lock.json`, `src/**`, `worker/**`.
+
+**O risco aceito, e por que aceitá-lo.** O filtro é uma **segunda cópia** da lista de `COPY`, e
+nada verifica que as duas concordam. Se entrar um `COPY` novo e o caminho não for acrescentado,
+o worker deixa de reimplantar quando esse caminho mudar — **sem erro e sem build vermelho**. É o
+mesmo tipo de falha silenciosa que a dívida da branch causou em [D-072], então introduzir outro
+não é decisão trivial. Aceito assim mesmo por três motivos:
+
+1. **O pulo é visível.** Verificado na própria PR #157: o Cloud Build avalia o filtro e posta o
+   check com estado `skipping`, em vez de ficar mudo. Dá para distinguir "não precisava rodar"
+   de "não rodou por engano" — diferente da dívida do D-072, que não deixava rastro nenhum.
+2. **Reverter é remover uma linha de cada trigger**, sem migração nem efeito colateral.
+3. A alternativa é pagar ~10 min de build e uma revisão espúria a cada commit de documentação,
+   indefinidamente.
+
+**Por que não dá para automatizar a conferência.** Um teste que cruzasse os `COPY` do
+`Dockerfile` com o `includedFiles` do trigger precisaria ler a config do trigger — que vive no
+console, não no repositório (dívida 2 de `docs/DEPLOY-WORKER.md`, adiada em [D-072]). Enquanto
+essa dívida existir, a mitigação é o aviso escrito na seção "Deploy": ao mexer nos `COPY`, mexer
+no filtro **no mesmo PR**. Registrado como dívida 4. Se a config migrar para um `cloudbuild.yaml`
+versionado, essa conferência vira um teste barato — e aí este risco deixa de ser aceito e passa
+a ser eliminado.
+
+**Consequência visível no dia a dia:** PR que só mexe em documentação mostra
+`worker-geracao-build-pr` como `skipping`. Isso é o comportamento correto, não falha — e é mais
+um motivo para não torná-lo required check no branch protection ([D-072]): uma PR que não toca a
+imagem ficaria esperando para sempre por um check que nunca vai rodar.
+
+---
+## D-076 | 2026-08-11 | ACEITA
+
+**A fábrica ganha um baseline explícito antes de ser evoluída: o inventário `docs/FACTORY-INVENTORY.md`
+(35 artefatos de processo, um por linha, com propósito e origem) e a tag `fabrica-baseline-2026-08`,
+que congela o mesmo estado no histórico do Git.** Tarefa EV0.2, sem issue — trabalho de fábrica não
+entra no `ROADMAP.md` ([D-045]).
+
+**Por quê.** A fábrica cresceu por acréscimo ao longo de 75 decisões: workflows, agentes, rules,
+skills, hooks e testes de processo espalhados por `.claude/` e `.github/`, e hoje ninguém — humano ou
+agente — consegue dizer de memória o que a compõe. Evoluir um sistema cujo estado atual não está
+escrito é mudar sem poder medir o que mudou. O par documento+tag dá as duas leituras que faltavam:
+o inventário responde "o que existe e por que existe" em uma tela; a tag responde "como estava",
+recuperável com um `git checkout`.
+
+**Escopo deliberadamente raso.** O inventário é índice, não enciclopédia (`.claude/rules/right-sizing.md`):
+uma linha por artefato, propósito em uma frase, e a coluna Origem preenchida com a referência que o
+próprio arquivo cita — `—` quando não há uma localizável rapidamente. A completude foi verificada
+programaticamente contra a listagem do disco (zero arquivos sem linha, zero linhas sem arquivo);
+sem essa conferência o documento envelheceria em silêncio, que é o modo de falha típico deste tipo
+de índice.
+
+**Registrado junto:** a fábrica fica **dormente** durante a evolução. Os dois únicos workflows que
+agem sozinhos — `supervisor.yml` (cron do [D-015]) e `daily-report.yml` — foram desabilitados por
+`gh workflow disable`; os demais só disparam por evento (issue, PR, `workflow_run`) e ficam quietos
+enquanto não houver issue nem PR. É reversível com `gh workflow enable` (skills `/pause` e `/resume`),
+e nada foi apagado. Commit direto na `main` com bypass de admin auditável, pelo mesmo motivo: sem
+fábrica ligada, não há Developer para abrir o PR.
+
+---
+## D-077 | 2026-08-06 | ACEITA
 **[F2-09] `renderBookPreviewPdf` (`render-book-preview.ts`) reaproveita a composição de
 spreads de `renderBookToPdf` (F2-08c1) via uma função interna extraída, `composeBookPdf`
 (`render-book.ts`), em vez de chamar `renderBookToPdf` diretamente.** Fecha a issue #140
@@ -2496,7 +3129,9 @@ motivo para um segundo tipo de erro.
 - **D-104** | Onde roda a geração pesada de PDF/arte (fila+worker, F2-07) e provedor de
   print-on-demand definitivo (F3-01). A hospedagem do app SvelteKit **saiu deste gate** e
   foi decidida em [D-018] (Netlify); a parte fila+worker (F2-07) **saiu deste gate** e foi
-  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito); só
-  o provedor de print-on-demand (F3-01) continua PENDENTE.
+  decidida em [D-063] (Netlify Background Functions, condicionada a prova de conceito) e
+  **revista em [D-068]**, depois de a PoC reprovar ao vivo: worker dedicado em container
+  (Opção C), com o provedor específico a definir na issue de continuação; só o provedor de
+  print-on-demand (F3-01) continua PENDENTE.
 - **D-105** | Quais estilos entram no catálogo público da V1 (sugestão: 2–3 consistentes).
 - **D-106** | Quais tamanhos entram na V1 e a spec exata de cada SKU.

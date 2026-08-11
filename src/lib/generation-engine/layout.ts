@@ -92,7 +92,12 @@ export class LayoutMissingStylizedPhotoError extends Error {}
  * D-051/D-054/D-055). */
 export class LayoutPageBudgetExceededError extends Error {}
 
-function getSkuLayoutParams(sizeId: string): SkuLayoutParams {
+/**
+ * Exportado para o worker de geração (F2-07, `order-worker.ts`): renderizar cada spread em
+ * PDF precisa da mesma geometria de página que a composição usou — não uma cópia derivada
+ * de novo, a MESMA fonte (`SKU_LAYOUT_PARAMS_BY_SIZE_ID`).
+ */
+export function getSkuLayoutParams(sizeId: string): SkuLayoutParams {
 	const params = SKU_LAYOUT_PARAMS_BY_SIZE_ID[sizeId];
 	if (!params) {
 		throw new LayoutUnknownSizeError(

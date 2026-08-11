@@ -1,0 +1,31 @@
+# O que NÃO entra na imagem do worker (F2-07b, issue #148).
+# Regra: só `src/`, `worker/` e as dependências de produção. Tudo que é build da app web,
+# ferramenta de desenvolvimento ou segredo local fica de fora.
+node_modules
+.git
+.github
+.svelte-kit
+.netlify
+build
+tests
+e2e
+docs
+.claude
+*.md
+.env
+.env.*
+!.env.example
+firebase.json
+firestore.rules
+storage.rules
+netlify.toml
+playwright.config.ts
+vite.config.ts
+vitest.rules.config.ts
+eslint.config.js
+svelte.config.js
+# Fotos reais de pessoa nunca entram em imagem publicada (PRODUCT.md §10).
+src/lib/fixtures/photos-locais
+# `COPY worker ./worker` levaria os testes junto. Inofensivo (nunca importados, e `vitest` não
+# existe na imagem por causa do `--omit=dev`), mas não há motivo para embarcá-los.
+worker/*.test.ts

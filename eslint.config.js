@@ -49,6 +49,15 @@ export default ts.config(
 		}
 	},
 	{
-		ignores: ['build/', '.svelte-kit/', 'dist/', 'playwright-report/', 'test-results/']
+		// `artefatos-execucao/` é saída de execução exportada para estudo (issue #151):
+		// gitignorada, mas o eslint varre o disco, não o índice do git.
+		ignores: [
+			'build/',
+			'.svelte-kit/',
+			'dist/',
+			'playwright-report/',
+			'test-results/',
+			'artefatos-execucao/'
+		]
 	}
 );

@@ -4,7 +4,7 @@
  * `renderBookToPdf` (F2-08c1, issue #133, `render-book.ts`), reaproveitada via
  * `composeBookPdf` — mas em módulo/função própria, para que a conformidade PDF/X-4
  * (`OutputIntent`/ICC/XMP, F2-08c2/#139), exclusiva do PDF de **produção**, nunca seja
- * aplicada por engano ao preview (D-067). `renderBookPreviewPdf` não chama
+ * aplicada por engano ao preview (D-077). `renderBookPreviewPdf` não chama
  * `renderBookToPdf` nem depende dele — os dois chamam `composeBookPdf` de forma
  * independente, então uma mudança futura em `renderBookToPdf` (ex. adicionar PDF/X-4 por
  * cima do resultado de `composeBookPdf`) não afeta este módulo.

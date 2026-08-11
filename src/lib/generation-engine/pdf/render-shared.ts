@@ -44,12 +44,28 @@ export async function renderHtmlToPdf(html: string): Promise<Uint8Array> {
 	// No `ubuntu-latest` (24.04) do GitHub Actions o AppArmor restringe user namespaces
 	// sem privilégio por padrão, o que quebra o sandbox do Chrome do sistema (diferente do
 	// Chromium empacotado pelo Playwright, que já vem ajustado para isso) — o launch trava
-	// em vez de lançar um erro claro (actions/runner-images#9491). `--no-sandbox` só entra
-	// em CI: o HTML renderizado aqui é sempre gerado pelos módulos deste diretório (texto
-	// escapado, sem recurso externo, sem navegação para conteúdo de terceiros), então o
-	// risco que o sandbox do Chrome mitiga (execução de conteúdo remoto não confiável) não
-	// se aplica. Em produção o sandbox continua ativo.
-	const launchArgs = process.env.CI ? ['--no-sandbox'] : [];
+	// em vez de lançar um erro claro (actions/runner-images#9491). O mesmo vale no container
+	// do worker (F2-07b/[D-069]), que sinaliza com `CHROME_NO_SANDBOX`: lá não há namespaces
+	// de usuário e `/dev/shm` é pequeno demais para o Chrome renderizando página grande.
+	//
+	// Desligar o sandbox nesses dois ambientes é aceitável porque o HTML renderizado aqui é
+	// sempre gerado pelos módulos deste diretório (texto escapado, sem recurso externo, sem
+	// navegação para conteúdo de terceiros): o risco que o sandbox do Chrome mitiga —
+	// execução de conteúdo remoto não confiável — não existe neste caminho. E, no worker, o
+	// limite de isolamento é o próprio container, não o processo. Rodando localmente
+	// (nenhuma das duas variáveis presente), o sandbox continua ativo.
+	//
+	// CONDIÇÃO DE INVALIDAÇÃO (revisão de segurança da PR #150): a premissa acima cai se
+	// algum render passar a carregar recurso remoto (webfont por URL, imagem por link,
+	// iframe) ou a interpolar HTML não escapado. Se isso acontecer, o sandbox precisa voltar
+	// — não basta manter o container como limite.
+	//
+	// `||`, não `??`: `??` só cai para o segundo operando quando o primeiro é `undefined`/
+	// `null`, então um `CI=""` (string vazia, que alguns ambientes exportam) resolveria para
+	// `false` e manteria o sandbox ligado mesmo com `CHROME_NO_SANDBOX=1` — dentro do
+	// container, onde ele não sobe.
+	const semSandbox = Boolean(process.env.CI) || Boolean(process.env.CHROME_NO_SANDBOX);
+	const launchArgs = semSandbox ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 	const browser = await chromium.launch({ channel: 'chrome', args: launchArgs });
 	try {
 		const page = await browser.newPage();

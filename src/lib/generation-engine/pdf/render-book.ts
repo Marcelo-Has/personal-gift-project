@@ -77,7 +77,7 @@ async function renderSpreadToPdf(
  * `layout.ts`); lança `RenderBookMissingStylizedPhotoError` se faltar alguma. Não inclui
  * PDF/X-4 (`OutputIntent`/ICC/XMP) — quem quiser essa conformidade aplica por cima do
  * resultado (fica isolado em `renderBookToPdf`/F2-08c2, nunca neste módulo compartilhado,
- * para que `renderBookPreviewPdf` nunca a herde por engano — D-067).
+ * para que `renderBookPreviewPdf` nunca a herde por engano — D-077).
  */
 export async function composeBookPdf(
 	book: GeneratedBook,
