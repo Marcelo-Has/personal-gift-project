@@ -127,7 +127,7 @@ e produz o PDF pronto para impressão e o PDF de preview, com testes de estilo n
           `GeneratedBook`, na ordem dos spreads, sem PDF/X-4.
     - [ ] **F2-08c2** — Conformidade PDF/X-4 (`OutputIntent`/ICC, metadados) do PDF de
           produção.
-- [ ] **F2-09** — Geração do **PDF de preview** (spreads).
+- [x] **F2-09** — Geração do **PDF de preview** (spreads).
 - [ ] **F2-10** — Testes de estilo no CI (comparação com golden samples).
 - [ ] **F2-11** — [gate D-103] Prévia no fluxo do cliente (antes ou depois do pagamento).
 - [ ] **F2-12** — **Persistência do livro gerado** ([D-074]). Hoje `executarGeracaoDoPedido`
