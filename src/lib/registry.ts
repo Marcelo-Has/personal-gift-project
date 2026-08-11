@@ -66,7 +66,7 @@ export function parseRegistry(raw: unknown): ProductRegistry {
 export const defaultRegistry = parseRegistry(registryJson);
 
 function published<T extends { status: string }>(entries: T[]): T[] {
-	return entries.filter((entry) => entry.status);
+	return entries.filter((entry) => entry.status === 'published');
 }
 
 export function getPublishedSizes(registry: ProductRegistry = defaultRegistry): RegistrySize[] {
