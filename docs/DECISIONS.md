@@ -3057,6 +3057,35 @@ um motivo para não torná-lo required check no branch protection ([D-072]): uma
 imagem ficaria esperando para sempre por um check que nunca vai rodar.
 
 ---
+## D-076 | 2026-08-11 | ACEITA
+
+**A fábrica ganha um baseline explícito antes de ser evoluída: o inventário `docs/FACTORY-INVENTORY.md`
+(35 artefatos de processo, um por linha, com propósito e origem) e a tag `fabrica-baseline-2026-08`,
+que congela o mesmo estado no histórico do Git.** Tarefa EV0.2, sem issue — trabalho de fábrica não
+entra no `ROADMAP.md` ([D-045]).
+
+**Por quê.** A fábrica cresceu por acréscimo ao longo de 75 decisões: workflows, agentes, rules,
+skills, hooks e testes de processo espalhados por `.claude/` e `.github/`, e hoje ninguém — humano ou
+agente — consegue dizer de memória o que a compõe. Evoluir um sistema cujo estado atual não está
+escrito é mudar sem poder medir o que mudou. O par documento+tag dá as duas leituras que faltavam:
+o inventário responde "o que existe e por que existe" em uma tela; a tag responde "como estava",
+recuperável com um `git checkout`.
+
+**Escopo deliberadamente raso.** O inventário é índice, não enciclopédia (`.claude/rules/right-sizing.md`):
+uma linha por artefato, propósito em uma frase, e a coluna Origem preenchida com a referência que o
+próprio arquivo cita — `—` quando não há uma localizável rapidamente. A completude foi verificada
+programaticamente contra a listagem do disco (zero arquivos sem linha, zero linhas sem arquivo);
+sem essa conferência o documento envelheceria em silêncio, que é o modo de falha típico deste tipo
+de índice.
+
+**Registrado junto:** a fábrica fica **dormente** durante a evolução. Os dois únicos workflows que
+agem sozinhos — `supervisor.yml` (cron do [D-015]) e `daily-report.yml` — foram desabilitados por
+`gh workflow disable`; os demais só disparam por evento (issue, PR, `workflow_run`) e ficam quietos
+enquanto não houver issue nem PR. É reversível com `gh workflow enable` (skills `/pause` e `/resume`),
+e nada foi apagado. Commit direto na `main` com bypass de admin auditável, pelo mesmo motivo: sem
+fábrica ligada, não há Developer para abrir o PR.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
