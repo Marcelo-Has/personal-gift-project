@@ -2,6 +2,14 @@
   command = "npm run build"
   publish = "build"
 
+# Sem seção `[functions]`: a geração pesada NÃO roda em Netlify Functions ([D-068]).
+# A PoC exigida por [D-063] reprovou ao vivo — não há Chrome no runtime do Lambda, nenhum
+# bundler da Netlify atende o caso (esbuild compila TS mas emite CJS, quebrando
+# `import.meta.url`; nft preserva o layout mas não compila TS) e `src/lib` pressupõe o
+# layout do repositório em disco. A geração passou a ser responsabilidade de um worker
+# dedicado em container, fora da Netlify. Aqui ficam só as functions que o
+# `@sveltejs/adapter-netlify` gera sozinho para as rotas do SvelteKit.
+
 [build.environment]
   NODE_VERSION = "22"          # espelhar .github/workflows/ci.yml
   # Secrets scanning da Netlify falha o build ao encontrar o VALOR de uma variável

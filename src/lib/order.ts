@@ -69,8 +69,22 @@ export interface Order {
  * Rascunho persistido em `users/<uid>/orders/<orderId>` (F1-05c, issue #33).
  * Só `'rascunho'` é escrito por esta issue; os demais valores existem no tipo
  * para F1-07 (checkout/pagamento) não precisar alterar o modelo.
+ *
+ * `'aguardando_geracao'` → `'em_geracao'` → `'gerado'` | `'erro_geracao'` (F2-07, issue #135):
+ * transições da fila+worker de geração pesada, disparada depois de `'pago'` (F1-07b).
+ * `'aguardando_geracao'` é enfileirado (o webhook já disparou a Background Function, ainda
+ * não começou a rodar); `'em_geracao'` também é o estado de "reivindicado" pela idempotência
+ * básica de `iniciarGeracao` (`src/lib/server/orders.ts`) — mais de uma invocação da mesma
+ * function não reprocessa um pedido que já está ou já esteve `em_geracao`/`gerado`.
  */
-export type OrderStatus = 'rascunho' | 'aguardando_pagamento' | 'pago';
+export type OrderStatus =
+	| 'rascunho'
+	| 'aguardando_pagamento'
+	| 'pago'
+	| 'aguardando_geracao'
+	| 'em_geracao'
+	| 'gerado'
+	| 'erro_geracao';
 
 /**
  * Rascunho é preenchido etapa a etapa (`merge: true`), então cada parte do

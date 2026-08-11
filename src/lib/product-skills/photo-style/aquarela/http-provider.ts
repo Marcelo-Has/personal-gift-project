@@ -17,8 +17,8 @@ import type {
 	OpenAiImageEditResult,
 	OpenAiImageSize,
 	OpenAiImagesClient
-} from '$lib/server/openai-image';
-import { getOpenAiImagesClient } from '$lib/server/openai-image';
+} from '../../../server/openai-image';
+import { getOpenAiImagesClient } from '../../../server/openai-image';
 import type {
 	PhotoStyleOrderParams,
 	PhotoStyleProvider,

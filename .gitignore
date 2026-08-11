@@ -22,6 +22,11 @@ serviceAccount*.json
 # sensível e NUNCA entra no repositório; sem esta pasta o fixture gera placeholders.
 src/lib/fixtures/photos-locais/
 
+# Saída de execução do worker exportada para estudo (issue #151): documento do Firestore,
+# fotos estilizadas, PDFs, logs. É resultado de uma corrida, não código — e o volume
+# (dezenas de MB por execução) não pertence ao histórico do repositório.
+artefatos-execucao/
+
 # Config pessoal do Claude Code (não compartilhada)
 .claude/settings.local.json
 .claude/agent-memory-local/

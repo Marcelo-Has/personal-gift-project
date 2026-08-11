@@ -1,5 +1,22 @@
 {
 	"extends": "./.svelte-kit/tsconfig.json",
+	// `include` SUBSTITUI (não mescla) o do tsconfig gerado pelo SvelteKit, então esta lista
+	// reproduz o que ele traz e acrescenta `worker/**` (F2-07b, issue #148). Sem isto o
+	// worker fica fora do `npm run check` — e, como ele roda com `tsx`, que apaga os tipos
+	// sem checar, um erro de tipo ali só apareceria em runtime, dentro do container.
+	// Caminhos relativos à raiz aqui, não a `.svelte-kit/`.
+	"include": [
+		".svelte-kit/ambient.d.ts",
+		".svelte-kit/env.d.ts",
+		".svelte-kit/non-ambient.d.ts",
+		".svelte-kit/types/**/$types.d.ts",
+		"vite.config.ts",
+		"src/**/*.js",
+		"src/**/*.ts",
+		"src/**/*.svelte",
+		"tests/**/*.ts",
+		"worker/**/*.ts"
+	],
 	"compilerOptions": {
 		"allowJs": true,
 		"checkJs": true,

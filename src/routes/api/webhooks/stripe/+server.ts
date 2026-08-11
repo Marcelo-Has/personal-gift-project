@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type Stripe from 'stripe';
 import { AssinaturaWebhookInvalidaError, verificarAssinaturaWebhook } from '$lib/server/stripe';
-import { marcarPago } from '$lib/server/orders';
+import { marcarAguardandoGeracao, marcarPago } from '$lib/server/orders';
 import type { RequestHandler } from './$types';
 
 /**
@@ -47,6 +47,17 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Falha daqui pra frente (pedido não encontrado, Firestore fora do ar) vira 500 e o
 	// Stripe reenvia nativamente — retry/dead-letter fica fora do escopo desta issue.
 	await marcarPago({ uid, orderId });
+
+	// F2-07 (issue #135): enfileira a geração pesada. `marcarAguardandoGeracao` é idempotente
+	// (ver os comentários em `orders.ts`) — um retry do Stripe do mesmo evento não duplica
+	// trabalho nem regride o status.
+	//
+	// Não há chamada ao worker aqui, e isso é o desenho, não uma lacuna: por [D-070] a
+	// ESCRITA de `aguardando_geracao` é o próprio gatilho — um trigger do Eventarc observa o
+	// documento no Firestore e entrega o evento ao worker no Cloud Run. Assim o webhook
+	// responde ao Stripe em milissegundos (a geração leva minutos, não caberia aqui) e nenhuma
+	// credencial do Google precisa existir na Netlify.
+	await marcarAguardandoGeracao({ uid, orderId });
 
 	return json({ recebido: true });
 };

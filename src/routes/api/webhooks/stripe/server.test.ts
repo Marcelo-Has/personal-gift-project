@@ -8,6 +8,7 @@ import type { RequestHandler } from './$types';
  */
 const verificarAssinaturaWebhookMock = vi.fn();
 const marcarPagoMock = vi.fn();
+const marcarAguardandoGeracaoMock = vi.fn();
 
 /** Mesma classe do módulo real: o handler distingue por `instanceof` para responder 400. */
 class AssinaturaWebhookInvalidaError extends Error {
@@ -23,7 +24,8 @@ vi.mock('$lib/server/stripe', () => ({
 }));
 
 vi.mock('$lib/server/orders', () => ({
-	marcarPago: (...args: unknown[]) => marcarPagoMock(...args)
+	marcarPago: (...args: unknown[]) => marcarPagoMock(...args),
+	marcarAguardandoGeracao: (...args: unknown[]) => marcarAguardandoGeracaoMock(...args)
 }));
 
 const { POST } = await import('./+server');
@@ -69,6 +71,7 @@ function eventoStripe(type: string, metadata: Record<string, string> | undefined
 beforeEach(() => {
 	verificarAssinaturaWebhookMock.mockReset();
 	marcarPagoMock.mockReset();
+	marcarAguardandoGeracaoMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe('POST /api/webhooks/stripe', () => {
@@ -103,7 +106,7 @@ describe('POST /api/webhooks/stripe', () => {
 		expect(marcarPagoMock).not.toHaveBeenCalled();
 	});
 
-	it('deve marcar o pedido pago quando o evento é checkout.session.completed com assinatura válida', async () => {
+	it('deve marcar o pedido pago e enfileirá-lo para geração quando o evento é checkout.session.completed com assinatura válida', async () => {
 		verificarAssinaturaWebhookMock.mockReturnValue(
 			eventoStripe('checkout.session.completed', { uid: 'uid-1', orderId: 'pedido-1' })
 		);
@@ -113,6 +116,19 @@ describe('POST /api/webhooks/stripe', () => {
 
 		expect(resposta.status).toBe(200);
 		expect(marcarPagoMock).toHaveBeenCalledWith({ uid: 'uid-1', orderId: 'pedido-1' });
+		// Enfileirar é onde o webhook para: quem dispara o worker dedicado ainda não existe
+		// ([D-068], issue de continuação). O pedido fica em `aguardando_geracao`.
+		expect(marcarAguardandoGeracaoMock).toHaveBeenCalledWith({ uid: 'uid-1', orderId: 'pedido-1' });
+	});
+
+	it('deve propagar erro quando o enfileiramento para geração falha, para o Stripe reenviar o evento', async () => {
+		verificarAssinaturaWebhookMock.mockReturnValue(
+			eventoStripe('checkout.session.completed', { uid: 'uid-1', orderId: 'pedido-1' })
+		);
+		marcarPagoMock.mockResolvedValue(undefined);
+		marcarAguardandoGeracaoMock.mockRejectedValue(new Error('Firestore fora do ar'));
+
+		await expect(POST(evento('{}', 'sig-valida'))).rejects.toThrow('Firestore fora do ar');
 	});
 
 	it('deve responder 200 sem chamar marcarPago quando a sessão não tem metadata de uid/orderId', async () => {
