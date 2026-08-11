@@ -23,6 +23,7 @@
 				</li>
 			{/each}
 		</ol>
+		<p><a href={resolve('/como-funciona')}>Ver como funciona em detalhes</a></p>
 	</section>
 
 	<p class="audience-note">{homeContent.audienceNote}</p>
