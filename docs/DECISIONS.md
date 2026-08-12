@@ -3117,6 +3117,69 @@ na mesma camada (`renderSpreadToPdf`, agora dentro de `composeBookPdf`), então 
 motivo para um segundo tipo de erro.
 
 ---
+## D-078 | 2026-08-12 | ACEITA
+
+**A fábrica ganha uma camada de Design Engineering: um processo de design em duas fases, dois
+contratos escritos (`PRODUCT.md` estendido + `DESIGN.md` novo), papéis especialistas de front e
+back, um roteador de skills estéticas e um conjunto de gates de verificação visual.** ADR EV2.2,
+respondendo ao gate DP-2. O ADR completo — alternativas, evidências e o raciocínio inteiro — vive
+no Project do Cowork (`EV-DESIGN-ARCH.md`); **esta entrada é o registro da decisão no repositório**,
+conforme `docs/AUTONOMY.md` §3.
+
+**Por quê.** O baseline EV1.2 mediu a fábrica gerando UI e o resultado foi **design 1,5/4 com
+acessibilidade 100**: uma página tecnicamente perfeita e visualmente muda — sem linguagem visual
+própria, o default inconsciente de um LLM. É o **gap G1** do baseline. A pesquisa EV2.1 triou as
+skills de design do ecossistema e foi aprovada em **DP-2b**; o que sobrou dela está incorporado
+aqui como roteamento, não como dependência.
+
+**1. Processo em duas fases.** **Fundação** roda **uma vez por projeto** (`/design-foundation`) e
+produz o `DESIGN.md`. **Construção** é toda tarefa de UI, e cada uma **deriva dos tokens do
+`DESIGN.md`** — não inventa valores.
+
+**2. Contratos.** `PRODUCT.md` passa a carregar **público, mercado, posicionamento e
+personalidade**; `DESIGN.md` nasce como **fonte de verdade visual**, com a **memória de design**
+como seção dele. Todo agente que toca UI **relê o `DESIGN.md` no início**. Em conflito, o
+`DESIGN.md` **vence qualquer skill**. E **nenhum código de UI antes de o `DESIGN.md` existir** —
+gate **não-IA no CI**, implementado na EV2.4.
+
+**3. Papéis.** Os builders viram especialistas: **`developer-frontend` × `developer-backend`**,
+sobre um **contrato-base de processo único** (PR-first, três desfechos, os mesmos guard-rails) mais
+um **overlay especialista roteado por label `area:*`**. O Supervisor **fatia trabalho cross-layer
+por camada** quando é viável; issue mista não-fatiável **carrega os dois overlays**. Somam-se dois
+papéis de design: **`design-director`** (conduz a Fundação) e **`design-critic`** (read-only, roda
+por PR de UI, veredito em arquivo publicado por **step não-IA**, **fail-closed**).
+
+**4. Roteador de skills.** No máximo **uma skill de direção estética ativa** — `frontend-design`
+como default, *Impeccable* **opt-in por projeto**, nunca as duas juntas. Mecânica de componentes só
+na **Fase 2** e **por perfil de stack** (shadcn entra como **skill/CLI, não MCP**). Crítica só
+**pós-render**. Os **conceitos anti-IA das skills externas** — os 59 detectores do *Impeccable*, os
+bans do *taste* — são **absorvidos no core** e valem **sempre**, com qualquer direção ativa.
+
+**5. Anti-patterns de IA.** Proibidos **como default inconsciente**, permitidos **com justificativa
+registrada e ligada ao produto**; **brief explícito vence**. Dois níveis de checagem: **lint
+determinístico** (o subconjunto grep-ável) + **checklist do critic**.
+
+**6. Tokens e camadas.** **Tokens semânticos obrigatórios**, como ponte framework-agnostic.
+**Component library ≠ design system ≠ identidade** — *"não pode parecer shadcn"*. O DS **nasce dos
+assets de marca** quando existirem (**R-ASSETS**: logos, imagens, cores, wireframes/Figma num
+diretório lido pela Fundação), com a **proveniência registrada no `DESIGN.md`**.
+
+**7. Enforcement (EV2.4).** **Visual Verification Loop** com screenshots em **375/768/1280** como
+evidência no PR; `design-critic` aplicando o teste *"isso poderia sair de qualquer prompt
+parecido?"*; **7 quality gates** = 4 determinísticos no CI + 2 do critic + 1 de evidência do loop.
+**Teto de 3 rodadas** de iteração → `precisa-humano`. **Pixel-diff descartado na v1.**
+
+**8. Anti-homogeneização.** Registro de **variedade no nível da fábrica**; convergência visual entre
+projetos só com **justificativa ancorada** em contexto do produto, tipo de app e área de negócio.
+
+**9. Identidade visual continua Decision Gate.** A Fundação **propõe**, o dono **aprova**. Depois de
+aprovado, o `DESIGN.md` **é a autoridade** e a Construção roda **autônoma**. **Alterar o `DESIGN.md`
+= novo gate.**
+
+**Consequências.** A **EV2.3** implementa os contratos e a Fundação; a **EV2.4**, o enforcement; a
+**EV2.5** re-mede contra o baseline **C2**.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
