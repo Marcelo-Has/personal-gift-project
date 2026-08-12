@@ -126,6 +126,87 @@ Acesso restrito e seguro.
 Presente afetivo (namoro, casamento, Dia dos Namorados). Brasil primeiro;
 internacionalização é fase posterior.
 
+> As seções **8.1 a 8.3** foram **acrescentadas** por [D-078] §2 ("`PRODUCT.md` passa a carregar
+> público, mercado, posicionamento e personalidade"), que é o contrato de entrada da Fundação de
+> design. Nada do §8 acima foi alterado.
+>
+> **Regra de preenchimento:** aqui só entra o que já está documentado em algum lugar deste
+> repositório, com a âncora citada. O que ainda não foi decidido fica marcado como
+> **[A CONFIRMAR NA FUNDAÇÃO — P6]** — é lacuna conhecida, não campo esquecido, e a Fundação de
+> design resolve cada uma delas propondo, com o dono aprovando em Decision Gate.
+
+### 8.1. Quem compra, quem recebe, contexto emocional
+
+**Quem compra.** Quem responde ao questionário guiado e escolhe estilo, tamanho e formato (§2, §9).
+O questionário pede *como se conheceram*, *características de cada um*, *piadas/manias* e uma
+*mensagem especial* (§2): o comprador conhece a história por dentro e é ele quem a conta. Se ele é
+sempre uma das duas pessoas do casal, ou se também há compra por terceiros (família, amigos), é
+**[A CONFIRMAR NA FUNDAÇÃO — P6]** — os documentos atuais não distinguem os dois casos.
+
+**Quem recebe.** O presente é **o livro impresso**: "se embrulha, se entrega, fica na estante"
+(§2). Quem recebe abre um objeto, não um link — e o abre na frente de quem deu.
+
+**Contexto emocional.**
+- **Data marcada.** As três ocasiões nomeadas no §8 — namoro, casamento, Dia dos Namorados —
+  têm dia certo. Produção e frete do print-on-demand consomem parte desse prazo (§6), então o
+  prazo é uma restrição do produto e não um detalhe de logística.
+- **Erro caro.** O livro **não é reproduzível**: regerar o mesmo pedido produz imagens diferentes
+  (§6.1, medido em [D-072]). Não existe "faz de novo igual" — o que o comprador aprovou é o que
+  existe.
+- **Confiança.** O produto recebe fotos e histórias pessoais de um casal brasileiro (§11). Quem
+  preenche está entregando material que não entregaria a qualquer site.
+- **Idioma e praça:** português do Brasil (`src/app.html`, `lang="pt-BR"`); internacionalização é
+  fase posterior (§8).
+
+**Ainda não documentado — [A CONFIRMAR NA FUNDAÇÃO — P6]:** faixa etária e perfil de renda; canal
+de aquisição (como o comprador chega); quanto tempo ele aceita gastar preenchendo o questionário;
+se compra sozinho ou com a outra pessoa por perto.
+
+### 8.2. Mercado e posicionamento
+
+**O que já está decidido e posiciona o produto** (tudo com âncora neste documento):
+
+- **Presente pronto, não ferramenta de criação.** O comprador responde e escolhe estilo e tamanho
+  (§2); editor visual avançado está **fora de escopo na V1** (§10). Ele não diagrama páginas, não
+  arrasta caixas de texto, não escolhe fonte.
+- **Feito por máquina, ponta a ponta.** A DoD da V1 é um cliente real concluir tudo **sem nenhuma
+  intervenção manual** (§9). Não há um designer humano no meio do pedido.
+- **Único por construção, não por edição limitada.** Tiragem mínima 1 no print-on-demand (§5) e
+  livro não reproduzível (§6.1).
+- **O objeto é o produto; o digital é a porta.** A intenção comercial é assimétrica e declarada:
+  o objetivo é vender o **impresso**, e o digital existe para não perder no checkout quem ainda
+  não quer pagar impressão ([D-074], §6).
+- **Catálogo que cresce sem reescrever o motor.** Novo estilo ou tamanho é uma skill versionada
+  a mais, com golden samples e testes (§3, §4).
+
+**Ainda não documentado — [A CONFIRMAR NA FUNDAÇÃO — P6]:**
+- **Alternativas concretas** contra as quais o comprador decide (o que ele faria se este produto
+  não existisse) e por que este produto ganha. Nenhum documento do repositório nomeia hoje um
+  concorrente ou substituto.
+- **Faixa de preço e leitura de valor** — os números por SKU e formato são o gate pendente
+  [D-101]; sem eles não dá para afirmar se o produto se apresenta como acessível ou como premium.
+- **Nome comercial e logo** — Decision Gate explícito em `docs/AUTONOMY.md` §2 ("Identidade visual
+  e narrativa"), ainda em aberto. Hoje o produto se apresenta apenas como *"Nossa História"*
+  (`src/lib/home-content.ts`).
+
+### 8.3. Personalidade da marca
+
+<!-- Os adjetivos abaixo foram DERIVADOS do que já está escrito, com a âncora em cada linha. O
+     conjunto definitivo é Decision Gate ("Identidade visual e narrativa", AUTONOMY §2) e é a
+     Fundação que o propõe. -->
+
+| Adjetivo | Anti-adjetivo | Âncora documentada |
+| --- | --- | --- |
+| **Afetuoso** | sem ser **meloso** | "Presente afetivo" (§8) e a nota de público da home (`home-content.ts`); do outro lado, placeholder poético e buzzword são proibidos por `.claude/rules/design-antipatterns.md` (61, 63). |
+| **Específico** | sem ser **genérico** | A promessa é sobre *o que fez vocês virarem vocês* (§2, [D-002]); a narrativa **não pode contradizer o que o casal informou** (§11). Um livro que serviria para outro casal falhou. |
+| **Reservado** | sem ser **frio** | O produto guarda fotos íntimas e histórias pessoais (§11) e trata cada foto por URL assinada e expirável (§6, §11). Discrição é requisito, distanciamento não. |
+| **[A CONFIRMAR NA FUNDAÇÃO — P6]** | — | Faltam 1–2 adjetivos para fechar o conjunto de 3–5. Nenhum outro tem âncora documentada hoje; inventá-los aqui seria decidir identidade fora do gate. |
+
+**Status:** derivado, **não aprovado**. O conjunto final — adjetivos, anti-adjetivos e a voz que
+sai deles — é proposto pela Fundação de design e aprovado pelo dono em Decision Gate ([D-078] §9),
+e daí em diante vive no `DESIGN.md` (§9, "Tom de copy"), que passa a ser a autoridade sobre a voz
+da interface.
+
 ## 9. Definition of Done da V1
 Sem nenhuma intervenção manual, um cliente real consegue: entender a proposta →
 preencher questionário, enviar fotos, escolher estilo, tamanho **e formato** → pagar
