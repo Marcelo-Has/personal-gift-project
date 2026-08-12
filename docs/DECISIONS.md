@@ -3193,6 +3193,60 @@ aprovado, o `DESIGN.md` **é a autoridade** e a Construção roda **autônoma**.
 **EV2.5** re-mede contra o baseline **C2**.
 
 ---
+## D-079 | 2026-08-12 | ACEITA
+
+**A fábrica ganha um Spec Gate: o fluxo de Refinamento na issue, entre o item high-level do
+ROADMAP e o `status:ready`.** Aprovado pelo dono em 2026-08-12 (ADR `EV-REFINEMENT-FLOW.md`, no
+Project do Cowork); **esta entrada é o registro da decisão no repositório**, conforme
+`docs/AUTONOMY.md` §3.
+
+**Por quê.** O ROADMAP mapeia em high-level — e está certo, roadmap não é spec. O Supervisor
+dimensiona e escreve a issue (D-017/D-048), mas decide **sozinho** o que detalhar; quando a spec
+sai vaga e alguém marca `status:ready`, o builder **executa mesmo assim**. É o achado **F1** do
+baseline EV1.2 (C5), e não existia momento estruturado de **perguntar ao dono** entre o item e a
+issue pronta. Este fluxo é o conserto **estrutural** de F1; a rede de segurança no builder
+(desfecho 3 — recusar spec sem critérios verificáveis) **permanece**, como defesa em profundidade.
+
+**O fluxo.** Issue nasce com `status:refinement` → o **`refiner`** (papel novo, **read-only sobre
+código**) analisa issue + ROADMAP + DECISIONS + código → publica o **RELATÓRIO DE REFINAMENTO**
+como comentário, via **step não-IA** (D-034) → o dono decide **por comentário na issue** → o
+refiner **reescreve o corpo da issue** como spec completa (D-017), registrando **decidido ×
+assumido** → aplica `status:ready` → fluxo atual (developer-lead → 1 PR → CI → reviews → verdict).
+**Opt-in por label:** issue já escrita completa vai direto para `status:ready`.
+
+**O relatório, nesta ordem:** Entendimento (~3 linhas) · Spec proposta (critérios verificáveis,
+escopo/fora-de-escopo, requisitos visuais se `area:frontend`) · Questões abertas Q1..Qn (opções
+A/B com prós, contras e trade-offs, recomendação com motivo, e o **default assumido** se não
+respondida) · Decision Gates tocados (→ `decision-needed`, fluxo C4 inalterado) · Proposta de
+fatiamento **por feature, nunca por camada** (R-1PR) se não couber em ~40 turnos (D-048) ·
+Right-sizing (item trivial e claro → "sem perguntas, spec ok" → `status:ready` direto).
+
+**Guard-rails.** Máx. **2 rodadas** de perguntas; questão sem resposta na rodada 2 segue o
+**default registrado**; impasse real → `decision-needed`. **Só comentário do OWNER conta como
+decisão** (mesmo gate do `claude.yml`); comentário de bot não re-dispara (anti-F3). O refiner
+**nunca abre PR e nunca escreve código**.
+
+**Por que na issue.** Assíncrono (o dono responde quando puder), **auditável no quadro** onde a
+coreografia coordena tudo, e o custo é pago **antes** de qualquer turno de implementação. No PR
+(plan-first) queimaria sessão esperando resposta e decidiria escopo no artefato errado; em sessão
+interativa exigiria o dono síncrono e não deixaria rastro. Ambos descartados.
+
+**Relação com o `decision-needed` e o PR `[BLOQUEADO]`.** Os dois momentos **coexistem**. O caso
+comum migra para montante — o gate nasce na issue, com **zero turno gasto e nenhum PR criado**.
+A válvula de escape permanece: a construção revela o que o planejamento não vê (C4 descobriu um
+bloqueio técnico real só ao tentar), e aí o `developer-lead` pivota como hoje. Consequência
+esperada e mensurável: PR `[BLOQUEADO]` vira evento **raro**, e a frequência dele passa a ser
+**indicador de saúde do refiner** no harness.
+
+**Implementação.** `.claude/agents/refiner.md` (contrato canônico do papel) e as seções do padrão
+de issue entram na **EV2.3 · P5**; a label `status:refinement` é criada no repo; o workflow
+`refine.yml` — dispara em `status:refinement` e em comentário do OWNER, gates iguais aos demais,
+**aplicado manualmente** (o App não tem escopo `workflows`) — entra na **EV2.4**, junto do
+`design-critic.yml`, e as issues das páginas-piloto estreiam o fluxo com custo, latência e número
+de rodadas medidos. O Supervisor passa a abrir issues em `status:refinement` por default (exceto
+triviais) quando religar (EV3+).
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

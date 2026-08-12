@@ -30,6 +30,27 @@ disponíveis). Não prossiga no item bloqueado. Gatilhos:
 - **Catálogo:** quais estilos e tamanhos entram na V1 (criar a skill é livre; publicá-la
   como opção de compra é Gate).
 - **Identidade visual e narrativa:** nome comercial, logo, "look" de cada estilo, tom da narrativa.
+  O fluxo completo está decidido em **D-078 §9** e é este:
+  1. **A Fundação propõe.** `/design-foundation`, conduzida pelo `design-director`, roda **uma
+     vez por projeto** e entrega um **`DESIGN.md` CANDIDATO** acompanhado de **≥3 direções
+     nomeadas e distintas** (com a escolhida e o porquê) e da **autocrítica anti-default** —
+     *"um brief semelhante, dado a qualquer gerador, chegaria a este mesmo resultado?"* — com o
+     que ela mudou na proposta. A Fundação **para aí**: nunca escreve `Status: aprovado`, nunca
+     preenche o campo `Gate`. Enquanto o documento for candidato, **nenhum código de UI deriva
+     dele**.
+  2. **O dono aprova.** Escolher a identidade é decisão humana, não formalidade de fim de
+     processo. A aprovação carimba `Status: aprovado`, a data e o gate na §0 do `DESIGN.md`.
+  3. **O `DESIGN.md` aprovado é AUTORIDADE.** A partir daí a **Construção roda autônoma dentro
+     dele**: toda tarefa de UI **deriva** dos tokens e das seções aprovadas — não inventa
+     valores — e **não** abre gate por tarefa. Quem fiscaliza é o `design-critic` (read-only,
+     por PR de UI) e os quality gates do CI, não um novo gate humano.
+  - **Alterar o `DESIGN.md` aprovado = novo `decision-needed`, sempre.** Vale para qualquer
+    seção aprovada, e vale por menor que pareça a mudança. Discordar do que está lá é motivo
+    para abrir o gate — nunca para desviar em silêncio dentro de uma tarefa.
+  - **Rastro obrigatório:** rejeições, alternativas descartadas e iterações aprovadas ficam
+    registradas na **memória de design** (§15 do `docs/design/DESIGN-TEMPLATE.md`), que é
+    **append-only**: entrada existente não se edita nem se apaga. Rejeição sem motivo escrito
+    não conta — reabre sozinha na semana seguinte.
 - **Mudanças de produto:** qualquer alteração no que está em PRODUCT.md.
 - **Ações irreversíveis:** apagar dados, deletar recursos de produção, trocar provedor de
   impressão depois de haver pedidos reais.

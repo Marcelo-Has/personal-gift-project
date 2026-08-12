@@ -13,7 +13,15 @@ Como usar (humano ou Supervisor):
   quando ela toca um Decision Gate ou uma decisão PENDENTE (D-100..D-106) de
   `docs/DECISIONS.md` — nesse caso a issue traz Opções + Recomendação + o que bloqueia,
   e NÃO recebe `status:ready`.
+- Não tem como preencher tudo sozinho? Use `status:refinement` em vez de `status:ready`:
+  o `refiner` (`.claude/agents/refiner.md`) analisa, publica o RELATÓRIO DE REFINAMENTO
+  na issue, o dono decide por comentário e a spec volta completa. Preencha a seção
+  **Refinamento** dizendo o que ficou em aberto. É opt-in: issue já completa vai direto
+  para `status:ready`.
 - Preencha todas as seções. Seção que não se aplica: escreva "n/a" e o porquê — não apague.
+- **Requisitos visuais é OBRIGATÓRIA quando a issue tem a label `area:frontend`** (D-078):
+  sem critérios visuais VERIFICÁVEIS ali, issue de frontend NÃO está pronta para
+  `status:ready` — ela volta para especificação, não vai para a fila.
 - Apague estes comentários antes de publicar.
 -->
 
@@ -41,6 +49,28 @@ Como usar (humano ou Supervisor):
 - [ ]
 - [ ]
 
+## Requisitos visuais
+<!-- OBRIGATÓRIA se a issue tem a label `area:frontend` (D-078). Sem critérios visuais
+     VERIFICÁVEIS aqui, a issue de frontend não está pronta para `status:ready`.
+     VERIFICÁVEL = alguém consegue REPROVAR o PR olhando o resultado e este texto.
+     "Seguir o design", "ficar bonito" e "responsivo" não são requisitos — não dá para
+     reprovar contra eles. Preencha os quatro itens; issue que não toca interface escreve
+     "n/a — não toca interface" e apaga o resto. -->
+
+- **Telas / componentes e estados entregues:** <!-- quais rotas, telas ou componentes esta
+  issue entrega, e em que estado cada um fica ao final (novo, alterado, ainda placeholder). -->
+- **Comportamento por viewport (375 / 768 / 1280):** <!-- o que MUDA DE INTENÇÃO em cada uma
+  das três larguras do Visual Verification Loop (D-078 §7) — não a consequência de o espaço
+  encolher. Derive da §10 do `DESIGN.md`. Diga também o que NÃO muda em nenhuma delas. -->
+- **Estados além do feliz:** <!-- para cada componente que carrega dado: vazio, carregando,
+  erro, overflow (o pior conteúdo plausível) e offline/degradado — com o texto e a forma de
+  cada um, conforme a §11 do `DESIGN.md`. Mais os estados de interação: hover, active,
+  disabled, selecionado e FOCO VISÍVEL. Só o estado feliz implementado é achado de revisão. -->
+- **Coerência com os contratos:** <!-- que seções do `DESIGN.md` aprovado esta UI deriva
+  (tokens §4, tipografia §5, grid §6, assinatura §3) e o que o playbook da categoria
+  (`docs/design/playbooks/`) exige a mais. Valor inventado fora do `DESIGN.md` é achado.
+  Se a issue precisa desviar do `DESIGN.md`, isso é Decision Gate — não é escopo daqui. -->
+
 ## Requisitos técnicos / decisões
 <!-- Decisões de docs/DECISIONS.md que se aplicam (D-0XX), rules de .claude/rules/
      relevantes, restrições de segurança/custo/performance. Se a tarefa esbarrar em
@@ -52,6 +82,13 @@ Como usar (humano ou Supervisor):
 ## Testes exigidos
 <!-- Quais testes precisam existir/passar: unitário, componente, E2E (Playwright),
      testes de estilo contra golden samples, `npm run lint` / `npm test` / `npm run build`. -->
+
+## Refinamento
+<!-- O que você deixou em aberto DE PROPÓSITO — em vez de chutar e passar o chute adiante
+     como se fosse spec. Liste as decisões que ainda não são suas para tomar, cada uma com
+     o que depende dela. Marque a issue com `status:refinement` e o `refiner` transforma
+     esta lista em questões com opções, recomendação e default.
+     Nada em aberto? Escreva "nada em aberto — spec completa" e use `status:ready`. -->
 
 ## Dependências
 <!-- Issues que precisam estar fechadas antes, Decision Gates que precisam de resposta,
