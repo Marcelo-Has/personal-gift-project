@@ -3142,12 +3142,25 @@ como seção dele. Todo agente que toca UI **relê o `DESIGN.md` no início**. E
 `DESIGN.md` **vence qualquer skill**. E **nenhum código de UI antes de o `DESIGN.md` existir** —
 gate **não-IA no CI**, implementado na EV2.4.
 
-**3. Papéis.** Os builders viram especialistas: **`developer-frontend` × `developer-backend`**,
-sobre um **contrato-base de processo único** (PR-first, três desfechos, os mesmos guard-rails) mais
-um **overlay especialista roteado por label `area:*`**. O Supervisor **fatia trabalho cross-layer
-por camada** quando é viável; issue mista não-fatiável **carrega os dois overlays**. Somam-se dois
-papéis de design: **`design-director`** (conduz a Fundação) e **`design-critic`** (read-only, roda
-por PR de UI, veredito em arquivo publicado por **step não-IA**, **fail-closed**).
+**3. Papéis.** O builder é o **`developer-lead`**: coordenador que herda o contrato-base
+de processo (PR-first, três desfechos, os mesmos guard-rails, re-entrada) e é dono de
+**UM PR por feature, sempre** — uma feature nunca é fatiada em PRs por camada (**R-1PR**);
+o contexto de erros, correções e funcionalidades emergentes fica compartilhado na sessão.
+O lead **planeja, decompõe e instancia subagentes especialistas** —
+**`developer-frontend`** e **`developer-backend`** (definições em `.claude/agents/`,
+mecanismo nativo de subagentes do Claude Code) — quando a tarefa cruza camadas; tarefa
+pequena de camada única ele executa direto vestindo o overlay do especialista
+(right-sizing). Subagentes trabalham na mesma working tree e branch; o lead integra,
+testa, itera e responde pelo desfecho. A macro-coreografia não muda (issue → 1 PR → CI →
+review/security → verdict → merge humano); a orquestração existe só dentro do nó
+implement. Somam-se dois papéis de design: **`design-director`** (conduz a Fundação) e
+**`design-critic`** (read-only, roda por PR de UI, veredito em arquivo publicado por
+**step não-IA**, **fail-closed**) — o builder nunca julga a própria saída visual.
+Nota de risco: o modo coordenado multiplica tokens e pressiona o orçamento de 40 turnos —
+medir no primeiro uso real e no harness (EV2.5).
+*(§3 corrigido em 2026-08-12, mesmo dia do registro: a transcrição inicial trouxe a
+versão v1 do eixo — overlays roteados por label com fatiamento por camada; a decisão
+aprovada no ADR é a v2 acima. Nenhum agente consumiu o registro entre as versões.)*
 
 **4. Roteador de skills.** No máximo **uma skill de direção estética ativa** — `frontend-design`
 como default, *Impeccable* **opt-in por projeto**, nunca as duas juntas. Mecânica de componentes só
