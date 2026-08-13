@@ -3246,6 +3246,53 @@ de issue entram na **EV2.3 · P5**; a label `status:refinement` é criada no rep
 de rodadas medidos. O Supervisor passa a abrir issues em `status:refinement` por default (exceto
 triviais) quando religar (EV3+).
 
+## D-080 | 2026-08-13 | ACEITA
+
+**Identidade visual do produto aprovada: a direção "Tinta de Esferográfica", registrada em
+`DESIGN.md` na raiz.** É o Decision Gate *"Identidade visual e narrativa"* (`docs/AUTONOMY.md` §2)
+sendo respondido pela primeira vez, no formato que o [D-078] §9 definiu: a Fundação de design
+propôs, o dono aprovou em 2026-08-13, e o `DESIGN.md` passa a ser a **fonte de verdade visual** de
+que toda tarefa de UI deriva.
+
+**A direção.** A palavra é a protagonista da tela, não a foto. Superfície de papel com neutros
+puxando azul, **azul de tinta de esferográfica como único acento**, e a assinatura é **a régua de
+margem**: uma linha de 1px que separa as duas vozes do produto — à direita o que o casal escreveu
+(em Lora), à esquerda o que o sistema diz (em Archivo 800).
+
+**Por quê.** O comprador decide contra um presente personalizado de marketplace na mesma faixa de
+R$80–130; o que diferencia não é a imagem, é **o texto escrito sobre aquelas duas pessoas**, e a
+identidade precisa dizer isso antes do primeiro parágrafo. O risco estético assumido — paleta fria,
+sem creme nem rosa, num presente afetivo — é deliberado e está justificado no `DESIGN.md` §1: o
+calor vem do conteúdo (a foto do casal é o único elemento saturado de qualquer tela), nunca da
+moldura. Creme + terracota + serifa itálica display é o que qualquer gerador produz para este brief
+e é nominalmente o anti-pattern 35.
+
+**R-ASSETS.** `design/assets/` estava vazio (só o `README.md`), confirmando o inventário datado de
+`docs/design/BRAND-ASSETS.md`. A varredura encontrou **um** asset real fora dele: o livro impresso
+já é composto em **Lora** (`src/lib/generation-engine/pdf/render-shared.ts`, `@fontsource/lora`),
+então a tela passa a falar na fonte do objeto — é a única linha `derivada-de-asset` da §14. Todo o
+resto é `criada-na-Fundação`, com a ausência verificada.
+
+**As 5 lacunas `[A CONFIRMAR NA FUNDAÇÃO — P6]` do `PRODUCT.md` §8**, respondidas pelo dono nesta
+sessão e registradas no `DESIGN.md` §14: (1) quem compra é **uma das duas pessoas do casal, e é
+surpresa** — a discrição vira requisito de acessibilidade (§12); (2) perfil **18–30, renda média,
+celular**, chegando por **anúncio em Instagram/TikTok e busca**; (3) alternativas reais = **presente
+personalizado de marketplace** e **experiência (jantar, viagem)**; (4) leitura de valor
+**acessível, R$80–130, compra por impulso, até 5 minutos de questionário** — os números por SKU
+seguem no [D-101]; (5) o 4º adjetivo de marca é **Artesanal, sem ser rústico**. O nome comercial
+fica sendo **"Nossa História"** — nome do produto = nome da marca, o que já estava em uso — e o
+logo é **marca tipográfica, sem símbolo**. **O `PRODUCT.md` §8.1–8.3 foi atualizado com estes
+valores nesta mesma decisão**: os quatro marcadores `[A CONFIRMAR NA FUNDAÇÃO — P6]` foram
+substituídos pelas respostas, ancoradas neste gate. É a edição de `PRODUCT.md` que a regra 4 do
+`CLAUDE.md` condiciona a um Decision Gate aprovado — e o gate aprovado é este.
+
+**Consequência.** `DESIGN.md` sai de `candidato` para `aprovado`; a **Construção** passa a poder
+derivar código de UI dele (antes disso era proibido, [D-078] §2). A primeira linha do
+`docs/design/VARIETY-REGISTRY.md` é preenchida com esta identidade. Alterar qualquer decisão do
+`DESIGN.md` daqui em diante é **novo Decision Gate**, com rastro obrigatório na Memória de design
+(§15) — que já nasce com quatro entradas: as direções *Envelope de Revelação* e *Luz de Abajur*
+descartadas, a versão pré-autocrítica da própria direção escolhida, e a serifa trocada por Lora.
+
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?

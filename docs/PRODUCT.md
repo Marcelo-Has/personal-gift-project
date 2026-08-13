@@ -134,14 +134,24 @@ internacionalização é fase posterior.
 > repositório, com a âncora citada. O que ainda não foi decidido fica marcado como
 > **[A CONFIRMAR NA FUNDAÇÃO — P6]** — é lacuna conhecida, não campo esquecido, e a Fundação de
 > design resolve cada uma delas propondo, com o dono aprovando em Decision Gate.
+>
+> **Estado em 2026-08-13:** as lacunas foram **fechadas**. A Fundação de design rodou, propôs cada
+> uma delas e o dono aprovou em [D-080] (gate *"Identidade visual e narrativa"*, `AUTONOMY.md` §2).
+> O que está escrito abaixo sem marcador é decisão aprovada; a âncora de cada resposta nova é o
+> próprio [D-080], e a identidade que saiu delas vive em `DESIGN.md` na raiz.
 
 ### 8.1. Quem compra, quem recebe, contexto emocional
 
 **Quem compra.** Quem responde ao questionário guiado e escolhe estilo, tamanho e formato (§2, §9).
 O questionário pede *como se conheceram*, *características de cada um*, *piadas/manias* e uma
-*mensagem especial* (§2): o comprador conhece a história por dentro e é ele quem a conta. Se ele é
-sempre uma das duas pessoas do casal, ou se também há compra por terceiros (família, amigos), é
-**[A CONFIRMAR NA FUNDAÇÃO — P6]** — os documentos atuais não distinguem os dois casos.
+*mensagem especial* (§2): o comprador conhece a história por dentro e é ele quem a conta.
+
+**O comprador é sempre uma das duas pessoas do casal, e a compra é surpresa** ([D-080]). Ele
+preenche sozinho, escondido da outra pessoa. Compra por terceiros (família, amigos) **não é o caso
+desenhado**: o questionário pede material que só quem vive a história tem. Consequência de produto,
+não só de design: **discrição é requisito funcional** — nada do conteúdo do casal pode aparecer em
+título de aba, notificação, assunto de e-mail ou prévia de link (`DESIGN.md` §12). Vazamento visual
+aqui não é incômodo; destrói o presente.
 
 **Quem recebe.** O presente é **o livro impresso**: "se embrulha, se entrega, fica na estante"
 (§2). Quem recebe abre um objeto, não um link — e o abre na frente de quem deu.
@@ -158,9 +168,19 @@ sempre uma das duas pessoas do casal, ou se também há compra por terceiros (fa
 - **Idioma e praça:** português do Brasil (`src/app.html`, `lang="pt-BR"`); internacionalização é
   fase posterior (§8).
 
-**Ainda não documentado — [A CONFIRMAR NA FUNDAÇÃO — P6]:** faixa etária e perfil de renda; canal
-de aquisição (como o comprador chega); quanto tempo ele aceita gastar preenchendo o questionário;
-se compra sozinho ou com a outra pessoa por perto.
+**Perfil e contexto de compra** ([D-080]):
+
+- **Faixa etária e renda:** 18–30 anos, renda média. É a faixa das ocasiões nomeadas no §8 (namoro,
+  Dia dos Namorados) e a que sustenta a leitura de valor do §8.2.
+- **Dispositivo:** **celular**. Não é "também mobile" — é a tela real em que a decisão acontece.
+- **Canal de aquisição:** anúncio em **Instagram/TikTok** e **busca no Google**. Consequência
+  técnica: a maior parte das primeiras visitas abre no **navegador in-app** dessas redes, o que é
+  restrição de plataforma registrada em `DESIGN.md` §13 (fonte auto-hospedada, nada que dependa de
+  aba nova ou de instalação, `dvh` em vez de `vh`).
+- **Tempo que ele aceita gastar:** **até 5 minutos — compra por impulso.** É orçamento de produto,
+  não meta de UX: o questionário precisa caber nele, com perguntas opcionais claramente marcadas se
+  não couber.
+- **Sozinho ou acompanhado:** sozinho, e escondido — ver §8.1 acima.
 
 ### 8.2. Mercado e posicionamento
 
@@ -179,15 +199,25 @@ se compra sozinho ou com a outra pessoa por perto.
 - **Catálogo que cresce sem reescrever o motor.** Novo estilo ou tamanho é uma skill versionada
   a mais, com golden samples e testes (§3, §4).
 
-**Ainda não documentado — [A CONFIRMAR NA FUNDAÇÃO — P6]:**
-- **Alternativas concretas** contra as quais o comprador decide (o que ele faria se este produto
-  não existisse) e por que este produto ganha. Nenhum documento do repositório nomeia hoje um
-  concorrente ou substituto.
-- **Faixa de preço e leitura de valor** — os números por SKU e formato são o gate pendente
-  [D-101]; sem eles não dá para afirmar se o produto se apresenta como acessível ou como premium.
-- **Nome comercial e logo** — Decision Gate explícito em `docs/AUTONOMY.md` §2 ("Identidade visual
-  e narrativa"), ainda em aberto. Hoje o produto se apresenta apenas como *"Nossa História"*
-  (`src/lib/home-content.ts`).
+**Decidido em [D-080]:**
+
+- **Alternativas concretas contra as quais o comprador decide.** Duas, e cada uma cobra uma
+  resposta diferente:
+  1. **Presente personalizado de marketplace** (caneca, quadro, caixa com foto — Elo7, Shopee), na
+     mesma faixa de preço. A objeção é *"por que isto não é mais uma caneca com foto?"*, e a
+     resposta é que **o que está impresso é texto escrito sobre aquelas duas pessoas**, não uma
+     foto aplicada num objeto. É daqui que sai o eixo da identidade (`DESIGN.md` §1).
+  2. **Experiência** (jantar, viagem). A objeção é *"presente que se vive vs. presente que fica"*,
+     e a resposta é o objeto: se embrulha, se entrega, fica na estante (§2).
+- **Faixa de preço e leitura de valor.** O produto se apresenta como **acessível — R$80–130 — e a
+  compra é por impulso**. Isso é *posicionamento*, e é o que a interface precisa comunicar; os
+  **números por SKU e formato continuam sendo o gate pendente [D-101]**, que esta decisão não
+  antecipa. Consequência: nada de teatro de exclusividade — a página justifica o preço pelo
+  trabalho e pela unicidade, não por sinal de luxo.
+- **Nome comercial e logo.** O nome comercial é **"Nossa História"** — nome do produto = nome da
+  marca, o que já estava em uso (`src/lib/home-content.ts`, §2). O **logo é uma marca tipográfica**,
+  sem símbolo, na tipografia do `DESIGN.md` §4.5. A identidade não depende dele: a assinatura visual
+  (`DESIGN.md` §3) torna a primeira dobra reconhecível **com o logo recortado**.
 
 ### 8.3. Personalidade da marca
 
@@ -200,12 +230,13 @@ se compra sozinho ou com a outra pessoa por perto.
 | **Afetuoso** | sem ser **meloso** | "Presente afetivo" (§8) e a nota de público da home (`home-content.ts`); do outro lado, placeholder poético e buzzword são proibidos por `.claude/rules/design-antipatterns.md` (61, 63). |
 | **Específico** | sem ser **genérico** | A promessa é sobre *o que fez vocês virarem vocês* (§2, [D-002]); a narrativa **não pode contradizer o que o casal informou** (§11). Um livro que serviria para outro casal falhou. |
 | **Reservado** | sem ser **frio** | O produto guarda fotos íntimas e histórias pessoais (§11) e trata cada foto por URL assinada e expirável (§6, §11). Discrição é requisito, distanciamento não. |
-| **[A CONFIRMAR NA FUNDAÇÃO — P6]** | — | Faltam 1–2 adjetivos para fechar o conjunto de 3–5. Nenhum outro tem âncora documentada hoje; inventá-los aqui seria decidir identidade fora do gate. |
+| **Artesanal** | sem ser **rústico** | Tiragem mínima 1 (§5) e livro não reproduzível (§6.1): cada exemplar é peça única **por construção**, não por edição limitada (§8.2). Aprovado em [D-080]. |
 
-**Status:** derivado, **não aprovado**. O conjunto final — adjetivos, anti-adjetivos e a voz que
-sai deles — é proposto pela Fundação de design e aprovado pelo dono em Decision Gate ([D-078] §9),
-e daí em diante vive no `DESIGN.md` (§9, "Tom de copy"), que passa a ser a autoridade sobre a voz
-da interface.
+**Status:** **aprovado** em [D-080] (2026-08-13), no gate *"Identidade visual e narrativa"*
+(`AUTONOMY.md` §2), conforme [D-078] §9. São quatro adjetivos, dentro da faixa de 3–5. A voz que
+sai deles vive no `DESIGN.md` §9 ("Tom de copy"), que **passa a ser a autoridade** sobre a voz da
+interface — inclusive `alt`, `placeholder`, rótulo e mensagem de erro. Alterar este conjunto daqui
+em diante é novo Decision Gate.
 
 ## 9. Definition of Done da V1
 Sem nenhuma intervenção manual, um cliente real consegue: entender a proposta →
