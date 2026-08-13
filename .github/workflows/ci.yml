@@ -92,6 +92,36 @@ jobs:
       - name: E2E (Playwright)
         run: npm run test:e2e
 
+  # Gate determinístico (NÃO-IA) do [D-078] §2: "nenhum código de UI antes de o `DESIGN.md`
+  # existir" — PR que toca paths de interface REPROVA se o `DESIGN.md` da raiz estiver ausente,
+  # em placeholder (`[A PREENCHER]`) ou com `Status` diferente de `aprovado`. Mesma família dos
+  # guard-rails [D-019]/[D-034]: ou o artefato existe e está válido, ou o job falha — sem
+  # julgamento de agente e sem custo de token.
+  # Job próprio, e sem `npm ci`: o script não tem dependência nenhuma, então este gate custa um
+  # checkout e alguns segundos, em paralelo com os outros três.
+  design-md:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # O gate compara com a base do PR. Com o `fetch-depth: 1` padrão o commit-base não
+          # está no clone, o `git diff` falha e o script cai no modo fail-closed — que checa o
+          # `DESIGN.md` em TODO PR, inclusive os que não tocam UI. Funciona, mas reprova largo.
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # `BASE_SHA` por env e não interpolado no `run:` de propósito (é o padrão que o resto da
+      # fábrica segue). Vazio no `push` para a `main` — e aí o gate checa incondicionalmente,
+      # que é o certo: a `main` não pode ter UI sem contrato de design.
+      - name: Gate — DESIGN.md existe e está aprovado
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node .github/scripts/gate-design-md.mjs
+
   # Gate das regras de acesso do Firebase (F1-04): prova, contra o emulador, que
   # um usuário não alcança dado de outro e que o Storage não é público. Job
   # próprio porque é o único que precisa de JVM.

@@ -23,8 +23,15 @@ export default ts.config(
 		}
 	},
 	{
-		// Config na raiz e módulos server-only do SvelteKit rodam em Node.
-		files: ['*.config.{js,ts}', '**/*.server.{js,ts}', 'src/hooks.server.ts'],
+		// Config na raiz, módulos server-only do SvelteKit e os scripts de guard-rail dos
+		// workflows (`.github/scripts/`, EV2.4) rodam em Node — `process`/`console` são globais
+		// legítimos ali, e não há bundle de cliente por onde vazar segredo.
+		files: [
+			'*.config.{js,ts}',
+			'**/*.server.{js,ts}',
+			'src/hooks.server.ts',
+			'.github/scripts/**/*.mjs'
+		],
 		languageOptions: {
 			globals: globals.node
 		}
