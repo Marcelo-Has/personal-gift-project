@@ -3666,6 +3666,159 @@ iteração visual → `precisa-humano`. Também não há pixel-diff (descartado 
 configuração de repositório registrada na [D-082]: hoje é alarme visível, não tranca.
 
 ---
+
+## D-085 | 2026-08-13 | ACEITA
+
+**Os 7 quality gates do [D-078] §7 passam a existir de fato: 4 determinísticos no CI, lint do
+subconjunto `[LINT]` dos anti-patterns, teto de 3 rodadas de iteração visual, e o veredito do
+`design-critic` deixando de ser comentário para virar vermelho no PR. Cada um foi PROVADO com
+violação plantada.** EV2.4 · onda Q4, fechando o enforcement que a [D-081] (Q1), a [D-083] (Q2) e
+a [D-084] (Q3) montaram pela metade.
+
+**Por quê agora.** A [D-084] entregou o critic e registrou o que faltava. Ao construir o resto,
+apareceu um buraco que ela não tinha visto e que é maior que os dois gates pendentes: **o critic
+não gateava**. O step de publicação só falha com arquivo vazio, então um `REPROVADO` bem escrito
+era publicado como comentário e o job terminava **verde**. Dois dos 7 gates eram, na prática, uma
+opinião no fio do PR. Está corrigido aqui.
+
+**1. Existe camada de tokens, e ela é transcrição — não segunda opinião**
+(`src/lib/styles/tokens.css`). Para exigir token, tem de existir token: o `DESIGN.md` §4/§5 vira
+custom properties, importadas no layout raiz. **`tests/design/tokens.test.ts` compara os dois
+arquivos linha a linha**, normalizando notação (`0.25rem` ↔ `4px`, `cubic-bezier(0.2, …)` ↔
+`cubic-bezier(.2, …)`). Sem essa comparação, mudar `--accent` passaria num PR comum e o contrato
+aprovado no gate humano ([D-080]) viraria documentação de algo que não está no ar. Token que não
+tem linha no `DESIGN.md` reprova; e a §4.3 declarar que `radius-lg` "não se aplica" é testado
+como ausência.
+
+**2. Gate 1 — compliance de tokens, por Stylelint, com allowlist de duas formas e as duas
+auditáveis.** Valor de cor, espaçamento, raio, elevação, tipografia e motion escrito à mão em
+componente reprova. A allowlist é (a) **uma** exceção de arquivo — o próprio `tokens.css`, onde
+o literal é o produto — e (b) exceção pontual no ponto de uso, com `reportDescriptionlessDisables`
+tornando **erro** o silenciamento sem justificativa e `reportNeedlessDisables` tornando **erro** a
+exceção que já não silencia nada. A segunda é o que impede o **falso-positivo residual**:
+tolerância que sobrevive à correção que a tornou desnecessária vira permissão permanente, e
+ninguém volta para removê-la.
+
+`currentColor`, `transparent`, `inherit` e `none` **não** são literais proibidos: eles não
+carregam decisão de cor, delegam. Barrá-los empurraria a UI a escrever um token onde hoje ela
+corretamente não escolhe nada. Fora do escopo, de propósito: `width`/`height`/`max-width` de
+componente — a §4.2 é escala de *ritmo*, não de dimensão, e inventar token para a miniatura de
+8rem só para satisfazer um lint é o oposto de right-sizing.
+
+**Um achado que só a violação plantada pegou:** com `customSyntax: 'postcss-html'` no topo da
+config, o stylelint procura `<style>` dentro de arquivos `.css`, não acha CSS nenhum e fica
+**verde em tudo**. O gate reprovava `.svelte` e ignorava `.css` em silêncio. Hoje o `customSyntax`
+está escopado por extensão, num `overrides`.
+
+**3. Gate 2 — a11y por duas réguas, e a catraca anda nos DOIS sentidos.** `axe` com
+`critical` + `serious` = 0 nas 5 rotas × 375 e 1280; `moderate`/`minor` ficam de fora porque um
+gate que reprova o discutível é um gate que se aprende a ignorar. A catraca
+(`tests/design/a11y-baseline.json`) guarda **regras por id**, nunca contagem: contagem responde
+"quantos", id responde "o quê", que é a pergunta revisável num diff. Regra que dispara sem estar
+na lista reprova; **regra que está na lista e não dispara mais reprova também**. Some-se o
+**Lighthouse a11y ≥ 0,9**, e a complementaridade foi medida, não suposta: a violação de contraste
+plantada deu `serious` no axe e **0,94** no Lighthouse — acima do piso. O axe pega a violação
+grave e isolada; o Lighthouse pega a degradação somada (com quatro auditorias plantadas, 0,73).
+Um só dos dois deixaria um buraco.
+
+O Lighthouse entra por **`npx` com versão fixa, fora do `package.json`** — mesmo argumento do
+`firebase-tools` no `ci.yml`: a árvore dele deixaria o gate `npm audit --audit-level=high` do
+`security.yml` refém de uma ferramenta de desenvolvimento.
+
+**4. Gate 3 — viewports, medindo DUAS coisas.** `scrollWidth` do documento (o sintoma que o
+usuário sente) **e** elemento a elemento (porque um `overflow-x: hidden` no `body` some com a
+barra sem consertar o layout — o conteúdo continua fora da tela, agora inalcançável). A segunda
+medição é a que nomeia o culpado no erro. A lista de rotas é a **mesma** da evidência visual da
+Q2, e foi extraída para `.github/scripts/rotas-de-ui.mjs` porque `screenshots.mjs` chama
+`process.exit` no topo e mata quem o importa. Copiá-la para dentro do teste reintroduziria
+exatamente a divergência que a [D-084] §3 registra como o modo de falha mais caro do desenho.
+
+**5. Gate 4 — estados obrigatórios, e o teste de COBERTURA que o gate não consegue fazer sozinho.**
+`e2e/design/estados.spec.ts` prova que vazio/carregando/erro/overflow existem, são alcançáveis e
+não quebram nos dois componentes-chave que já têm tela. O que ele não sabe dizer é se ficou
+faltando componente — um `describe` que ninguém escreveu passa em silêncio. Então
+`tests/design/estados.test.ts` **lê a tabela da §11 do `DESIGN.md`** e exige que cada
+componente-chave esteja coberto ou declarado em `PENDENTES` (contêiner da prévia e acompanhamento
+de pedido, que ainda não têm rota), e que cada estado que a célula do contrato não dispensa tenha
+teste. O gate decide se o estado **existe e não quebra**; se a redação está na voz da §9 e se o
+esqueleto tem a forma do resultado continua sendo a dimensão 5 do critic — congelar copy num
+teste determinístico quebraria a cada ajuste de texto e ensinaria a fábrica a desligá-lo.
+
+**6. Gate 5 — lint dos `[LINT]`, com 25 detectores e 24 ausências DECLARADAS.** O que decide se um
+item vira detector é **precisão**, não completude: detector que reprova copy legítima é pior que
+detector ausente, porque ensina a ignorar o gate. Os 24 itens `[LINT]` sem detector estão em
+`NAO_DETECTADOS` com o motivo escrito, e `tests/design/antipatterns.test.ts` **reprova se um item
+`[LINT]` novo aparecer na rule sem virar detector nem entrar na lista** — é o que impede a rule e
+o gate de divergirem em silêncio. Três casos merecem registro: os itens 30/31/41/44 saem melhor
+cobertos pelo Stylelint e pelo axe do que por grep, e estão declarados assim; o item 69
+(travessão) fica **fora** porque o produto usa "—" legitimamente como separador em `<title>` e a
+própria rule declara o texto do livro como exceção da língua; e o item 36 detecta fonte default
+**declarada**, não a ausência de `font-family` — a UI de hoje não declara nenhuma, e essa é a
+dívida pré-`DESIGN.md` que a [D-084] já registrou para o critic, não um caso para o grep.
+
+A exceção aqui tem a mesma forma da do Stylelint: `antipattern-ok: <item> -- <motivo>` no ponto de
+uso, com silenciamento anônimo e silenciamento inútil sendo eles próprios achados. E **comentário
+não é interface**: o gate mascara comentários antes de varrer, porque sem isso ele acusava um
+`<img>` citado dentro de um comentário que explicava um bug de `<img>` — documentação virando
+defeito.
+
+**7. O veredito do critic vira mecânico, e a iteração ganha teto** (`veredito-critic.mjs`). Lê a
+última linha do arquivo: só `APROVADO` aprova. Arquivo ausente, vazio ou malformado → reprovado,
+pelo mesmo fail-closed do `conferir-evidencia.mjs` — e é por isso que a **reprovação de ofício**
+por evidência ausente ([D-083] §6), que não segue o formato do agente, é lida aqui como o que é.
+O teto são **3 rodadas**, contadas em label `design:rodada-N` no próprio PR, no molde exato do
+`reentrada:N` do [D-047]: não em log, não em janela de tempo, auditável no quadro. A terceira
+reprovação já entrega o PR ao humano — esperar a quarta seria pagar mais uma rodada do job de IA
+mais caro da fábrica para confirmar o que a terceira disse. A rodada **não** é zerada na
+aprovação: um PR que precisou de duas rodadas para passar é informação. E não se "desestoura":
+PR que volta do humano e reprova de novo continua fora da fila automática.
+
+**8. A MECÂNICA do gate passa a vir da branch base, junto com a régua.** A [D-084] §4 restaurou
+`docs/design/` porque "um PR de UI reescreveria o critério que vai julgá-lo". `.github/scripts/`
+é o mesmo argumento um nível abaixo: `conferir-evidencia.mjs` decide se há o que criticar e
+`veredito-critic.mjs` decide se o veredito reprova. Sem `rm -rf` aqui, ao contrário de
+`docs/design/`: script que o PR *acrescenta* não é executado por este job, e apagar a pasta
+quebraria um PR que só adiciona um script.
+
+**9. As violações plantadas são produto desta onda, e ficam.** Cada gate foi exercitado num branch
+descartável contra o produto REAL, e depois confirmado voltando ao verde sem falso-positivo
+residual:
+
+| # | Gate | Violação plantada | Reprovou | Verde ao remover |
+| --- | --- | --- | --- | --- |
+| 1 | Tokens (Stylelint) | `border-radius: 20px` + `background: #7c3aed` na home | sim — 2 achados, exit 2 | sim |
+| 2a | axe critical/serious | `color: #b8bcc4` no CTA (contraste) | sim — `color-contrast` em `/@375` e `/@1280` | sim |
+| 2b | Lighthouse ≥ 0,9 | sem `lang`, `<img>` sem `alt`, botão sem nome, heading fora de ordem | sim — **0,73** em `/` | sim — 1,00 nas 5 rotas |
+| 3 | Viewports | `.promise { width: 1400px }` | sim — 375/768/1280, com o elemento nomeado | sim |
+| 4 | Estados | erro sem `role="alert"` + campo que cresce em vez de rolar | sim — 2 dos 7 casos | sim |
+| 5 | Anti-patterns `[LINT]` | lorem ipsum, gradiente roxo→ciano, `100vh`, `font-family: Inter` | sim — 8 achados, 5 itens distintos | sim |
+| 6 | Veredito do critic | arquivo terminando em `REPROVADO`; e ausente; e malformado | sim — exit 1 nos três | sim — exit 0 em `APROVADO` |
+| 7 | Evidência visual | um dos 15 PNGs removido | sim — exit 1, nomeando o arquivo | sim |
+
+Os pares violação/limpo viraram **fixtures permanentes** em `tests/design/fixtures/`, rodados a
+cada CI. O experimento de branch prova uma vez; as fixtures provam em toda rodada — inclusive no
+dia em que alguém afrouxar uma regex sem perceber. Foi assim que o bug do `customSyntax` do item 2
+apareceu.
+
+**10. A UI de hoje passou a derivar dos tokens, e isso NÃO é a construção da identidade.** As ~120
+declarações de CSS que existiam foram trocadas por `var(--token)`; o mapeamento é exato em quase
+tudo (24px = `space-md`, 14px = `text-caption`, 999px = `radius-full`), e as duas mudanças de
+pixel são correções: `border-radius: 0.5rem` (fora da escala da §4.3) virou `radius-md`, e
+`color: #a30000` virou `--destructive`. A régua de margem da §3, as fontes Lora/Archivo e a
+composição da §6 **continuam não existindo** — a expectativa da [D-084] segue valendo: o primeiro
+PR de UI real encontra o critic vermelho, e o trabalho dele é derivar do `DESIGN.md`.
+
+**O que esta onda NÃO faz.** Continua sem pixel-diff (descartado na v1 pelo [D-078] §7) e o
+`design-critic` continua **não sendo required status check** na proteção da `main`, pela mesma
+pendência de configuração de repositório da [D-082] — com a diferença de que agora ele ao menos
+fica vermelho. Também fica registrado como risco residual conhecido: `screenshots.yml` roda com os
+scripts da branch (sem a restauração do item 8), porque a [D-083] fez disso uma propriedade
+deliberada — a mudança de infra é exercitada pelo PR que a faz.
+
+**Aplicado direto na `main`, sem PR**, como a [D-079] e a [D-084] já fizeram para mudança de
+workflow: o App da fábrica não tem escopo `workflows`.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
