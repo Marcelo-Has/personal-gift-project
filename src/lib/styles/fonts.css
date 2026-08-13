@@ -18,10 +18,14 @@
 @import '@fontsource/lora/400.css';
 
 @font-face {
+	/* stylelint-disable declaration-property-value-allowed-list -- @font-face É a definição da
+	   fonte, não o uso dela: `family`/`weight` literais aqui são o par-chave que o resto da UI
+	   depois consome só por `var(--font-sistema)`/`var(--weight-sistema)` (ver comentário acima). */
 	font-family: 'Archivo';
 	font-style: normal;
 	font-display: swap;
 	font-weight: 800;
+	/* stylelint-enable declaration-property-value-allowed-list */
 	font-stretch: 87%;
 	src: url('@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2')
 		format('woff2-variations');
@@ -31,10 +35,13 @@
 }
 
 @font-face {
+	/* stylelint-disable declaration-property-value-allowed-list -- mesma justificativa do bloco
+	   acima; este é o subconjunto `latin-ext` da mesma família/peso. */
 	font-family: 'Archivo';
 	font-style: normal;
 	font-display: swap;
 	font-weight: 800;
+	/* stylelint-enable declaration-property-value-allowed-list */
 	font-stretch: 87%;
 	src: url('@fontsource-variable/archivo/files/archivo-latin-ext-wdth-normal.woff2')
 		format('woff2-variations');
