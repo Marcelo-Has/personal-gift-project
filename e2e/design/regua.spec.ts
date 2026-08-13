@@ -56,18 +56,20 @@ for (const { largura, altura } of VIEWPORTS) {
 					const eixoX = rRegua.left + rRegua.width / 2;
 
 					// Nada cruza a régua: nenhum elemento pintado começa de um lado e termina do outro.
-					// Os próprios wrappers estruturais (`.pagina`/`.grade`) são full-bleed de propósito —
-					// não são "conteúdo" cruzando, são o que a régua divide por dentro. Pela mesma razão
-					// ficam de fora: `display: contents` (não gera caixa própria — quem pinta é o filho,
-					// que é medido à parte; isso inclui o wrapper `<div style="display: contents">` que o
-					// próprio SvelteKit injeta em `app.html`) e qualquer caixa com área zero (largura OU
-					// altura zero — ex.: `.margem` ainda sem conteúdo no empilhamento de 375px — não pinta
-					// nada, então não há o que cruzar).
+					// O escopo é o SUBTREE de `.pagina`, não `document.body` inteiro — a régua divide o
+					// CONTEÚDO da página, e `.pagina` é exatamente essa fronteira. Isso também exclui, de
+					// graça, tudo que o SvelteKit injeta acima ou ao lado dela (o wrapper
+					// `<div style="display: contents">` de `app.html`, o `#svelte-announcer` de
+					// acessibilidade) sem precisar listar cada um: nenhum dos dois é conteúdo da página.
+					// `.grade` continua excluída à parte — é full-bleed dentro de `.pagina` de propósito,
+					// não é "conteúdo" cruzando, é o que a régua divide por dentro. Mesma razão para
+					// qualquer caixa com área zero (largura OU altura zero — ex.: `.margem` ainda sem
+					// conteúdo no empilhamento de 375px — não pinta nada, então não há o que cruzar).
 					const cruzamentos: string[] = [];
-					for (const el of Array.from(document.body.querySelectorAll('*'))) {
+					for (const el of Array.from(pagina.querySelectorAll('*'))) {
 						if (el === regua) continue;
 						const classes = typeof el.className === 'string' ? el.className : '';
-						if (/\b(pagina|grade)\b/.test(classes)) continue;
+						if (/\bgrade\b/.test(classes)) continue;
 						const estilo = getComputedStyle(el);
 						if (
 							estilo.display === 'none' ||
