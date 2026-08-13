@@ -3440,6 +3440,99 @@ configuração do repositório, fora do versionamento, e foi barrada aqui pelo c
 permissão — quem aplica é o dono, em Settings → Branches.
 
 ---
+## D-083 | 2026-08-13 | ACEITA
+
+**A evidência visual do Visual Verification Loop é um caminho fixo — `artifacts/screenshots/
+<rota>-<viewport>.png` — capturado por Playwright contra o deploy preview do PR; e a AUSÊNCIA
+dessa evidência reprova o PR de ofício.** EV2.4 · onda Q2, implementando o [D-078] §7
+("screenshots em 375/768/1280 como evidência no PR" + "1 gate de evidência do loop").
+
+**1. A infra de captura** (`.github/scripts/screenshots.mjs`, workflow `screenshots.yml`).
+Playwright chamado **como biblioteca, sem MCP** — um servidor MCP de browser seria uma dependência
+de runtime a mais no caminho do CI para fazer o que `page.screenshot` já faz. Recebe uma URL já
+servida (o deploy preview no CI, `npm run preview` na mão), percorre as rotas de UI nos três
+viewports da §10 do `DESIGN.md` e grava um PNG por rota e por largura.
+
+**A convenção de caminho é contrato, não detalhe:** `artifacts/screenshots/<rota>-<viewport>.png`,
+com a raiz virando `home` e `/` virando `-` (`home-375.png`, `pedido-cancelado-1280.png`). Ela é
+fixada agora porque **quem a consome é o `design-critic` da Q3**, que procura a evidência
+exatamente ali; convenção que muda em silêncio faz o critic reprovar PR correto por não achar
+arquivo que existe com outro nome. Está coberta por `tests/workflows/screenshots.test.ts` — que
+**executa o script** no modo `--listar`, como o teste do gate do `DESIGN.md` faz, em vez de
+reimplementar a regra e provar só que sei escrevê-la duas vezes.
+
+Três escolhas do captador que não são arbitrárias: **`fullPage`** (uma imagem por rota e largura,
+como a convenção fixa; a primeira dobra continua legível porque a altura do viewport é fixa e
+conhecida — é o que permite ao critic conferir a §3 acima da dobra); **`reducedMotion: 'reduce'`**
+(evidência estática — animação em curso no instante da captura daria PNG diferente a cada rodada e
+transformaria "uma volta que não muda nada" em ruído); e **espera de `document.fonts.ready`** (a
+fonte é auto-hospedada com `font-display: swap`, §4.5 — capturar antes fotografa o fallback e a
+evidência mostraria uma tipografia que o produto não tem).
+
+**Browser: o Chromium empacotado, com sandbox LIGADO** — e não o Chrome do sistema com
+`--no-sandbox` de `src/lib/generation-engine/pdf/render-shared.ts`. A diferença é deliberada e é
+exatamente a condição de invalidação registrada naquele arquivo: lá o HTML é gerado pelo próprio
+repositório, aqui se navega para uma URL remota.
+
+**2. A lista de rotas é explícita, não varredura de `src/routes/`.** Rota dinâmica
+(`/questionario/[etapa]`) não tem screenshot sem uma instância concreta, e é melhor a instância
+escolhida ficar visível numa lista do que ser adivinhada por um glob. O custo — rota de UI nova
+precisa de uma linha na lista — é o mesmo custo que a evidência já impõe: rota sem captura é rota
+sem evidência, e sem evidência o critic reprova.
+
+**3. A URL do preview vem de duas fontes, e o resolvedor é fail-closed**
+(`.github/scripts/netlify-preview-url.mjs`). O deploy preview por PR existe desde o [D-018]; o que
+faltava era um jeito não interativo de saber a URL. Ninguém dispara deploy aqui: o script espera e
+lê o que a integração da Netlify já publica — o **commit status** do commit do PR e, se ele não
+servir, o **comentário do `netlify[bot]`**, a fonte que este repositório comprovadamente tem (foi
+preciso filtrar esse bot no guard-rail do `fix.yml` justamente porque ele comenta em todo PR). Duas
+fontes porque o `target_url` do status varia com o estado do deploy (painel enquanto constrói,
+permalink quando conclui): o validador aceita só hostname em `*.netlify.app`, e o que não passa cai
+para a fonte seguinte. Esgotado o tempo, **sai 1** — não existe modo "seguir sem evidência".
+
+**4. Workflow próprio, e não um job do `ci.yml`.** O filtro `paths:` nativo do `pull_request` já
+resolve "roda em PR que toca UI" sem uma linha de código de detecção — o `ci.yml` precisa rodar em
+todo PR, então lá o mesmo filtro teria de ser reimplementado dentro de um step e passaria a poder
+divergir do gate `design-md`. E este job depende de um sistema externo (o deploy da Netlify), o que
+não pertence ao juiz determinístico do repositório. Sem `concurrency: cancel-in-progress`: check
+run cancelado entra no estado do PR como CANCELLED e trava o merge mesmo com todo o resto verde.
+
+**5. O contrato do `developer-frontend` ganha o loop inteiro**, no lugar da nota que dizia que a
+infra "chega na EV2.4": executar → renderizar → capturar os três viewports → comparar com o
+`DESIGN.md` → corrigir → repetir. Somam-se três peças que o loop precisava e não tinha:
+
+- **A regra do acessório.** A cada volta, de um elemento da tela: *se sumisse, o que se perde?* Não
+  sendo informação, função ou legibilidade, ele é acessório — e acessório sai, sem negociar
+  tamanho, opacidade ou sutileza. É a regra que a §3 do `DESIGN.md` já exige por construção (a
+  régua existe porque separa duas vozes; a mesma linha sem esse trabalho seria enfeite).
+- **A verificação de especificidade CSS.** Antes de concluir que o valor está errado, confirmar no
+  *computed* que a regra **está aplicada** e, se outra venceu, consertar a origem — nunca por
+  escalada de seletor ou `!important`. Isto é o que fecha a condição de parada do loop: screenshot
+  igual ao da volta anterior *ou* significa que convergiu *ou* que o CSS nunca chegou à tela, e sem
+  checar não dá para saber qual dos dois.
+- **O registro dos rejeitados na §15 "Memória de design"** do `DESIGN.md`. Tentativa visual feita e
+  descartada vira entrada datada, no formato que já está lá. **Isto não é alterar o `DESIGN.md`**:
+  a §15 existe exatamente para receber rastro, e a fronteira é dura — acrescenta-se entrada na §15,
+  não se toca em nenhuma linha das §§0–14. Mudar identidade continua sendo Decision Gate ([D-078]
+  §9). É o mesmo desenho da regra 4 do `CLAUDE.md`, que separa "acrescentar entrada nova em
+  DECISIONS.md" de "alterar entrada existente". Sem esse registro, a volta seguinte refaz a
+  tentativa já descartada e ninguém tem como saber que foi.
+
+**6. O gancho fail-closed que a Q3 vai herdar**, declarado agora no contrato: o `design-critic`
+**não julga UI sem screenshot**. Sem os PNGs no caminho convencionado o veredito é **reprovação,
+sem análise de mérito** — não é "não deu para avaliar". Declarar isto antes de o critic existir é
+proposital: é o que faz a Q3 nascer com a evidência já obrigatória, em vez de negociável.
+
+**O que esta onda NÃO faz.** Não há pixel-diff (descartado na v1 pelo [D-078] §7), não há
+comparação entre rodadas e não há veredito automático nenhum — o job produz e anexa evidência, e
+quem julga é a Q3. O `screenshots` também **não é required status check** na proteção da `main`,
+pela mesma pendência de configuração de repositório registrada na [D-082]: hoje é alarme visível,
+não tranca.
+
+**Validado ao vivo**, e não só no teste: contra `npm run preview` local, as 5 rotas × 3 viewports
+geraram os 15 PNGs no caminho fixado, com conteúdo legível (a home em 375 confirmada à vista).
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
