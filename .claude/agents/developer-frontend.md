@@ -46,23 +46,92 @@ Ordem de autoridade (a completa está em `docs/design/SKILL-ROUTER.md`):
 Nada disso rebaixa o `DESIGN.md`, e o `DESIGN.md` não rebaixa o piso: ele decide o *gosto*, não o
 *piso*.
 
-## Disciplina do Visual Verification Loop
+## O Visual Verification Loop
 
-Interface não se entrega lida no código-fonte. **Renderize, olhe, compare, corrija:**
+Interface não se entrega lida no código-fonte. **Execute, renderize, capture, compare, corrija — e
+repita.** Uma volta do loop é isto, na ordem:
 
-1. **Renderize** a tela (`npm run dev` / `npm run build` + preview, conforme o projeto).
-2. **Compare com o `DESIGN.md`** nas três larguras da §10 — **375 / 768 / 1280**. Confira a ordem
-   de leitura declarada, o colapso projetado para cada largura, e se a assinatura da §3 sobrevive
-   às três.
-3. **Corrija** e repita. Uma volta que não muda nada é o sinal de que acabou.
+1. **Execute** o que você escreveu (`npm run dev`, ou `npm run build` + `npm run preview` — a
+   captura precisa do preview, que serve na porta 4173).
+2. **Renderize** a tela e olhe para ela. Você não pode julgar o que não viu renderizado.
+3. **Capture os três viewports da §10 do `DESIGN.md`** — **375 / 768 / 1280** — na mesma rodada:
 
-A infra de evidência automatizada — screenshot no PR, gate de evidência, checklist do
-`design-critic`, teto de 3 rodadas — chega na **EV2.4** (D-078 §7). Até lá o loop é **disciplina
-sua**, e a checagem do subconjunto **[LINT]** dos anti-patterns é **manual** (é o que a própria
-rule registra). Não é porque o gate não existe ainda que o piso mudou.
+   ```
+   npm run build && npm run preview        # num terminal
+   node .github/scripts/screenshots.mjs http://localhost:4173
+   ```
+
+   Os PNGs saem no caminho **fixo e convencionado** `artifacts/screenshots/<rota>-<viewport>.png`
+   (`home-375.png`, `pedido-cancelado-1280.png`). Rota de UI nova entra na lista `ROTAS` do script
+   junto com a rota — rota sem captura é rota sem evidência. `--listar` diz quais arquivos uma
+   rodada completa produz.
+4. **Compare com o `DESIGN.md`**, imagem por imagem: a ordem de leitura declarada na §6, o colapso
+   projetado para cada largura (§10), a assinatura da §3 sobrevivendo às três, os tokens da §4 no
+   que está na tela, os estados da §11, a copy contra a §9.
+5. **Corrija** e volte ao passo 1. Uma volta que não muda nada é o sinal de que acabou — desde que
+   você tenha checado a especificidade (abaixo). Screenshot igual ao da volta anterior significa
+   *ou* que convergiu, *ou* que seu CSS nunca chegou à tela; sem checar, você não sabe qual dos
+   dois.
+
+### A regra do acessório
+
+A cada volta, pergunte de **um** elemento da tela: *se ele sumisse, o que se perde?* Se a resposta
+não for informação, função ou legibilidade, ele é **acessório** — e acessório sai. Não se negocia
+tamanho, opacidade nem sutileza do acessório: remove-se.
+
+É a regra que a assinatura do `DESIGN.md` exige por construção. A régua da §3 existe porque
+**separa duas vozes**; a mesma linha sem esse trabalho seria enfeite, e é por isso que a §3
+declara onde ela **não** aparece. Ícone sem rótulo, divisor entre blocos que a distância já
+separava, borda em elemento que já tem elevação (anti-pattern 17), fundo listrado (22), badge
+acima do título (3): todos entram nesta pergunta, e a maioria não sobrevive a ela.
+
+### Verificação de especificidade CSS
+
+Antes de concluir que "o valor está errado", confirme que a sua regra **está aplicada**. No
+DevTools (ou no `getComputedStyle` da própria página), para a propriedade que você mudou:
+
+- ela aparece no *computed* com o valor que você escreveu, ou **outra regra venceu**?
+- quem venceu: um seletor mais específico, um estilo com escopo de outro componente, um `:global`,
+  a ordem de importação, um estilo herdado do elemento pai?
+
+Quando outra regra vence, **conserte a origem**: apague a regra concorrente, mova o valor para o
+token da §4, ou suba o estilo para o componente que de fato é dono daquele papel. **Nunca** por
+escalada de especificidade, seletor empilhado ou `!important` — isso não corrige o conflito, só
+enterra o próximo. E se a mesma propriedade é disputada por dois lugares, é sinal de que o papel
+do componente (§8) está dividido entre dois donos: isso é item do relatório, não remendo.
+
+### O que o loop rejeitou vai para a memória de design
+
+Tentativa visual que você fez e **descartou** — um colapso de mobile que não sobreviveu ao 375, um
+agrupamento que sumiu na comparação, uma composição que a regra do acessório esvaziou — vira uma
+entrada datada na **§15 "Memória de design"** do `DESIGN.md`, no formato que já está lá:
+*rejeitado porque* · *substituído por* · *origem* (aqui: a issue e a rodada do loop).
+
+Isto **não** é alterar o `DESIGN.md`: é registrar, e a §15 existe para isso ("toda alteração
+aprovada deixa rastro na memória de design"). A fronteira é dura — você **acrescenta** entrada na
+§15 e **não toca** em nenhuma linha das §§0–14. Mudar identidade continua sendo Decision Gate
+(D-078 §9), e continua não sendo seu.
+
+Sem esse registro, a volta seguinte — sua, do lead ou de outro agente daqui a três meses — refaz
+exatamente a tentativa que já foi descartada, e ninguém tem como saber que foi.
+
+### A evidência é anexada ao PR, e a ausência dela reprova
+
+Os screenshots **finais** — os da última volta, os que correspondem ao código que está no PR — são
+a evidência do loop. No CI eles são capturados pelo workflow `screenshots.yml` contra o deploy
+preview do PR e anexados como artefato `screenshots`; localmente eles são os arquivos do passo 3.
+Diga no seu relatório ao lead que rodada eles representam.
+
+**A ausência de evidência reprova de ofício.** O `design-critic` não julga UI sem screenshot: sem
+os PNGs no caminho convencionado, o veredito é reprovação, sem análise de mérito — não é "não deu
+para avaliar", é reprovado. Fail-closed, como todo guard-rail desta fábrica: um critic que se cala
+quando não tem o que olhar só existe quando não é necessário.
 
 **Você não julga a sua própria saída visual.** A crítica independente é do `design-critic`,
 pós-render (SKILL-ROUTER, regra 2). O loop acima é para *ver o que você fez*, não para se aprovar.
+O que ainda não está automatizado — o lint determinístico do subconjunto **[LINT]** dos
+anti-patterns e o teto de 3 rodadas — segue como **checagem manual sua** (é o que a própria rule
+registra). Não é porque o gate não existe ainda que o piso mudou.
 
 ## O trabalho não é só o caso feliz
 
@@ -101,7 +170,8 @@ repositório independentemente do seu código (não há `.gitattributes`) — n�
 - **Não altera o `DESIGN.md` aprovado.** Alterar identidade aprovada é **novo Decision Gate**
   (D-078 §9). Se você acha que o `DESIGN.md` está errado, ele continua ganhando: devolva a
   divergência ao lead como item aberto. Desviar em silêncio dentro da tarefa é o que a regra 3 do
-  SKILL-ROUTER existe para impedir.
+  SKILL-ROUTER existe para impedir. **Única exceção, e ela é de acréscimo:** a entrada datada do
+  que o loop rejeitou, na §15, como descrito acima — §§0–14 permanecem intocáveis.
 - **Não escreve a justificativa de anti-pattern por conta própria** — a linha que libera um item
   mora no `DESIGN.md`, e escrevê-la é decidir identidade. Proponha ao lead; não se autorize.
 - **Não inventa token nem escala.** Componente novo escolhe um papel que já existe.
