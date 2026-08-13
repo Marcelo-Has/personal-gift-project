@@ -57,16 +57,26 @@ for (const { largura, altura } of VIEWPORTS) {
 
 					// Nada cruza a régua: nenhum elemento pintado começa de um lado e termina do outro.
 					// Os próprios wrappers estruturais (`.pagina`/`.grade`) são full-bleed de propósito —
-					// não são "conteúdo" cruzando, são o que a régua divide por dentro.
+					// não são "conteúdo" cruzando, são o que a régua divide por dentro. Pela mesma razão
+					// ficam de fora: `display: contents` (não gera caixa própria — quem pinta é o filho,
+					// que é medido à parte; isso inclui o wrapper `<div style="display: contents">` que o
+					// próprio SvelteKit injeta em `app.html`) e qualquer caixa com área zero (largura OU
+					// altura zero — ex.: `.margem` ainda sem conteúdo no empilhamento de 375px — não pinta
+					// nada, então não há o que cruzar).
 					const cruzamentos: string[] = [];
 					for (const el of Array.from(document.body.querySelectorAll('*'))) {
 						if (el === regua) continue;
 						const classes = typeof el.className === 'string' ? el.className : '';
 						if (/\b(pagina|grade)\b/.test(classes)) continue;
 						const estilo = getComputedStyle(el);
-						if (estilo.display === 'none' || estilo.visibility === 'hidden') continue;
+						if (
+							estilo.display === 'none' ||
+							estilo.display === 'contents' ||
+							estilo.visibility === 'hidden'
+						)
+							continue;
 						const caixa = el.getBoundingClientRect();
-						if (caixa.width === 0 && caixa.height === 0) continue;
+						if (caixa.width === 0 || caixa.height === 0) continue;
 						if (caixa.left < eixoX - 1 && caixa.right > eixoX + 1) {
 							const id = el.id ? `#${el.id}` : '';
 							cruzamentos.push(`${el.tagName.toLowerCase()}${id}.${classes}`.trim());
