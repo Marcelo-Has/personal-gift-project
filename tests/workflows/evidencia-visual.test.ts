@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -111,6 +111,103 @@ describe('conferir-evidencia — o 7º quality gate', () => {
 		expect(texto).toContain('de ofício');
 		// Sem isto o PR ficaria vermelho e mudo: o guard-rail exige arquivo não-vazio.
 		expect(texto.length).toBeGreaterThan(0);
+	});
+});
+
+/**
+ * O gate rodou vermelho e MUDO em todo PR de UI até a EV2.4 · Q5, e nenhum teste pegou.
+ *
+ * `conferir-evidencia.mjs` obtinha a lista esperada rodando `screenshots.mjs --listar`, e o
+ * captador importa `playwright-core` no topo do módulo. O job `design-critic` **não instala
+ * dependências** — ele baixa PNGs prontos e chama um agente, sem `npm ci` —, então no CI aquele
+ * `--listar` saía 1 com `ERR_MODULE_NOT_FOUND`, o gate falhava fechado, o veredito nunca era
+ * escrito e o `design-critic` ficava impossível de passar.
+ *
+ * Os testes acima não pegaram porque rodam sob o vitest, **com `node_modules` no disco**: o
+ * ambiente do teste tinha o que o ambiente do job não tem. Aferir o código de saída não bastava —
+ * o que falta aferir é a PROPRIEDADE DE AMBIENTE: nenhum script que o job executa sem `npm ci`
+ * pode depender de um pacote de `node_modules`, por qualquer caminho.
+ *
+ * SÃO DOIS TESTES, e o primeiro é o que importa. A checagem estática do grafo de `import` sozinha
+ * NÃO teria pegado o bug original: ele entrava por `spawn` do captador, não por `import`, e
+ * nenhuma leitura de `import` alcança um processo filho. Por isso o teste primário **executa** os
+ * scripts a partir de uma cópia fora da árvore do repositório, onde a resolução de módulos do Node
+ * não encontra `node_modules` nenhum — o que reproduz o ambiente do job e cobre `import` e `spawn`
+ * de uma vez. A checagem estática fica como complemento barato, porque ela NOMEIA o pacote culpado
+ * quando reprova, e um gate que diz qual é o pacote custa menos para consertar.
+ */
+describe('scripts do design-critic rodam sem `npm ci`', () => {
+	/** Os scripts que `design-critic.yml` executa com `node`, num job que não instala dependências. */
+	const SEM_INSTALACAO = [
+		'conferir-evidencia.mjs',
+		'veredito-critic.mjs',
+		'aguardar-screenshots.mjs'
+	];
+
+	/** Os especificadores `import ... from '<x>'` / `export ... from '<x>'` de um arquivo. */
+	function importesDe(arquivo: string): string[] {
+		const texto = readFileSync(arquivo, 'utf8').replace(/\r\n/g, '\n');
+		return [...texto.matchAll(/^\s*(?:import|export)[^'"]*?from\s*['"]([^'"]+)['"]/gm)].map(
+			(m) => m[1]
+		);
+	}
+
+	/** Percorre o grafo a partir de `entrada`, seguindo só os relativos, e junta os "bare". */
+	function pacotesAlcancados(entrada: string): string[] {
+		const vistos = new Set<string>();
+		const bare = new Set<string>();
+		const fila = [entrada];
+		while (fila.length > 0) {
+			const atual = fila.pop() as string;
+			if (vistos.has(atual)) continue;
+			vistos.add(atual);
+			for (const spec of importesDe(atual)) {
+				if (spec.startsWith('node:')) continue;
+				if (spec.startsWith('.')) {
+					fila.push(join(dirname(atual), spec));
+					continue;
+				}
+				bare.add(`${spec} (via ${atual.split(/[\\/]/).pop()})`);
+			}
+		}
+		return [...bare];
+	}
+
+	/**
+	 * Uma cópia de `.github/scripts/` num diretório temporário FORA da árvore do repositório. A
+	 * resolução de módulos do Node sobe pelos diretórios pais procurando `node_modules`; rodando de
+	 * dentro do repo ela sempre acharia o do projeto, e o teste passaria sem provar nada.
+	 */
+	function scriptsIsolados(): string {
+		const raiz = mkdtempSync(join(tmpdir(), 'sem-node-modules-'));
+		cpSync(join(process.cwd(), '.github', 'scripts'), join(raiz, 'scripts'), { recursive: true });
+		return join(raiz, 'scripts');
+	}
+
+	it('conferir-evidencia deve rodar num ambiente SEM node_modules — é o ambiente do job', () => {
+		// O caso feliz: evidência completa. Se o script precisar de qualquer pacote, por `import` ou
+		// por `spawn` de um irmão que importe, ele morre aqui em vez de morrer no CI, mudo.
+		const destino = destinoCom(arquivosEsperados());
+		const { codigo, saida } = rodar(join(scriptsIsolados(), 'conferir-evidencia.mjs'), {
+			DESTINO: destino
+		});
+		expect(saida).not.toContain('ERR_MODULE_NOT_FOUND');
+		expect(saida).not.toContain('Não foi possível saber quais screenshots esperar');
+		expect(codigo).toBe(0);
+	});
+
+	it.each(SEM_INSTALACAO)(
+		'%s não deve alcançar nenhum pacote de node_modules por import — o job não roda `npm ci`',
+		(script) => {
+			expect(pacotesAlcancados(join(process.cwd(), '.github', 'scripts', script))).toEqual([]);
+		}
+	);
+
+	it('deve manter a fonte única: o gate espera exatamente o que o captador produz', () => {
+		// O captador é quem PRODUZ os arquivos; o gate é quem os EXIGE. Se as duas listas divergirem,
+		// o critic reprova PR correto. Aqui o `--listar` pode rodar: este teste tem node_modules.
+		const doGate = rodar(CONFERIR, { DESTINO: destinoCom([]) }).saida;
+		for (const arquivo of arquivosEsperados()) expect(doGate).toContain(arquivo);
 	});
 });
 
