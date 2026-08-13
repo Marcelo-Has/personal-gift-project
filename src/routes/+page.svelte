@@ -34,24 +34,24 @@
 	main {
 		max-width: 40rem;
 		margin: 0 auto;
-		padding: 1.5rem;
+		padding: var(--space-md);
 	}
 
 	.cta {
 		display: inline-block;
-		margin-top: 1.5rem;
-		padding: 0.75rem 1.5rem;
-		font-weight: bold;
+		margin-top: var(--space-md);
+		padding: var(--space-xs) var(--space-md);
+		font-weight: var(--weight-forte);
 		text-decoration: none;
 		border: 1px solid currentColor;
-		border-radius: 0.5rem;
+		border-radius: var(--radius-md);
 	}
 
 	ol {
-		padding-left: 1.25rem;
+		padding-left: var(--space-md);
 	}
 
 	li {
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-sm);
 	}
 </style>

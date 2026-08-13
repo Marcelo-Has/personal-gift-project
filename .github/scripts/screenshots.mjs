@@ -28,51 +28,20 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { chromium } from 'playwright-core';
+// A lista de rotas, os viewports e a convenção de caminho saíram deste arquivo na EV2.4 · Q4 e
+// moram em `rotas-de-ui.mjs`. O motivo está no cabeçalho de lá: o gate de viewports (Q4) precisa
+// IMPORTAR a mesma lista, e este módulo chama `process.exit` no topo — quem o importa morre junto.
+// O re-export mantém `screenshots.mjs` como a fachada que a [D-083] fixou.
+import {
+	DIRETORIO,
+	ROTAS,
+	VIEWPORTS,
+	caminhoDoArquivo,
+	listarArquivos,
+	slugDaRota
+} from './rotas-de-ui.mjs';
 
-/** O diretório é parte da convenção — ver o cabeçalho. Relativo à raiz do repositório. */
-export const DIRETORIO = 'artifacts/screenshots';
-
-/**
- * As três larguras da §10 do `DESIGN.md`, com altura fixa. A altura não entra no nome do arquivo
- * (a convenção é `<rota>-<viewport>`) mas precisa ser determinística: o screenshot é `fullPage`, e
- * é a altura do viewport que define onde fica a PRIMEIRA DOBRA dentro da imagem — a §3 exige que a
- * assinatura apareça acima dela, e o critic da Q3 confere isso medindo os primeiros N px.
- */
-export const VIEWPORTS = [
-	{ largura: 375, altura: 812 },
-	{ largura: 768, altura: 1024 },
-	{ largura: 1280, altura: 800 }
-];
-
-/**
- * As rotas de UI do produto. Lista explícita, não varredura de `src/routes/`: rota dinâmica
- * (`/questionario/[etapa]`) não tem screenshot sem uma instância concreta, e é melhor a instância
- * escolhida ficar visível aqui do que ser adivinhada por um glob. Rota nova de UI acrescenta uma
- * linha nesta lista — sem isso ela não produz evidência, e sem evidência o critic reprova.
- */
-export const ROTAS = [
-	'/', //                       página de produto: a tela que o anúncio abre (§6)
-	'/estilo-e-tamanho', //       escolha de estilo e tamanho (hoje no estado vazio, §11)
-	'/questionario/pessoas', //   uma etapa concreta do fluxo guiado — a primeira (§6, §10)
-	'/pedido/sucesso', //         retorno do Stripe (§13)
-	'/pedido/cancelado' //        retorno do Stripe, caminho de desistência
-];
-
-/** `/` → `home`; `/pedido/cancelado` → `pedido-cancelado`. Sem barra no nome do arquivo. */
-export function slugDaRota(rota) {
-	const limpo = rota.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '');
-	return limpo === '' ? 'home' : limpo.replace(/\//g, '-');
-}
-
-/** O caminho fixado pela convenção, sempre com `/` (o CI é Linux e o critic lê string). */
-export function caminhoDoArquivo(rota, largura) {
-	return `${DIRETORIO}/${slugDaRota(rota)}-${largura}.png`;
-}
-
-/** Todos os arquivos que uma rodada completa produz, na ordem em que são gerados. */
-export function listarArquivos(rotas = ROTAS, viewports = VIEWPORTS) {
-	return viewports.flatMap(({ largura }) => rotas.map((rota) => caminhoDoArquivo(rota, largura)));
-}
+export { DIRETORIO, ROTAS, VIEWPORTS, caminhoDoArquivo, listarArquivos, slugDaRota };
 
 /**
  * Captura tudo e devolve a lista de arquivos gravados.

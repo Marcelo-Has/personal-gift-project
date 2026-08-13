@@ -366,23 +366,23 @@
 
 <style>
 	fieldset {
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-sm);
 	}
 
 	label {
 		display: block;
-		margin-bottom: 0.75rem;
+		margin-bottom: var(--space-xs);
 	}
 
 	input,
 	textarea {
 		display: block;
 		width: 100%;
-		margin-top: 0.25rem;
+		margin-top: var(--space-3xs);
 	}
 
 	.erros {
-		color: #a30000;
+		color: var(--destructive);
 	}
 
 	.itens-foto {
@@ -393,7 +393,7 @@
 	.preview-fotos {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 1rem;
+		gap: var(--space-sm);
 		padding-left: 0;
 		list-style: none;
 	}
@@ -401,30 +401,32 @@
 	.preview-fotos li {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--space-2xs);
 		align-items: center;
 	}
 
 	.preview-fotos img {
+		/* `width`/`height` de miniatura não vêm da escala de espaçamento — ver o cabeçalho do
+		   `stylelint.config.js`: a §4.2 dimensiona ritmo, não componente. */
 		width: 8rem;
 		height: 8rem;
 		object-fit: cover;
-		border-radius: 0.5rem;
+		border-radius: var(--radius-md);
 	}
 
 	.navegacao-etapas {
 		display: flex;
 		justify-content: space-between;
-		margin-top: 1.5rem;
+		margin-top: var(--space-md);
 	}
 
 	.cta {
 		display: inline-block;
-		margin-top: 1rem;
-		padding: 0.75rem 1.5rem;
-		font-weight: bold;
+		margin-top: var(--space-sm);
+		padding: var(--space-xs) var(--space-md);
+		font-weight: var(--weight-forte);
 		text-decoration: none;
 		border: 1px solid currentColor;
-		border-radius: 0.5rem;
+		border-radius: var(--radius-md);
 	}
 </style>

@@ -88,6 +88,17 @@ jobs:
             | grep -E '^docs/design/(DESIGN-CRITIC-RUBRIC\.md|CRAFT-PRINCIPLES\.md|playbooks/)' \
             | xargs -r git checkout FETCH_HEAD --
 
+          # EV2.4 · Q4 — a MECÂNICA do gate também vem da base, pelo mesmo argumento da régua.
+          # `conferir-evidencia.mjs` decide se há o que criticar e `veredito-critic.mjs` decide se
+          # o veredito reprova: um PR de UI que os reescrevesse compraria a própria aprovação sem
+          # tocar em uma linha da rubrica. Sem `rm -rf` aqui, ao contrário de `docs/design/`:
+          # script que o PR ACRESCENTA não é executado por este job (os módulos importados pelos
+          # scripts da base são os da base, restaurados logo acima), e apagar a pasta inteira
+          # quebraria um PR que só adiciona um script novo.
+          git ls-tree -r --name-only FETCH_HEAD \
+            | grep -E '^\.github/scripts/' \
+            | xargs -r git checkout FETCH_HEAD --
+
           # O `DESIGN.md` NÃO é restaurado, e é deliberado: PR que altera o contrato visual depois
           # do gate humano ([D-078] §9) tem de ser julgado contra o contrato NOVO. Quem protege as
           # §§0–14 é o prompt, que trata diff nelas como achado — não este step.
@@ -303,3 +314,24 @@ jobs:
           fi
           gh pr comment "${PR}" --body-file "$OUT"
           echo "Veredito do design-critic publicado no PR #${PR}."
+
+      # EV2.4 · Q4 — o fecho, e é ele que transforma o critic num GATE.
+      #
+      # Até aqui o veredito era publicado e o job terminava verde mesmo em `REPROVADO`: dois dos
+      # 7 quality gates do [D-078] §7 (a rubrica e o teste anti-default) eram, na prática, um
+      # comentário. Este step lê a última linha, faz o job ficar VERMELHO quando ela não é
+      # `APROVADO`, e conta a rodada de iteração em label do próprio PR — `design:rodada-N`, no
+      # molde do `reentrada:N` do [D-047]. Esgotado o teto de 3, entra `precisa-humano` e o PR sai
+      # da fila automática.
+      #
+      # DEPOIS da publicação, e com `if: always()`: o PR precisa ficar vermelho COM a explicação
+      # já no fio, não vermelho e mudo. E `always()` porque a reprovação de ofício por evidência
+      # ausente ([D-083] §6) também é uma rodada — ela falha lá em cima, e sem isto não seria
+      # contada.
+      - name: Fechar o veredito e contar a rodada (step não-IA)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VEREDITO_ARQUIVO: ${{ runner.temp }}/design-critic-veredito.md
+          PR: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/veredito-critic.mjs

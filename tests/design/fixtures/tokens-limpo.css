@@ -1,0 +1,14 @@
+/* O mesmo bloco, derivado do sistema de tokens. Prova a volta ao verde: zero achado aqui. */
+.promessa {
+	color: var(--foreground);
+	background: var(--surface-raised);
+	padding: var(--space-md);
+	margin-bottom: var(--space-lg);
+	border-radius: var(--radius-md);
+	box-shadow: var(--elevation-1);
+	font-family: var(--font-livro);
+	font-size: var(--text-lead);
+	font-weight: var(--weight-normal);
+	transition-duration: var(--duration-base);
+	transition-timing-function: var(--ease-papel);
+}

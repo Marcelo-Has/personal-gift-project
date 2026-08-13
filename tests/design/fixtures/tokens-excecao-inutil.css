@@ -1,0 +1,5 @@
+/* Exceção que não silencia nada: o falso-positivo residual que `reportNeedlessDisables` mata. */
+.promessa {
+	/* stylelint-disable-next-line declaration-property-value-disallowed-list -- sobrou de uma correção antiga */
+	color: var(--foreground);
+}

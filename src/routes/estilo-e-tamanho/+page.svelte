@@ -72,18 +72,18 @@
 	main {
 		max-width: 40rem;
 		margin: 0 auto;
-		padding: 1.5rem;
+		padding: var(--space-md);
 	}
 
 	fieldset {
-		margin-bottom: 1.5rem;
+		margin-bottom: var(--space-md);
 		border: 1px solid currentColor;
-		border-radius: 0.5rem;
+		border-radius: var(--radius-md);
 	}
 
 	label {
 		display: block;
-		margin: 0.5rem 0;
+		margin: var(--space-2xs) 0;
 	}
 
 	.em-breve {

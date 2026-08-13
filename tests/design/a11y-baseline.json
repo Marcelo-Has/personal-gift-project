@@ -1,0 +1,16 @@
+{
+	"descricao": "Catraca do gate de a11y (EV2.4 · Q4). Por `<rota>@<largura>`, as REGRAS do axe (por id, com impacto critical ou serious) que este produto tolera hoje. Lista vazia = nenhuma tolerância, que é o estado desejado e o estado atual. Acrescentar um id aqui é decisão consciente e revisável no diff: escreva o motivo ao lado, no formato `<rota>@<largura>: <id> — <por quê>`. A catraca anda nos dois sentidos: id que dispara sem estar aqui reprova, e id que está aqui sem disparar mais também reprova. Ver o cabeçalho de `e2e/design/a11y.spec.ts`.",
+	"motivos": {},
+	"toleradas": {
+		"/@375": [],
+		"/estilo-e-tamanho@375": [],
+		"/questionario/pessoas@375": [],
+		"/pedido/sucesso@375": [],
+		"/pedido/cancelado@375": [],
+		"/@1280": [],
+		"/estilo-e-tamanho@1280": [],
+		"/questionario/pessoas@1280": [],
+		"/pedido/sucesso@1280": [],
+		"/pedido/cancelado@1280": []
+	}
+}

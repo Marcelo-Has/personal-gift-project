@@ -95,30 +95,30 @@
 	main {
 		max-width: 40rem;
 		margin: 0 auto;
-		padding: 1.5rem;
+		padding: var(--space-md);
 	}
 
 	.progresso {
-		font-weight: bold;
+		font-weight: var(--weight-forte);
 	}
 
 	.etapas {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
+		gap: var(--space-2xs);
 		padding-left: 0;
-		margin-bottom: 1.5rem;
+		margin-bottom: var(--space-md);
 		list-style: none;
-		font-size: 0.875rem;
+		font-size: var(--text-caption);
 	}
 
 	.etapas li {
-		padding: 0.25rem 0.5rem;
+		padding: var(--space-3xs) var(--space-2xs);
 		border: 1px solid currentColor;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 	}
 
 	.etapas li[aria-current='step'] {
-		font-weight: bold;
+		font-weight: var(--weight-forte);
 	}
 </style>

@@ -22,3 +22,6 @@ src/lib/product-skills/
 
 # Regras do Firebase: linguagem própria (CEL), sem parser no prettier
 *.rules
+
+# Violações plantadas dos gates de design (EV2.4 · Q4): conteúdo errado de propósito
+tests/design/fixtures/

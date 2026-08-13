@@ -1,0 +1,88 @@
+/*
+ * tokens.css — o sistema de tokens semânticos do DESIGN.md, em CSS.
+ *
+ * ESTE É O ÚNICO ARQUIVO DO PRODUTO ONDE VALOR LITERAL DE DESIGN É PERMITIDO. Todo o resto da
+ * UI consome daqui por `var(--token)`; o gate `estilo` do CI (`stylelint.config.js`, EV2.4 · Q4)
+ * reprova valor de cor, espaçamento, raio, sombra, tipografia ou motion escrito à mão em
+ * componente. É a contrapartida da regra: para exigir token, tem de existir token.
+ *
+ * TRANSCRIÇÃO, NÃO CRIAÇÃO. Cada linha abaixo vem de uma linha da §4/§5 do `DESIGN.md`, e o
+ * comentário diz de qual. Mudar um valor aqui é mudar o contrato visual aprovado no gate humano
+ * ([D-078] §9, [D-080]) — o caminho é abrir Decision Gate e alterar o `DESIGN.md` primeiro, nunca
+ * o contrário. `tests/design/tokens.test.ts` compara os dois arquivos e reprova a divergência.
+ *
+ * O que NÃO está aqui, de propósito: `radius-lg` (a §4.3 declara "não se aplica" — papel tem
+ * canto reto) e qualquer token de tema escuro (a §4.1 declara que ele não existe neste produto).
+ */
+
+:root {
+	/* §4.1 — cor por papel. Um acento só: `--accent` é a tinta. */
+	--surface: #f2f4f7;
+	--surface-raised: #ffffff;
+	--foreground: #15181f;
+	--muted: #565e70;
+	--accent: #26397f;
+	--destructive: #a32118;
+	--success: #1b6b4c;
+	--warning: #7a5310;
+	--border: #7e8698;
+	--border-subtle: #d2d7e0;
+	--focus: #15181f;
+
+	/* §4.2 — escala de espaçamento, base 4px. */
+	--space-3xs: 0.25rem; /* 4px  */
+	--space-2xs: 0.5rem; /* 8px  */
+	--space-xs: 0.75rem; /* 12px */
+	--space-sm: 1rem; /* 16px */
+	--space-md: 1.5rem; /* 24px */
+	--space-lg: 2rem; /* 32px */
+	--space-xl: 3rem; /* 48px */
+	--space-2xl: 4rem; /* 64px */
+	--space-3xl: 6rem; /* 96px */
+
+	/* §4.3 — raio. */
+	--radius-sm: 2px;
+	--radius-md: 4px;
+	--radius-full: 999px;
+
+	/* §4.4 — elevação. `elevation-1` é só da folha; `elevation-2` só do que se fecha. */
+	--elevation-0: none;
+	--elevation-1: 0 1px 2px rgba(21, 24, 31, 0.1);
+	--elevation-2: 0 8px 24px rgba(21, 24, 31, 0.16);
+
+	/* §4.5 — famílias. `--font-livro` é a voz do casal; `--font-sistema`, a voz do sistema. */
+	--font-livro: Lora, Georgia, 'Times New Roman', serif;
+	--font-sistema: Archivo, 'Arial Narrow', system-ui, sans-serif;
+
+	/* §5 — escala tipográfica (razão ≈1,25) e as entrelinhas de cada passo. */
+	--text-caption: 0.875rem; /* 14px */
+	--text-body: 1.0625rem; /* 17px */
+	--text-lead: 1.3125rem; /* 21px */
+	--text-h3: 1.6875rem; /* 27px */
+	--text-h2: 2.0625rem; /* 33px */
+	--text-h1: 2.625rem; /* 42px */
+	--text-display: 3.25rem; /* 52px */
+
+	--leading-caption: 1.45;
+	--leading-body: 1.6;
+	--leading-lead: 1.45;
+	--leading-h3: 1.25;
+	--leading-h2: 1.2;
+	--leading-h1: 1.12;
+	--leading-display: 1.05;
+
+	/* §5 — pares de peso. 400/800 é o par principal; 400/700, o de apoio dentro da Lora. */
+	--weight-normal: 400;
+	--weight-forte: 700;
+	--weight-sistema: 800;
+
+	/* §6 — a medida de leitura, travada em 62ch em qualquer largura. */
+	--medida-leitura: 62ch;
+
+	/* §4.6 — motion. `--ease-papel` é a única curva do produto; nenhuma tem overshoot. */
+	--duration-instant: 120ms;
+	--duration-base: 200ms;
+	--duration-deliberate: 320ms;
+	--ease-papel: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--ease-simetrico: cubic-bezier(0.4, 0, 0.2, 1);
+}

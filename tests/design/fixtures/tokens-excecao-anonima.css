@@ -1,0 +1,5 @@
+/* Exceção SEM justificativa: `reportDescriptionlessDisables` faz do próprio silêncio um achado. */
+.promessa {
+	/* stylelint-disable-next-line declaration-property-value-disallowed-list */
+	color: #7c3aed;
+}

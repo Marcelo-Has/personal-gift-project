@@ -1,0 +1,5 @@
+/* Exceção legítima: silencia um achado real E diz por que ESTE produto quer isto. */
+.marca-de-terceiro {
+	/* stylelint-disable-next-line declaration-property-value-disallowed-list -- cor de marca exigida pelo Stripe no badge de pagamento; não é decisão de design deste produto */
+	color: #635bff;
+}

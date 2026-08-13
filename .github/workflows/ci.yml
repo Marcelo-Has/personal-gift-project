@@ -88,9 +88,27 @@ jobs:
 
       # Sem `|| true` nem `continue-on-error`: uma falha aqui reprova o CI.
       # Cobre e2e/home.spec.ts e e2e/security-headers.spec.ts (CSP e cabeçalhos
-      # verificados numa resposta HTTP real, não só no unitário).
+      # verificados numa resposta HTTP real, não só no unitário) e, desde a EV2.4 · Q4,
+      # `e2e/design/` — os gates determinísticos de a11y (axe com catraca), de viewport
+      # (375/768/1280 sem overflow) e de estados obrigatórios. Eles rodam AQUI, e não num job
+      # próprio, porque o custo caro é o mesmo para todos: subir o build e o `preview`.
       - name: E2E (Playwright)
         run: npm run test:e2e
+
+      # Gate 2 da EV2.4 · Q4, segunda metade: o score do Lighthouse contra o MESMO servidor de
+      # preview. Job compartilhado com o E2E pelo motivo acima; a CLI vem por `npx` com versão
+      # fixa, fora do `package.json`, pelo mesmo argumento do `firebase-tools` — ver o cabeçalho
+      # do script. `npm run preview` sobe em background e o `until` espera a porta responder: o
+      # `webServer` do Playwright já morreu junto com o step anterior.
+      - name: Acessibilidade — Lighthouse ≥ 0,9 (gate)
+        run: |
+          set -euo pipefail
+          npm run preview &
+          for _ in $(seq 1 60); do
+            curl -sSf http://localhost:4173/ > /dev/null && break
+            sleep 1
+          done
+          PREVIEW_URL=http://localhost:4173 node .github/scripts/lighthouse-a11y.mjs
 
   # Gate determinístico (NÃO-IA) do [D-078] §2: "nenhum código de UI antes de o `DESIGN.md`
   # existir" — PR que toca paths de interface REPROVA se o `DESIGN.md` da raiz estiver ausente,
