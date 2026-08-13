@@ -3533,6 +3533,139 @@ não tranca.
 geraram os 15 PNGs no caminho fixado, com conteúdo legível (a home em 375 confirmada à vista).
 
 ---
+
+## D-084 | 2026-08-13 | ACEITA
+
+**A evidência da Q2 ganha um juiz, e a régua dele é versionada: o `design-critic` julga o
+renderizado por uma rubrica fixa em arquivo — nunca por critério derivado em runtime — e reprova
+mesmo o que está funcionalmente correto quando a tela poderia ter saído de qualquer prompt
+parecido. Junto, o `refine.yml` liga o Spec Gate da [D-079].** EV2.4 · onda Q3, fechando o
+enforcement que o [D-078] §7 previu e que a [D-081] (Q1) e a [D-083] (Q2) deixaram pela metade.
+
+**1. A régua é artefato de core, versionado e fixo** (`docs/design/DESIGN-CRITIC-RUBRIC.md`):
+3 pilares (frame) × 7 dimensões (o que se avalia) × severidade por achado (High/Med/Low), mais o
+teste final obrigatório. O fecho é mecânico, não é julgamento: **qualquer High reprova**; 2+ Med na
+mesma dimensão reprovam; Low registra. A estrutura absorve, sem virar dependência, o frame de
+3 pilares do `frontend-design-review` da Microsoft, o padrão "N dimensões × severidade × saída em
+arquivo" do `design-review` do jezweb e os testes operacionais swap/squint/signature/token do
+`interface-design` — redigidos nos nossos termos: se qualquer fonte sumir, a rubrica não muda. É o
+mesmo desenho da absorção que a `.claude/rules/design-antipatterns.md` já fez com o *Impeccable* e
+o *taste-skill*.
+
+**Por que fixa, e não derivada por tarefa.** Um critic que inventa o próprio critério a cada PR
+mede coisas diferentes em PRs diferentes, e o veredito dele deixa de ser comparável — vira gosto
+com aparência de gate. A **variedade entre projetos vem do `DESIGN.md`**, que é onde ela deve
+morar; a régua é a mesma para todos. Em CI o critic compõe três camadas, nesta ordem e somando,
+nunca substituindo: a rubrica + os 26 itens `[CRITIC]` dos anti-patterns + a rubrica extra do
+playbook da categoria declarada na §0 do `DESIGN.md`. O playbook só **aperta**.
+
+**2. O critic consome o artefato da Q2 esperando o run, e não reagindo a ele.** A forma óbvia
+seria disparar em `workflow_run: [Screenshots]`, com o `run_id` de graça. **Descartada**: check run
+de `workflow_run` não entra na lista de checks do PR — é assim que o `verdict.yml` roda, e lá isso
+é aceitável porque o veredito dele é conveniência. Aqui não: **um gate cujo vermelho não bloqueia
+merge não é um gate.** Então o critic dispara em `pull_request`, como o `review.yml`, e paga o
+preço de esperar (`.github/scripts/aguardar-screenshots.mjs`, teto de 1200 s porque o captador já
+espera até 900 s pela Netlify). Fail-closed em toda dúvida, como o resolvedor da [D-083].
+
+**3. Os `paths:` dos dois workflows são a mesma lista, e agora existe teste para isso.** É o
+acoplamento mais frágil do desenho e o único que falharia em silêncio: se o critic disparasse onde
+o captador não dispara, ele esperaria 20 minutos por um run inexistente e **reprovaria um PR
+correto**. `tests/workflows/evidencia-visual.test.ts` compara as duas listas; e o script trata
+`conclusion: skipped` como erro próprio, com a mensagem apontando a causa, porque a causa é sempre
+a mesma. A infra da Q3 entra nas duas listas, preservando a propriedade da [D-083] de que uma
+mudança na infra é exercitada pelo PR que a faz.
+
+**4. A régua é restaurada da branch base junto com a config de agente — o `DESIGN.md` não.**
+O bloco do [D-033] cobre `CLAUDE.md`, `AGENTS.md`, `.mcp.json` e `.claude/`; a rubrica mora em
+`docs/design/`, fora dele. Sem estender a restauração, **um PR de UI reescreveria o critério que
+vai julgá-lo** — é o achado ALTO do PR #57/#62 um nível acima. Passam a vir da base a rubrica, o
+`CRAFT-PRINCIPLES.md` e os `playbooks/`, com `rm -rf` antes do checkout, porque arquivo que o PR
+*acrescenta* nesses caminhos não sai por `git checkout` da base, e playbook novo escrito pelo
+próprio PR seria régua escrita pelo julgado.
+
+O **`DESIGN.md` segue vindo da branch**, e é deliberado: PR que altera o contrato visual depois do
+gate humano ([D-078] §9) tem de ser julgado contra o contrato **novo**, ou o critic reprovaria a
+implementação correta de uma decisão aprovada. Quem protege as §§0–14 é o prompt, que trata diff
+nelas como achado **High** na dimensão 7 — só a §15, Memória de design, aceita acréscimo ([D-083]
+§5).
+
+**5. O gate de evidência roda ANTES do agente e escreve o próprio veredito**
+(`.github/scripts/conferir-evidencia.mjs`). Dois motivos. Não se paga uma sessão de IA para julgar
+o que não existe; e, falhando, o script grava a **reprovação de ofício** no arquivo de veredito,
+que o step de publicação (`if: always()`) publica — o PR fica vermelho **com explicação**, não
+vermelho e mudo. A lista esperada é **perguntada ao captador** (`screenshots.mjs --listar`), nunca
+reimplementada: duas cópias da convenção divergiriam, e o dia da divergência o critic reprovaria PR
+correto por não achar arquivo que existe com outro nome. Evidência incompleta é ausência de
+evidência — falta uma rota, reprova igual, porque a rota que faltou é justamente a que ninguém
+olhou.
+
+**6. Gate de disparo: `paths` de UI + `!entrega:incompleta`, e nenhuma label nova.** Cogitou-se uma
+`needs-design-review` para conter custo; **descartada**: o critic é um dos 7 quality gates, e gate
+opt-in não é gate — PR de UI sem a label passaria sem crítica nenhuma. O controle de custo é o
+mesmo do `review.yml`: não se critica visualmente um estado que o `developer-lead` ainda vai
+reescrever. Sem `concurrency`, como o `screenshots.yml`: check run CANCELLED trava o merge mesmo
+com o resto verde, e aqui isso pesa mais do que no `review.yml` porque este é um gate.
+
+**7. Custo, a medir e não supor** ([D-078] §3 já sinalizava o risco). São **15 PNGs `fullPage`**
+lidos por rodada — isto faz do `design-critic` o job de IA mais caro da fábrica, e o gate de label
+acima é o que impede que ele rode a cada push. Modelo `claude-sonnet-5`, por paridade com o
+`review.yml`; **subir para `opus`** (como o `security.yml` faz por ser tarefa de alto risco) fica
+registrado como a alavanca, caso a EV2.5 meça o critic como leniente demais. Primeira medição no
+primeiro PR de UI real.
+
+**8. O `refine.yml` liga o Spec Gate da [D-079]**, com os gates da casa: `labeled` sem gate de
+autor (aplicar label já exige write/triage) e `issue_comment` só com `author_association == 'OWNER'`
+(mesmo gate do `claude.yml`). O **anti-F3 sai de graça**: quem publica o relatório é o step não-IA
+com o `GITHUB_TOKEN`, ou seja `github-actions[bot]`, cujo `author_association` nunca é `OWNER` —
+bot não re-dispara bot. O teto de **2 rodadas** continua sendo contrato do papel: um step não-IA
+conta os relatórios já publicados e **informa a rodada** ao agente, em vez de virar gate — máquina
+nova para um caso que ainda não aconteceu nenhuma vez.
+
+**9. O refiner perde `gh issue edit`, e o desfecho passa a ser um step não-IA.** Divergência
+consciente em relação ao `verdict.yml`, onde trocar a label *é* o veredito do agente. Duas razões
+somadas. **Ordem:** `status:ready` é gatilho do `implement.yml` ([D-079]), e se o agente aplicasse a
+label dentro do próprio step, o builder poderia começar lendo o corpo **antigo** da issue — o step
+aplica o corpo primeiro e a label depois. **Tamanho:** o hook `PreToolUse` do
+`.claude/settings.json` barra `--body-file` em comando `gh` (FU-08), o que obrigaria a passar a
+spec inteira inline em `--body`, que já truncou corpo grande antes. O contrato do papel não muda —
+o que muda é o mecanismo: **a existência de `refine-corpo.md` É o desfecho.** `gh issue create`
+também fica fora: gate detectado vira **proposta** no relatório, e abrir o `decision-needed`
+continua sendo do dono.
+
+**10. A frequência de PR `[BLOQUEADO]` vira métrica publicada, e é LOG, NÃO GATE.** A [D-079]
+previu que o PR bloqueado viraria evento raro e que a frequência dele mediria o refinamento a
+montante. O step escreve a contagem no resumo do job e emite `::notice::`, e nunca reprova nada:
+um teto ali puniria o `developer-lead` por um sintoma cuja causa é o refinamento — e a válvula de
+escape do [D-044] continua legítima, porque a construção revela o que o planejamento não vê.
+
+**Aplicado direto na `main`, sem PR**, como a [D-079] previu para os dois workflows: o App da
+fábrica não tem escopo `workflows`.
+
+**Validado ao vivo, e um achado que muda a expectativa.** O gate de evidência foi exercitado de
+verdade: sem os PNGs sai 1, com 14 dos 15 sai 1 nomeando o que falta, com um PNG de 0 byte sai 1, e
+nos três casos o arquivo de veredito sai escrito para o step de publicação. O `aguardar-screenshots`
+foi exercitado contra servidor stub nos cinco caminhos, inclusive o tempo esgotado.
+
+O que **não** deu para validar como planejado foi a contraprova — rodar o critic sobre a `main` e
+esperar veredito limpo. Olhando os 15 PNGs que a Q2 já produziu: **a interface de hoje é HTML
+praticamente sem estilo** — serifa de fallback do browser, `fieldset` e controles de formulário no
+default, sem Lora, sem Archivo, sem os tokens da §4 e **sem a régua de margem da §3**. Ela é
+anterior ao `DESIGN.md`, aprovado nesta mesma data ([D-080]). Logo o critic **vai reprovar a UI
+atual**, e reprovar certo: é exatamente o gap G1 do baseline EV1.2 ("design 1,5/4, página
+tecnicamente perfeita e visualmente muda") que a EV2.2–2.5 existe para fechar, agora visível num
+check em vez de numa medição manual. A consequência prática, e ela é esperada e não é defeito: o
+primeiro PR de UI a passar por este gate encontra vermelho, e o trabalho dele é derivar do
+`DESIGN.md`. A contraprova de que o critic não é carimbo de reprovação só pode ser feita contra uma
+página já construída a partir do contrato — fica para o primeiro PR de UI real, junto da medição de
+custo.
+
+**O que esta onda NÃO faz.** Ficam para a onda seguinte os dois gates restantes do [D-078] §7: o
+**lint determinístico** do subconjunto `[LINT]` dos anti-patterns e o **teto de 3 rodadas** de
+iteração visual → `precisa-humano`. Também não há pixel-diff (descartado na v1) e o
+`design-critic` **não é required status check** na proteção da `main`, pela mesma pendência de
+configuração de repositório registrada na [D-082]: hoje é alarme visível, não tranca.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
