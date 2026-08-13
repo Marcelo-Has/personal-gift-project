@@ -94,14 +94,27 @@
 		}
 	}
 
-	/* A voz do sistema (§3): rótulo, contagem de passo, ajuda — as páginas seguintes preenchem. */
+	/*
+	 * A voz do sistema (§3): rótulo, contagem de passo, ajuda — as páginas preenchem via o
+	 * contexto `margem`. No empilhamento mobile o item de grid estica por padrão (`stretch`)
+	 * até a borda da tela; `margin-inline-start` alinha o conteúdo ao mesmo eixo da régua
+	 * (24px), em vez de cruzá-la — a partir de 768 a coluna já termina exatamente na régua
+	 * (`--space-2xl`), então o offset extra sai.
+	 */
 	.margem {
 		grid-area: margem;
+		margin-inline-start: var(--space-md);
 		font-family: var(--font-sistema);
 		font-weight: var(--weight-sistema);
 		font-stretch: var(--font-stretch-sistema);
 		font-size: var(--text-caption);
 		line-height: var(--leading-caption);
+	}
+
+	@media (min-width: 768px) {
+		.margem {
+			margin-inline-start: 0;
+		}
 	}
 
 	/*
