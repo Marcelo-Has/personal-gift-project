@@ -32,6 +32,7 @@ interface Medida {
 	reguaLeft: number;
 	paginaTop: number;
 	paginaBottom: number;
+	alturaDocumento: number;
 	viewportHeight: number;
 	cruzamentos: string[];
 }
@@ -91,6 +92,14 @@ for (const { largura, altura } of VIEWPORTS) {
 						reguaLeft: rRegua.left,
 						paginaTop: rPagina.top + window.scrollY,
 						paginaBottom: rPagina.bottom + window.scrollY,
+						// A altura REAL da página — não a de `.pagina`, que por construção (a régua é
+						// `top`/`bottom: 0` DENTRO dela) sempre bate com `reguaBottom` mesmo quando a régua
+						// para no meio da tela. É esta medida, independente de `.pagina`, que prova que a
+						// régua alcança o rodapé de verdade em conteúdo mais curto que o viewport.
+						alturaDocumento: Math.max(
+							document.body.scrollHeight,
+							document.documentElement.scrollHeight
+						),
 						viewportHeight: window.innerHeight,
 						cruzamentos
 					};
@@ -109,6 +118,16 @@ for (const { largura, altura } of VIEWPORTS) {
 					`${rota}: a régua não chega ao rodapé real da página (ela em ${medida.reguaBottom}px, ` +
 						`a página em ${medida.paginaBottom}px) — não pode ser só a altura do viewport`
 				).toBeGreaterThanOrEqual(medida.paginaBottom - TOLERANCIA);
+
+				// Comparação independente de `.pagina`: em conteúdo mais curto que o viewport, a régua
+				// tem de acompanhar a altura REAL do documento (`min-height: 100dvh` na folha de base),
+				// não só a caixa de `.pagina` — que sempre bate com a régua por construção e não pegaria
+				// essa regressão sozinha.
+				expect(
+					medida.reguaBottom,
+					`${rota}: a régua para em ${medida.reguaBottom}px mas a página real vai até ` +
+						`${medida.alturaDocumento}px — sobra tela sem régua abaixo dela em ${largura}px`
+				).toBeGreaterThanOrEqual(medida.alturaDocumento - TOLERANCIA);
 
 				expect(
 					medida.reguaTop,

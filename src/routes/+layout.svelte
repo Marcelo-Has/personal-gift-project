@@ -26,8 +26,15 @@
 	 * só nas que a instanciam de propósito.
 	 */
 
+	/*
+	 * `min-height: 100dvh` é o que garante o rodapé real em telas curtas (§3, "contínua do topo
+	 * ao rodapé de TODA a tela"): sem isso `.pagina` só cresce pelo conteúdo do grid, a régua
+	 * (absoluta, `top`/`bottom` a 0 DENTRO dela) para junto com o cartão mais curto, e sobra
+	 * `--surface` nua abaixo — a régua nunca alcança o fim visível da página.
+	 */
 	.pagina {
 		position: relative;
+		min-height: 100dvh;
 	}
 
 	/*
