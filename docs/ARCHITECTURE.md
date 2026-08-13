@@ -13,7 +13,7 @@ VOCÊ  (Blueprint + Decision Gates)
   ▼
 Claude Supervisor  ── lê o Blueprint → escolhe tarefas → cria GitHub Issues
   ▼
-Claude Developer(s) ── implementam issues em branches → abrem PR
+Claude developer-lead(s) ── implementam issues em branches → abrem PR
   ▼
 Claude Reviewer ── revisa (requisito + diff + testes) + Security Review
   ▼
@@ -24,14 +24,14 @@ CI (lint + testes + E2E + scan de segurança)  ── o árbitro final NÃO é I
 Todos os papéis são **o mesmo Claude em contextos diferentes**, com permissões de
 ferramentas diferentes (`.claude/agents/*.md` + `--allowedTools`/`--disallowedTools`).
 
-> Dois tipos de agente/skill: (1) **agentes da fábrica** (Supervisor/Developer/Reviewer)
+> Dois tipos de agente/skill: (1) **agentes da fábrica** (Supervisor/developer-lead/Reviewer)
 > constroem o software; (2) **skills do produto** (narrativa/foto/layout) rodam em
 > runtime para gerar cada livro — ver Parte 2.3.
 
 ### Papéis e permissões
 - **Supervisor** (`schedule`/cron): lê specs, lê/cria issues, define dependências,
   registra decisões, inicia trabalhos. Não escreve código.
-- **Developer** (`status:ready`): edita arquivos, roda comandos, testa, commita, abre PR.
+- **developer-lead** (`status:ready`): edita arquivos, roda comandos, testa, commita, abre PR.
 - **Reviewer** (`pull_request`): revisão independente + aciona o Security Review.
 
 ### Workflows (`.github/workflows/`)

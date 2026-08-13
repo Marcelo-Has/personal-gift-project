@@ -1,6 +1,6 @@
 ---
 name: Tarefa da fábrica
-about: Padrão obrigatório para toda issue de trabalho da fábrica (D-017). Especifique o suficiente para que o Developer implemente sem adivinhar.
+about: Padrão obrigatório para toda issue de trabalho da fábrica (D-017). Especifique o suficiente para que o developer-lead implemente sem adivinhar.
 title: "[F?] "
 labels: ""
 assignees: ""
@@ -34,7 +34,7 @@ Como usar (humano ou Supervisor):
 
 ## Escopo
 <!-- O que esta issue entrega, em itens concretos. PR pequeno e revisável.
-     Comece pelo tamanho (D-048): cabe em ~40 turnos de Developer? Se não couber,
+     Comece pelo tamanho (D-048): cabe em ~40 turnos de developer-lead? Se não couber,
      decomponha em issues ordenadas em vez de estimar G. -->
 
 **Tamanho estimado:** <!-- P | M | G + uma frase de justificativa -->

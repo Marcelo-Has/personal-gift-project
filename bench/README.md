@@ -2,7 +2,7 @@
 
 **O que é:** o conjunto de cenários, rubricas e planilhas de coleta usados para **medir a
 fábrica** — não o produto. Cada cenário é uma tarefa realista que a fábrica executa de ponta a
-ponta (issue → Developer → PR → CI → revisões → veredito) enquanto a gente cronometra, conta
+ponta (issue → developer-lead → PR → CI → revisões → veredito) enquanto a gente cronometra, conta
 turnos, mede custo e pontua o resultado.
 
 **Para que serve:** ter um número de **baseline** antes de mexer na fábrica, e o mesmo número
@@ -72,7 +72,7 @@ código; depois o bug plantado (C3), que exige preparo de branch; e por último 
 ## Estado atual (EV1.2-preparo, 2026-08-11)
 
 As issues **#163, #164, #165 e #166 estão abertas e SEM label**, de propósito: `status:ready` é o
-gatilho do `implement.yml` e aplicá-lo dispara o Developer. O cenário só começa quando o dono
+gatilho do `implement.yml` e aplicá-lo dispara o developer-lead. O cenário só começa quando o dono
 aplicar a label (C1/C2/C4/C5) ou abrir o PR (C3). A branch `bench/c3-bug` já está no remoto com o
 bug plantado, **sem PR aberto** — e branch sozinha não dispara nada (`ci.yml` só roda em push na
 `main` e em `pull_request`).

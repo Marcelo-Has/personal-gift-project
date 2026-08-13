@@ -32,7 +32,8 @@ e múltiplos tamanhos**.
 
 ## Papéis — mesmo Claude, contextos diferentes → `.claude/agents/`
 - **Supervisor:** lê specs/issues, escolhe tarefas, cria issues, registra decisões.
-- **Developer:** implementa uma issue por branch, escreve testes, abre PR.
+- **developer-lead:** dono de UMA issue e de UM PR: implementa, ou decompõe e instancia os
+  especialistas `developer-frontend`/`developer-backend`, integra, testa e fecha o desfecho.
 - **Reviewer:** revisão independente + segurança (baseline em `docs/ARCHITECTURE.md`).
 
 ## Geração de conteúdo = skills versionadas do produto → `src/lib/product-skills/`

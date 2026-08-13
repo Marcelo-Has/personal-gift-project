@@ -9,7 +9,7 @@ autônoma por IA (Claude Code + GitHub Actions). Primeiro produto: mini livro
 - `REPO-STRUCTURE.md` — explica onde cada arquivo mora e por quê.
 - `docs/` — o "Blueprint": PRODUCT, ARCHITECTURE, AUTONOMY, ROADMAP, DECISIONS.
 - `.claude/` — configuração do Claude Code: `settings.json` (impõe regras), `rules/`
-  (regras por contexto), `agents/` (Supervisor/Developer/Reviewer), `skills/` (helpers de dev).
+  (regras por contexto), `agents/` (Supervisor/developer-lead/Reviewer), `skills/` (helpers de dev).
 - `.github/workflows/` — a fábrica: supervisor (agendado), implement, review, security,
   fix e daily-report, além do `ci.yml` (o juiz).
 - `src/lib/product-skills/` — os estilos de runtime do produto (narrativa/foto/layout)

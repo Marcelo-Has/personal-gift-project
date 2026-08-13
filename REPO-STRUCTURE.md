@@ -36,7 +36,7 @@ personal-gift-project/
 │   ├── settings.json              # permissions + hooks (ENFORCED) — commitado
 │   ├── settings.local.json.example# copie p/ settings.local.json (gitignored)
 │   ├── rules/                     # security.md, payments.md, product-skills.md, testing.md
-│   ├── agents/                    # supervisor.md, developer.md, reviewer.md
+│   ├── agents/                    # supervisor.md, developer-lead.md, reviewer.md
 │   └── skills/                    # skills de DEV, ex.: new-style/SKILL.md
 ├── src/lib/product-skills/        # ESTILOS DE RUNTIME do produto
 │   ├── narrative-style/<estilo>/

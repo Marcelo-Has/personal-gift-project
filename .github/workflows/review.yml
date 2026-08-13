@@ -8,7 +8,7 @@ on:
     # push depois — nunca seria revisado.
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
-# O Developer empurra commit a cada etapa (D-019, 4ª rodada). Sem isto, cada push paga uma
+# O developer-lead empurra commit a cada etapa (D-019, 4ª rodada). Sem isto, cada push paga uma
 # rodada inteira de revisão por IA de um estado que ele vai reescrever no push seguinte.
 # Só o push mais recente completa a revisão.
 concurrency:
@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   review:
-    # Não revisa PR marcado `entrega:incompleta` (D-019): revisar código que o Developer
+    # Não revisa PR marcado `entrega:incompleta` (D-019): revisar código que o developer-lead
     # ainda vai reescrever paga uma rodada de IA por push e produz achados sobre um estado
     # que não existirá. Estado revisável é `entrega:completa` — e o swap da label dispara
     # `labeled`, que traz a revisão de volta sobre o estado final.

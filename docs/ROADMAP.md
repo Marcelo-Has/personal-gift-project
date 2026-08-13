@@ -14,13 +14,13 @@ Este arquivo **não é histórico**: o Supervisor decide a próxima fronteira le
 defasado faz a fábrica planejar contra um mapa errado. Por isso a manutenção é obrigação de
 quem entrega, no mesmo PR — não tarefa separada que alguém precisa lembrar:
 
-- **Marcar `[x]` é do Developer**, no PR que fecha a issue. Issue com código `Fx-yy` no título
+- **Marcar `[x]` é do developer-lead**, no PR que fecha a issue. Issue com código `Fx-yy` no título
   → a linha correspondente vira `[x]` no mesmo commit. Nunca antes: `[x]` significa
   *mergeado*, e é o merge do PR que torna a marca verdadeira.
-- **Item novo é do Supervisor propor, do Developer escrever.** O Supervisor é read-only por
+- **Item novo é do Supervisor propor, do developer-lead escrever.** O Supervisor é read-only por
   desenho ([D-031]); quando decompõe um item (F1-05 → F1-05a/b/c) ou descobre trabalho de
   produto que o plano não previa, ele declara na issue a **linha exata** a acrescentar, e o
-  Developer a escreve no PR. Item pai só vira `[x]` quando todos os sub-itens estiverem `[x]`.
+  developer-lead a escreve no PR. Item pai só vira `[x]` quando todos os sub-itens estiverem `[x]`.
 - **FU-xx NÃO entra aqui.** Follow-up de revisão e conserto de fábrica vive como issue e como
   entrada em `DECISIONS.md`. Este arquivo é o plano de fases do **produto**; encher de FU
   transforma o mapa em log e o Supervisor perde a fronteira de vista. A exceção é quando um
@@ -249,4 +249,4 @@ DoD: crescer catálogo e mercado reusando a mesma fábrica.
 5. Segurança e observabilidade de custo caminham com cada fase, não só no fim.
 6. Ao decompor um item ou criar tarefa de produto que o plano não previa, **declarar na issue a
    linha exata do ROADMAP** a acrescentar (código, fase e posição). Você não escreve o arquivo;
-   quem escreve é o Developer, no PR. Ver "Quem mantém este arquivo", no topo.
+   quem escreve é o developer-lead, no PR. Ver "Quem mantém este arquivo", no topo.

@@ -45,7 +45,7 @@ não tem referência localizável rapidamente.
 
 | Caminho | Propósito | Origem |
 | --- | --- | --- |
-| `.claude/agents/developer.md` | Developer: implementa UMA issue por branch, escreve testes e abre PR pequeno. | D-012, D-019 |
+| `.claude/agents/developer-lead.md` | developer-lead: implementa UMA issue por branch, escreve testes e abre PR pequeno. | D-012, D-019 |
 | `.claude/agents/reviewer.md` | Reviewer: revisão independente de correção, manutenibilidade e vazamento de dado. Read-only. | D-033, FU-12 |
 | `.claude/agents/supervisor.md` | Supervisor: lê o Blueprint, escolhe tarefas não bloqueadas e cria issues. Não escreve código de produto. | D-031, D-045 |
 | `.claude/agents/verdict.md` | Verdict: julga completude de PR `entrega:incompleta` — separado de quem escreveu o código. | #50, D-019 |
@@ -71,7 +71,7 @@ não tem referência localizável rapidamente.
 | `.github/workflows/claude.yml` | Claude interativo: responde a `@claude` em issues, PRs e comentários de revisão. | D-019 |
 | `.github/workflows/daily-report.yml` | **Agendado.** Relatório diário do progresso como issue + rede de retaguarda da re-entrada automática. | FU-09, FU-13, FU-17, #71 |
 | `.github/workflows/fix.yml` | Quando o CI falha, o Claude tenta corrigir automaticamente na branch do PR. | D-025, D-026, #55 |
-| `.github/workflows/implement.yml` | O Developer: implementa issues com label `status:ready` e abre PR. | D-019 |
+| `.github/workflows/implement.yml` | O developer-lead: implementa issues com label `status:ready` e abre PR. | D-019 |
 | `.github/workflows/review.yml` | O Reviewer: revisão independente por IA em cada PR, gateada pela label de completude. | D-014, D-019 |
 | `.github/workflows/security.yml` | Revisão de segurança dedicada + scans de dependências e segredos em cada PR. | D-014, D-019 |
 | `.github/workflows/supervisor.yml` | **Agendado.** O coração da fábrica: lê o Blueprint, escolhe tarefas e cria issues. | D-015, D-016 |
@@ -82,7 +82,7 @@ não tem referência localizável rapidamente.
 
 | Caminho | Propósito | Origem |
 | --- | --- | --- |
-| `.github/ISSUE_TEMPLATE/factory-task.md` | Padrão obrigatório de toda issue de trabalho: especificação suficiente para o Developer não adivinhar. | D-017 |
+| `.github/ISSUE_TEMPLATE/factory-task.md` | Padrão obrigatório de toda issue de trabalho: especificação suficiente para o developer-lead não adivinhar. | D-017 |
 
 ## 8. Testes da própria fábrica (`tests/`)
 

@@ -42,7 +42,7 @@ jobs:
             dependências. Se a tarefa tocar uma decisão PENDENTE (D-100..D-106), crie
             como decision-needed, não status:ready.
 
-            TAMANHO (D-048) — o teste é o Developer caber em 40 turnos. Uma issue = uma
+            TAMANHO (D-048) — o teste é o developer-lead caber em 40 turnos. Uma issue = uma
             preocupação, um entregável, superfície limitada (um módulo ou um punhado de
             arquivos). Teste prático: se você não consegue descrever a mudança concretamente em
             poucas frases, ela está grande demais — DECOMPONHA em issues ordenadas, cada uma
@@ -57,7 +57,7 @@ jobs:
             sub-issue) ou porque é trabalho de produto
             que o plano não previa — a issue TEM de trazer, em "Escopo", a linha exata a
             acrescentar no arquivo: código, fase e posição. Você é read-only e não escreve o
-            arquivo; quem escreve é o Developer, no PR que fecha a issue. Sem essa linha
+            arquivo; quem escreve é o developer-lead, no PR que fecha a issue. Sem essa linha
             declarada o item nasce invisível para o próximo Supervisor. Follow-up de fábrica
             (FU-xx) NÃO vira linha de ROADMAP.
 

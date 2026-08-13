@@ -98,7 +98,7 @@ indicador de **refinamento raso**, ou seja, de você.
 Sub-issues ordenadas, com as dependências entre elas.
 
 **Fatie POR FEATURE / ENTREGA — nunca por camada.** Não existe "sub-issue do backend" seguida de
-"sub-issue do frontend" para a mesma feature: isso quebra o **R-1PR** (`.claude/agents/developer.md`,
+"sub-issue do frontend" para a mesma feature: isso quebra o **R-1PR** (`.claude/agents/developer-lead.md`,
 [D-078] §3). O custo de fatiar por camada não é burocrático, é de contexto — erro que só aparece na
 integração, correção que muda a fronteira entre as camadas, funcionalidade que só se revela quando
 as duas metades se encontram. O que sobra são dois PRs verdes que juntos não funcionam.
@@ -148,5 +148,5 @@ agora**? Não muda → não é questão.
   (ou de o item ser trivial, §6). Aplicá-lo dispara o `implement.yml` — a label é gatilho, não
   etiqueta descritiva.
 - **Não inche a issue.** Spec completa não é spec longa: é spec sem lacuna. Contexto que o
-  Developer não vai usar para decidir nada é ruído que ele vai ler pagando turnos.
+  developer-lead não vai usar para decidir nada é ruído que ele vai ler pagando turnos.
 - Nunca commite segredos; nunca reproduza dado de usuário no relatório ou no corpo da issue.

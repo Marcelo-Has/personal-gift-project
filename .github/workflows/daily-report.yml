@@ -81,7 +81,7 @@ jobs:
           # Foi assim que sete itens da FASE 1 ficaram `[ ]` depois de mergeados.
           #
           # Aqui é SINAL, não gate: reprovar o `ci` de um PR de código por marcação de documento
-          # seria desproporcional (`.claude/rules/right-sizing.md`). Quem marca é o Developer, no
+          # seria desproporcional (`.claude/rules/right-sizing.md`). Quem marca é o developer-lead, no
           # PR que fecha a issue; este step só denuncia o que escapou.
           #
           # Falso-positivo conhecido e aceito: issue fechada como duplicada ou substituída (foi o
@@ -148,7 +148,7 @@ jobs:
               echo "## 🗺️ ROADMAP fora de sincronia (FU-16)"
               echo
               echo "Issues fechadas cujo item de \`docs/ROADMAP.md\` não acompanhou. Quem marca é o"
-              echo "Developer, no PR que fecha a issue ([D-045]) — o que está aqui escapou disso:"
+              echo "developer-lead, no PR que fecha a issue ([D-045]) — o que está aqui escapou disso:"
               echo
               cat "${RUNNER_TEMP}/roadmap-deriva.txt"
               echo

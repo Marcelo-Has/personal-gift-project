@@ -8,7 +8,7 @@ on:
     # push depois — nunca seria revisado.
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
-# O Developer empurra commit a cada etapa (D-019, 4ª rodada). Sem isto, cada push paga uma
+# O developer-lead empurra commit a cada etapa (D-019, 4ª rodada). Sem isto, cada push paga uma
 # rodada de Opus por um estado que ele vai reescrever no push seguinte.
 concurrency:
   group: security-${{ github.event.pull_request.number }}

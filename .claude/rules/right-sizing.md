@@ -9,7 +9,7 @@ o que não tem usuário, não tem dado, ou é barato de adicionar depois.
 2. É **caro de reverter** depois (arquitetura, modelo de dados, compromisso quase irreversível)? → fazer.
 3. Nenhum dos dois? → **adiar ou descartar.** Não construir agora.
 
-## Para quem implementa (Developer)
+## Para quem implementa (developer-lead)
 - **YAGNI:** entregue a DoD da issue, não futuros hipotéticos.
 - Nenhuma abstração/camada nova sem um **segundo uso concreto**.
 - **Prefira defaults do framework** (Svelte/SvelteKit); não reestruture o padrão para
