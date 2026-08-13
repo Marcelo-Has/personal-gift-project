@@ -1,0 +1,94 @@
+name: Screenshots
+# Evidência visual do Visual Verification Loop ([D-078] §7, EV2.4 · Q2). NÃO é IA: espera o deploy
+# preview do PR (que existe desde o [D-018]), captura cada rota de UI em 375/768/1280 e sobe os PNGs
+# como artefato do PR. É a evidência que o `design-critic` da Q3 vai ler — e cuja AUSÊNCIA reprova
+# o PR de ofício.
+#
+# Workflow próprio, e não um job do `ci.yml`, por dois motivos: o filtro `paths:` nativo já resolve
+# "roda em PR que toca UI" sem uma linha de código de detecção (o `ci.yml` precisa rodar em TODO PR,
+# então lá o filtro teria de ser reimplementado dentro de um step); e este job depende de um sistema
+# externo — o deploy da Netlify —, o que não pertence ao juiz determinístico do repositório.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # Mesma definição de "toca UI" do gate `design-md` (`.github/scripts/gate-design-md.mjs`):
+    # componente/rota `.svelte`, qualquer folha de estilo, o shell do documento e o próprio
+    # contrato de design. Somam-se os arquivos desta infra, para que uma mudança nela seja
+    # exercitada pelo PR que a faz.
+    paths:
+      - 'src/**/*.svelte'
+      - 'src/app.html'
+      - '**/*.css'
+      - 'DESIGN.md'
+      - '.github/workflows/screenshots.yml'
+      - '.github/scripts/screenshots.mjs'
+      - '.github/scripts/netlify-preview-url.mjs'
+
+# Menor privilégio: ler o código, ler o commit status da Netlify e ler os comentários do PR (as
+# duas fontes da URL do preview). Nada de escrita — este workflow não comenta e não empurra nada.
+permissions:
+  contents: read
+  statuses: read
+  pull-requests: read
+
+# Sem `concurrency: cancel-in-progress`: check run cancelado entra no estado do PR como CANCELLED e
+# trava o merge mesmo com todo o resto verde (achado registrado na fábrica). Deixar terminar é mais
+# barato do que destravar depois.
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Mesmo desenho do job `e2e` do `ci.yml`: a versão do Playwright entra na chave do cache,
+      # porque browser antigo com runner novo é fonte clássica de captura instável. O browser é o
+      # Chromium EMPACOTADO (não o Chrome do sistema): a captura navega para uma URL remota e o
+      # sandbox precisa ficar ligado — ver o comentário em `.github/scripts/screenshots.mjs`.
+      - name: Descobrir a versão do Playwright
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache dos browsers do Playwright
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
+      - name: Instalar browsers
+        run: npm run test:e2e:install-browsers
+
+      # Espera o deploy preview do commit deste PR e devolve a URL. Fail-closed: sem URL, o job
+      # falha (o script explica por quê). Entradas por env, nunca interpoladas no `run:`.
+      - name: Descobrir a URL do deploy preview
+        id: preview
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/netlify-preview-url.mjs
+
+      - name: Capturar as rotas de UI em 375 / 768 / 1280
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: node .github/scripts/screenshots.mjs
+
+      # `!cancelled()` e não `success()`: se a captura falhar no meio, o que já foi capturado é
+      # justamente o material de diagnóstico. `if-no-files-found: error` mantém a promessa de
+      # evidência — artefato vazio seria um verde sem conteúdo.
+      - name: Anexar os screenshots ao PR
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: screenshots
+          path: artifacts/screenshots
+          if-no-files-found: error

@@ -36,6 +36,11 @@ artefatos-execucao/
 *.log
 coverage/
 
+# Evidência visual do Visual Verification Loop (EV2.4): os PNGs de 375/768/1280 são gerados por
+# rodada, sobem como artefato do PR e são lidos de lá pelo design-critic — não são código e não
+# entram no histórico. O CAMINHO é convenção fixa (`.github/scripts/screenshots.mjs`).
+artifacts/
+
 # Playwright
 test-results/
 playwright-report/
