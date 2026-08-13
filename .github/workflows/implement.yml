@@ -1,5 +1,5 @@
 name: Implement
-# O Developer: implementa issues com o label `status:ready` e abre um PR.
+# O developer-lead: implementa issues com o label `status:ready` e abre um PR.
 on:
   # Re-disparo explícito, sem ter de remover e recolocar label (D-019).
   workflow_dispatch:
@@ -117,7 +117,7 @@ jobs:
               echo "branch="
               echo "tentativa=1"
             } >> "$GITHUB_OUTPUT"
-            echo "Nenhum PR aberto fecha a issue #${ISSUE} — sessão nova, o Developer abre o PR."
+            echo "Nenhum PR aberto fecha a issue #${ISSUE} — sessão nova, o developer-lead abre o PR."
             exit 0
           fi
 
@@ -152,7 +152,7 @@ jobs:
           # configura de propósito.
           fetch-depth: ${{ steps.retomada.outputs.pr != '' && '0' || '1' }}
 
-      # Guard-rail de saída (parte 1/2): marca o instante antes do Developer, para
+      # Guard-rail de saída (parte 1/2): marca o instante antes do developer-lead, para
       # distinguir uma issue `decision-needed` criada por ESTE run de uma preexistente.
       - id: inicio
         run: echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
@@ -176,9 +176,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh label create 'entrega:incompleta' --color 'D93F0B' --force \
-            --description 'PR do Developer que ainda NÃO concluiu a entrega'
+            --description 'PR do developer-lead que ainda NÃO concluiu a entrega'
           gh label create 'entrega:completa' --color '0E8A16' --force \
-            --description 'Developer concluiu a entrega: lint e test rodados'
+            --description 'developer-lead concluiu a entrega: lint e test rodados'
 
       - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         id: claude
@@ -190,10 +190,15 @@ jobs:
           claude_code_oauth_token: ${{ vars.FACTORY_AUTH == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           allowed_bots: "claude"
           prompt: |
-            Você é o Developer (ver .claude/agents/developer.md).
+            Você é o developer-lead (contrato em .claude/agents/developer-lead.md).
             Implemente de ponta a ponta a issue
             #${{ github.event.inputs.issue || github.event.issue.number }}
             seguindo CLAUDE.md e as rules aplicáveis de `.claude/rules/`.
+
+            Você é o DONO desta issue e do PR dela, do começo ao fim: você implementa, ou
+            coordena quem implementa, mas o PR, o desfecho e a issue são sempre seus. Nada do
+            que vem abaixo muda a macro-coreografia da fábrica — issue → 1 PR → CI →
+            review/security → verdict → merge humano. A coordenação existe só DENTRO deste nó.
 
             As dependências JÁ estão instaladas neste runner (`npm ci` rodou antes de você):
             não rode `npm ci` de novo. Rode `npm run lint` e `npm test`. NÃO rode
@@ -315,23 +320,82 @@ jobs:
                você encontrou a mais, para o Supervisor dividir. Inchar a issue em silêncio é
                como uma sessão vira três.
 
+            COMO CONSTRUIR — coordenação ([D-078] §3). Esta parte diz o COMO; ela não afasta
+            nada do contrato acima, que vale inteiro, coordenando ou não.
+
+            R-1PR — UMA feature, UM PR, SEMPRE. Uma feature NUNCA é fatiada em PRs por camada:
+            não existe "PR do backend" e depois "PR do frontend" para a mesma issue. O custo de
+            fatiar não é burocrático, é de contexto — erro que só aparece na integração,
+            correção que muda a fronteira entre as camadas, funcionalidade que só se revela
+            quando as duas metades se encontram. Tudo isso é contexto compartilhado NESTA
+            sessão, e fatiar por camada joga fora. Se a feature não cabe num PR, isso é issue
+            mal dimensionada: item 7 acima, não convite para fatiar.
+
+            ANTES DE CODAR, DECIDA COMO. Primeiro pergunte quais camadas a tarefa toca; só
+            depois escolha o modo:
+
+            (a) CAMADA ÚNICA E PEQUENA → EXECUTE DIRETO, vestindo o overlay do especialista:
+            leia o mesmo material que ele leria e aplique as mesmas regras. Instanciar
+            subagente gasta token e turno, e turno é o recurso que já matou sessão inteira
+            nesta fábrica — `.claude/rules/right-sizing.md` vale aqui, com a diferença de que
+            a conta chega no MESMO run. Um ajuste de uma camada, uma correção de duas linhas,
+            um teste a mais: faça. Dois briefs para dois arquivos é coordenação teatral.
+
+            (b) TAREFA CROSS-LAYER → INSTANCIE OS ESPECIALISTAS, com a ferramenta `Task`:
+            `subagent_type: developer-frontend` e `subagent_type: developer-backend` (contratos
+            em `.claude/agents/`). O sinal de que valeu: a tarefa DE FATO tinha trabalho
+            substantivo em cada uma das duas camadas.
+
+            O BRIEF que você passa ao especialista é enxuto, quatro itens — nada de despejar a
+            issue inteira nem de mandá-lo "ver o repositório": (1) o objetivo do pedaço, em uma
+            frase; (2) os arquivos que ele deve ler e os que deve tocar; (3) os critérios de
+            aceite DESTE pedaço, não da issue toda; (4) contexto de erro, quando for correção —
+            a mensagem, o comando que a produziu e o que você já tentou. Sem (4) ele repete a
+            sua tentativa anterior.
+
+            Especialistas trabalham na MESMA working tree e na MESMA branch que você. Eles NÃO
+            abrem PR, NÃO comentam em issue, NÃO decidem desfecho e NÃO tocam o `docs/ROADMAP.md`
+            nem o placar: devolvem relatório (o que fez · o que decidiu · o que ficou aberto).
+            Recebeu o relatório: INTEGRE, rode `npm run lint` e `npm test`, leia o que ficou
+            aberto e dê `git push` — cada integração que fecha é um push, como manda o item 2.
+            Falhou? RE-INSTANCIE o especialista COM o erro — a mensagem, o arquivo e a linha —,
+            não conserte por cima do trabalho dele sem entender o que ele decidiu. Um
+            especialista que "terminou" não terminou nada: terminou quando VOCÊ integrou,
+            testou e fechou. O desfecho é seu, nunca do subagente (D-019).
+
+            TRABALHO DE UI NÃO COMEÇA SEM `DESIGN.md` ([D-078] §2). Se a tarefa toca markup ou
+            CSS — você mesmo ou pelo `developer-frontend` —, o `DESIGN.md` da raiz é relido
+            ANTES da primeira linha, e a UI DERIVA dos tokens dele: valor inventado é achado.
+            Se ele não existe, ou está com `Status: candidato`, isso é Decision Gate: desfecho
+            (b) do item 5, não "siga o bom senso". O CI tem um gate não-IA para isso (job
+            `design-md`), então o PR fica vermelho de qualquer jeito.
+
             Não faça merge: `gh pr merge` não está na allow-list e o merge é humano (D-012).
           # `cat`/`grep`/`head`/`tail`/`wc`/`find` saíram (FU-09, issue #58): `Read`/`Grep` já
           # cobrem a leitura e respeitam a `deny` do `.claude/settings.json`, que nenhum deles
           # respeita; `find -exec` é execução arbitrária. Como no `fix.yml`, aqui isso ESTREITA
-          # e não fecha: o Developer precisa de `Bash(node:*)`/`Bash(npx:*)`/`Bash(git:*)` para
+          # e não fecha: o developer-lead precisa de `Bash(node:*)`/`Bash(npx:*)`/`Bash(git:*)` para
           # rodar teste, commitar e empurrar, e os três leem qualquer byte do runner. Ver o
           # limite reconhecido no [D-031].
           #
           # `gh pr create`/`gh pr comment` ficam: publicar o PR e o progresso dele é o trabalho
-          # do Developer, não "relatar" sobre trabalho alheio — fora do escopo do item 1.
+          # do developer-lead, não "relatar" sobre trabalho alheio — fora do escopo do item 1.
+          # `Task` entra na allow-list na EV2.4 e é ELE que torna a seção "Coordenação" do
+          # `developer-lead.md` executável no CI: até aqui o contrato mandava instanciar
+          # `developer-frontend`/`developer-backend` e a ferramenta não existia neste run — o
+          # agente lia a instrução e não tinha como cumpri-la. É a fiação operacional do DP-5;
+          # a decisão canônica sobre a fronteira `agents/*.md` × prompt inline fica para a EV3.1.
+          # Nota de custo, a medir no primeiro uso real ([D-078] §3): um subagente consome UM
+          # turno do lead (o `tool_use` do `Task` e o relatório de volta) mas roda um loop
+          # inteiro por dentro — barato em turno, caro em token. O orçamento de 40 turnos do
+          # prompt não sente; a fatura sente.
           # `--max-turns` 80 -> 100 (FU-17). As duas sessões da issue #86 morreram no MESMO
           # ponto — `error_max_turns`, `num_turns: 81`, US$ 3,72 e 3,75 — numa entrega de
           # cinco arquivos. 100 não é a correção principal (essa é a re-entrada logo abaixo);
           # é só parar de perder sessão inteira por uma margem de poucos turnos. O número
           # citado no prompt acompanha este valor: enquanto o prompt dizia 60 e o teto real
           # era 80, o agente orçava contra um número que não existia.
-          claude_args: '--max-turns 100 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(echo:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
+          claude_args: '--max-turns 100 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Edit,Write,TodoWrite,Task,Bash(git:*),Bash(gh issue:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh api:*),Bash(gh run:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(ls:*),Bash(echo:*),Bash(sed:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*)"'
 
       # Artefato NÃO passa pelo masking de segredo do Actions (só o log do job passa), e a
       # transcrição registra a saída de cada comando do agente. Basta ele depurar `git` uma
@@ -372,7 +436,7 @@ jobs:
       # nome, a captura para de funcionar em silêncio (`if-no-files-found: warn` não
       # reprova) — conferir a doc da action, ou trocar por `steps.claude.outputs.execution_file`
       # se a versão pinada passar a expor esse output.
-      - name: Guardar transcrição do Developer
+      - name: Guardar transcrição do developer-lead
         if: always() && steps.redigir.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -390,7 +454,7 @@ jobs:
       # o único `issue_comment` que chega aqui é um "@claude" numa ISSUE — ou seja, um pedido
       # de implementação, que deve produzir PR como qualquer outro. Excluir esse gatilho
       # reabriria o no-op silencioso justamente por ele.
-      - name: Exigir PR aberto pelo Developer
+      - name: Exigir PR aberto pelo developer-lead
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -427,9 +491,9 @@ jobs:
           esac
 
           if [ "$DEV_OUTCOME" = 'skipped' ]; then
-            causa='O Developer **nem chegou a rodar**: um step anterior do workflow falhou (infra, não o agente).'
+            causa='O developer-lead **nem chegou a rodar**: um step anterior do workflow falhou (infra, não o agente).'
           else
-            causa='O Developer rodou e terminou sem produzir nada — é o no-op silencioso que o D-019 existe para pegar.'
+            causa='O developer-lead rodou e terminou sem produzir nada — é o no-op silencioso que o D-019 existe para pegar.'
           fi
 
           # Casa a PALAVRA DE FECHAMENTO + `#N`, não `#N` solto. Menção solta é
@@ -437,7 +501,7 @@ jobs:
           # é infra da fábrica e só dizia `Refs #31` — se aquele PR tivesse
           # `entrega:completa`, o guard-rail sairia VERDE sem entrega nenhuma, justamente o
           # falso-sucesso que ele existe para impedir. `Closes #N` é o que o contrato do
-          # Developer manda escrever, então é por ele que se mede.
+          # developer-lead manda escrever, então é por ele que se mede.
           # `([^0-9]|$)` em vez de `\b`: o `\b` não casa no jq embutido do `gh`, o que daria
           # falso-negativo ao depurar este mesmo guard-rail à mão. Mesmo fim — impedir que
           # `#3` case com `#30`.
@@ -462,7 +526,7 @@ jobs:
                                | test("#" + $n + "([^0-9]|$)"))] | length')
 
           if [ "${decisoes}" -gt 0 ]; then
-            echo "Desfecho válido (b): o Developer abriu ${decisoes} issue(s) decision-needed referenciando #${ISSUE}."
+            echo "Desfecho válido (b): o developer-lead abriu ${decisoes} issue(s) decision-needed referenciando #${ISSUE}."
             exit 0
           fi
 
@@ -475,7 +539,7 @@ jobs:
               "Run: ${RUN_URL} (a transcrição está nos artefatos do run)." \
               '' \
               'O guard-rail do D-019 reprovou o job. Isto NÃO é entrega parcial.')"
-            echo "::error::Nenhum PR referencia a issue #${ISSUE} e nenhuma decision-needed foi criada (step do Developer: ${DEV_OUTCOME}) — tratar como reprovado, não como verde."
+            echo "::error::Nenhum PR referencia a issue #${ISSUE} e nenhuma decision-needed foi criada (step do developer-lead: ${DEV_OUTCOME}) — tratar como reprovado, não como verde."
             exit 1
           fi
 
@@ -492,7 +556,7 @@ jobs:
 
             # FU-17 — RE-ENTRADA. Este é o atuador que faltava: até aqui a fábrica só
             # ENXERGAVA o travamento (Verdict comentava, alarme do FU-13 listava no relatório)
-            # e nenhum gatilho recolocava um Developer na branch. A issue #86 morreu duas
+            # e nenhum gatilho recolocava um developer-lead na branch. A issue #86 morreu duas
             # vezes assim, com US$ 7,47 gastos e zero entregue.
             #
             # Aqui, e não num sweep agendado, porque este é o instante em que se sabe o
@@ -558,7 +622,7 @@ jobs:
               gh pr comment "${alvo}" --body "$(printf '%s\n' \
                 "🛑 **Teto de re-entradas esgotado** (${TENTATIVA}/${MAX_TENTATIVAS}). A fábrica não tenta mais sozinha." \
                 '' \
-                "Última sessão: ${RUN_URL} (step do Developer: ${DEV_OUTCOME})." \
+                "Última sessão: ${RUN_URL} (step do developer-lead: ${DEV_OUTCOME})." \
                 '' \
                 'Parar é desfecho válido; sumir não é. O `precisa-humano` tira este PR da fila automática' \
                 'e o destaca no relatório diário. Depois de destravar à mão, remova o label e re-dispare' \
@@ -568,7 +632,7 @@ jobs:
             fi
 
             gh pr comment "${alvo}" --body "$(printf '%s\n' \
-              "⏸️ **Sessão ${TENTATIVA} encerrada sem concluir a entrega** (step do Developer: ${DEV_OUTCOME})." \
+              "⏸️ **Sessão ${TENTATIVA} encerrada sem concluir a entrega** (step do developer-lead: ${DEV_OUTCOME})." \
               '' \
               "Run: ${RUN_URL} — a transcrição está nos artefatos." \
               '' \
