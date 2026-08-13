@@ -3294,6 +3294,111 @@ derivar código de UI dele (antes disso era proibido, [D-078] §2). A primeira l
 descartadas, a versão pré-autocrítica da própria direção escolhida, e a serifa trocada por Lora.
 
 ---
+## D-081 | 2026-08-13 | ACEITA
+
+**EV2.4 · onda Q1 — o modo coordenado do builder vira executável no CI, e nasce o primeiro gate
+determinístico da camada de design: "DESIGN.md existe e está aprovado".** É a primeira parcela do
+enforcement que o [D-078] §7 previu para a EV2.4, e ela é toda **fiação operacional** — nenhuma
+decisão nova de arquitetura de design foi tomada aqui.
+
+**1. O contrato inline do `implement.yml` passa a dizer o que o `developer-lead` já era.** Desde o
+[D-078] §3 o papel é coordenador — dono de UM PR, R-1PR, planeja/decompõe, instancia
+`developer-frontend`/`developer-backend` em tarefa cross-layer e executa direto vestindo o overlay
+do especialista em tarefa pequena de camada única. O `.claude/agents/developer.md` dizia isso; o
+prompt inline do workflow, não. **E `Task` não estava no `--allowed-tools`** — ou seja, mesmo que o
+agente lesse a instrução, a ferramenta não existia naquele run. O próprio `developer.md` registrava
+o buraco ("no CI a seção Coordenação ainda não é executável"). Agora: `Task` entra na allow-list, o
+prompt inline ganha o bloco **COMO CONSTRUIR** (R-1PR, os dois modos com o right-sizing explícito,
+o formato do brief de quatro itens, a integração com re-instanciação em caso de erro, e o veto a
+trabalho de UI sem `DESIGN.md`), e a linha de abertura passa a nomear o papel corretamente.
+
+**A macro-coreografia não muda**: issue → 1 PR → CI → review/security → verdict → merge humano. Os
+guard-rails do [D-019] (três desfechos, PR-first, placar no corpo do PR) e a re-entrada do [D-047]
+valem inteiros, coordenando ou não — o desfecho é sempre do lead, nunca do subagente. A coordenação
+existe só **dentro** do nó `implement`.
+
+**Custo, a medir e não a supor** ([D-078] §3 já sinalizava o risco): um subagente consome **um**
+turno do lead — o `tool_use` do `Task` mais o relatório de volta — mas roda um loop inteiro por
+dentro. Barato em turno, caro em token. O orçamento de 40 turnos do prompt não sente; a fatura
+sente. Primeira medição no primeiro uso real.
+
+**1b. O identificador do papel passa a ser `developer-lead`, e o arquivo, `developer-lead.md`.**
+O [D-078] §3 renomeou o **papel** para *developer-lead* mas o **identificador** ficou em
+`developer`, com o arquivo em `.claude/agents/developer.md` — e o próprio contrato registrava a
+divergência como deliberada ("renomear quebraria referências sem mudar nada do contrato"). O
+argumento não se sustenta mais: com `Task` na allow-list, `subagent_type` passa a resolver papéis
+de verdade, e a fábrica não pode carregar dois nomes para a mesma coisa justamente no papel que
+coordena os outros três. Renomeados o arquivo, o `name:` do frontmatter e **todas** as referências
+em prosa e em caminho — `CLAUDE.md`, `README.md`, `REPO-STRUCTURE.md`, `docs/ARCHITECTURE.md`,
+`docs/ROADMAP.md`, `docs/FACTORY-INVENTORY.md`, `bench/README.md`, as rules, os outros agentes, a
+skill `new-issue`, o padrão de issue e os workflows (`implement`, `daily-report`, `review`,
+`security`, `supervisor`).
+
+**Duas exceções, e as duas são deliberadas.** As entradas **existentes** de `docs/DECISIONS.md`
+ficam como estão: são registro histórico e a regra 4 do `CLAUDE.md` proíbe alterá-las sem gate —
+elas dizem "Developer" porque era esse o nome quando foram escritas, e reescrevê-las falsificaria o
+rastro. E `docs/DEPLOY-WORKER.md` mantém
+`416249419814-compute@developer.gserviceaccount.com`: é service account do GCP, não o papel.
+
+**2. Gate não-IA "DESIGN.md existe e aprovado"** (`.github/scripts/gate-design-md.mjs`, job
+`design-md` do `ci.yml`). O [D-078] §2 fecha com *"nenhum código de UI antes de o `DESIGN.md`
+existir — gate não-IA no CI, implementado na EV2.4"*; este é o gate. PR que toca paths de interface
+— `src/**/*.svelte`, qualquer `.css`/`.scss`, `src/app.html` e o próprio `DESIGN.md` — **reprova**
+se o `DESIGN.md` da raiz estiver ausente, contiver `[A PREENCHER]` ou trouxer `Status` diferente de
+`aprovado`. Os paths saíram da estrutura real do repositório: hoje todo estilo mora com escopo
+dentro do `.svelte` e não há `.css` em `src/`, mas a folha global entra na lista porque é a primeira
+coisa que uma tarefa de UI cria.
+
+**Mesma família dos guard-rails [D-019]/[D-034]**: ou o artefato existe e está válido, ou o job
+falha — sem julgamento de agente, custo zero de token, poucos segundos de runner (job próprio, sem
+`npm ci`, o script não tem dependência). E **fail-closed em toda dúvida**: se a lista de arquivos
+alterados não puder ser obtida (base do PR indisponível, `git` falhando, `push` sem comparação), o
+gate não se cala — passa a checar o `DESIGN.md` incondicionalmente. Um gate que se omite quando não
+sabe é um gate que só existe quando não é necessário. Coberto por `tests/workflows/design-md.test.ts`,
+que **executa o script** e afere o código de saída, como o teste da re-entrada faz com o filtro do
+`daily-report.yml`.
+
+Isto é **um** dos 7 quality gates do [D-078] §7. Os outros — evidência de screenshot em 375/768/1280,
+o lint determinístico do subconjunto `[LINT]` dos anti-patterns, o `design-critic` e o teto de 3
+rodadas — seguem para as ondas seguintes da EV2.4.
+
+**3. Achado sobre o [D-024] × subagentes — o que a transcrição NÃO captura.** Determinação estática,
+lendo o `implement.yml` e a lógica de geração do artefato: o workflow apenas **redige e sobe** o
+`${RUNNER_TEMP}/claude-execution-output.json` produzido pela `claude-code-action`; ele não acrescenta
+nem remove nada. Logo a pergunta se reduz ao conteúdo daquele arquivo, que é o `stream-json` do CLI —
+e esse stream é o do **loop principal**. A conclusão, com o grau de confiança que a leitura estática
+permite: **a transcrição cobre a sessão do lead e, de cada subagente, apenas o brief (`tool_use`) e o
+relatório final (`tool_result`) — não os turnos internos dele** (suas leituras, edições, negações de
+ferramenta e consumo de turno). O que não é verificável sem rodar é o contrato interno da action
+pinada, que não está vendorizada aqui, e não há transcrição de agente no repositório para conferir
+(`artefatos-execucao/` é saída de runtime do produto, não sessão de agente).
+
+**Por que isso importa, e não é detalhe:** é exatamente a cegueira que o [D-024] existe para fechar.
+Aquela decisão nasceu do `fix.yml` estourando o teto quatro vezes com 17 negações de ferramenta sem
+causa identificável, e a regra que ficou foi *"workflow de IA que escreve código sobe transcrição"*.
+Com o modo coordenado ligado, o trabalho migra para dentro dos subagentes — e é justamente ele que
+o artefato passa a resumir num `tool_result` opaco.
+
+**Fica como questão aberta, com teste mínimo proposto** (a fábrica não é acionada aqui — ela só
+religa na Q5): no primeiro run cross-layer real, baixar o artefato e rodar
+`jq '[.[] | select(.isSidechain == true)] | length'` e
+`jq '[.[] | select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name] | group_by(.) | map({(.[0]): length}) | add'`.
+Se o primeiro devolver `0` e o segundo mostrar `Task: N`, a hipótese está confirmada. Confirmada, a
+correção candidata mais barata é subir também o transcript de sessão do CLI (que registra sidechain),
+com a **mesma redação fail-closed** do artefato atual — decisão para uma onda seguinte, não para
+esta.
+
+**Fronteira do DP-5.** Esta entrada faz **só a fiação operacional**: alinhar o prompt inline ao
+comportamento já decidido e ligar a ferramenta que faltava. **A decisão canônica — onde mora o
+contrato do papel, em `.claude/agents/*.md` ou no prompt inline do workflow, e como os dois param de
+divergir — é da EV3.1.** Hoje eles são duas cópias do mesmo contrato, e duas cópias divergem; foi
+precisamente o que aconteceu entre a EV2.3 e agora.
+
+**Nada a fazer no padrão de issue.** A seção **Requisitos visuais**, obrigatória quando a issue tem
+`area:frontend`, já foi entregue na EV2.3 e está em `.github/ISSUE_TEMPLATE/factory-task.md`, com os
+quatro itens verificáveis e a instrução de uso no cabeçalho. Conferido, não alterado.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
