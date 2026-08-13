@@ -61,7 +61,8 @@ const FORA_DE_TABELA: Record<string, { secao: string; procurar: string }> = {
 	'weight-normal': { secao: '§5 — pares de peso', procurar: '400' },
 	'weight-forte': { secao: '§5 — pares de peso', procurar: '400 / 700' },
 	'weight-sistema': { secao: '§5 — pares de peso', procurar: '400 / 800' },
-	'medida-leitura': { secao: '§6 — medida de leitura', procurar: '62ch' }
+	'medida-leitura': { secao: '§6 — medida de leitura', procurar: '62ch' },
+	'font-stretch-sistema': { secao: '§4.5 — papel `caption`', procurar: 'wdth 87' }
 };
 
 /** A linha de tabela que declara o token — `| \`nome\` | … |`. */

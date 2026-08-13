@@ -53,6 +53,7 @@
 	/* §4.5 — famílias. `--font-livro` é a voz do casal; `--font-sistema`, a voz do sistema. */
 	--font-livro: Lora, Georgia, 'Times New Roman', serif;
 	--font-sistema: Archivo, 'Arial Narrow', system-ui, sans-serif;
+	--font-stretch-sistema: 87%; /* §4.5 — papel `caption`: "Archivo (wdth 87)" */
 
 	/* §5 — escala tipográfica (razão ≈1,25) e as entrelinhas de cada passo. */
 	--text-caption: 0.875rem; /* 14px */
