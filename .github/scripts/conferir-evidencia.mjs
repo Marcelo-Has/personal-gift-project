@@ -11,12 +11,30 @@
  * Evidência incompleta é ausência de evidência — uma rota que faltou é justamente a rota que
  * ninguém olhou.
  *
- * A LISTA ESPERADA É PERGUNTADA AO PRÓPRIO CAPTADOR, não reimplementada aqui: roda
- * `screenshots.mjs --listar`, que existe exatamente para isso ([D-083] fixou o modo pensando nesta
- * onda). Reimplementar a convenção provaria só que sei escrevê-la duas vezes — e o dia em que as
- * duas cópias divergissem, o critic reprovaria PR correto por não achar arquivo que existe com
- * outro nome. É `spawn` e não `import` porque `screenshots.mjs` chama `process.exit` no topo do
- * módulo; importá-lo mataria este processo.
+ * A LISTA ESPERADA VEM DA FONTE ÚNICA, `rotas-de-ui.mjs`, e não é reimplementada aqui:
+ * reimplementar a convenção provaria só que sei escrevê-la duas vezes — e o dia em que as duas
+ * cópias divergissem, o critic reprovaria PR correto por não achar arquivo que existe com outro
+ * nome.
+ *
+ * POR QUE NÃO `spawn` DO CAPTADOR (EV2.4 · Q5). Até o primeiro PR de UI real, esta lista era obtida
+ * rodando `screenshots.mjs --listar`. O modo existe e funciona — mas `screenshots.mjs` importa
+ * `playwright-core` no topo do módulo, e o job `design-critic` **não instala dependências** (não há
+ * `npm ci` nele: ele baixa PNGs prontos e chama um agente). No CI o `--listar` saía 1 com
+ * `ERR_MODULE_NOT_FOUND`, este gate falhava fechado, o veredito nunca era escrito e o job ficava
+ * vermelho e MUDO — em TODO PR de UI, sem exceção. O `design-critic` era, na prática, um gate que
+ * ninguém podia passar.
+ *
+ * O teste não pegou porque roda sob o vitest, com `node_modules` no disco: o ambiente do teste
+ * tinha o que o ambiente do job não tem. Por isso a correção não é só trocar o `spawn` por
+ * `import` — é `tests/workflows/evidencia-visual.test.ts` passar a EXECUTAR este script a partir de
+ * uma cópia fora da árvore do repositório, onde nenhum `node_modules` é alcançável. Só esse formato
+ * cobre as duas portas: uma checagem de `import` sozinha não veria o `spawn` de um irmão, que foi
+ * exatamente por onde o bug entrou. É essa propriedade de ambiente, e não o modo de obter a lista,
+ * que o job precisa.
+ *
+ * `rotas-de-ui.mjs` é importável sem efeito colateral (é justamente por isso que ele foi extraído
+ * na Q4) e não tem dependência nenhuma; `screenshots.mjs`, que chama `process.exit` no topo,
+ * continua importando a MESMA lista de lá — a fonte única não se perde.
  *
  * Entradas, todas por ambiente:
  *   DESTINO            raiz a partir da qual os caminhos valem (padrão `.`).
@@ -27,28 +45,16 @@
  *
  * Saída: 0 se a evidência está completa; 1 (com `::error::`) se falta qualquer arquivo.
  */
-import { spawnSync } from 'node:child_process';
 import { statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { listarArquivos } from './rotas-de-ui.mjs';
 
-const AQUI = dirname(fileURLToPath(import.meta.url));
-const CAPTADOR = join(AQUI, 'screenshots.mjs');
 const DESTINO = process.env.DESTINO || '.';
 const VEREDITO = (process.env.VEREDITO_ARQUIVO || '').trim();
 
-/** Os arquivos que uma rodada completa tem de produzir, segundo o próprio captador. */
+/** Os arquivos que uma rodada completa tem de produzir, segundo a fonte única das rotas. */
 function arquivosEsperados() {
-	const r = spawnSync(process.execPath, [CAPTADOR, '--listar'], { encoding: 'utf8' });
-	if (r.status !== 0) {
-		throw new Error(
-			`\`screenshots.mjs --listar\` saiu ${r.status}: ${`${r.stdout || ''}${r.stderr || ''}`.trim()}`
-		);
-	}
-	return r.stdout
-		.split('\n')
-		.map((linha) => linha.trim())
-		.filter((linha) => linha !== '');
+	return listarArquivos();
 }
 
 /** Falta = não existe, não é arquivo, ou tem 0 byte. PNG vazio é verde sem conteúdo. */
