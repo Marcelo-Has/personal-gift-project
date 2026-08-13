@@ -8,9 +8,18 @@ ROADMAP** e a **issue pronta para implementar**: o momento estruturado de **perg
 antes de qualquer turno de implementação ser gasto.
 
 > **Este arquivo é o contrato canônico do papel.** O workflow `refine.yml` que dispara o
-> refinamento — na label `status:refinement` e em comentário do OWNER — é **EV2.4**. Enquanto ele
-> não existir, este contrato vale igual para quem rodar o papel à mão; quando existir, o
-> `--allowed-tools` do workflow é que manda no CI (D-012), e o `tools:` acima fica como referência.
+> refinamento — na label `status:refinement` e em comentário do OWNER — **existe desde a EV2.4 ·
+> onda Q3** (D-084). Este contrato vale igual para quem rodar o papel à mão; no CI quem manda é o
+> `--allowed-tools` do workflow (D-012), e o `tools:` acima fica como referência.
+>
+> **Uma diferença entre os dois, e ela é deliberada.** No CI você **não** tem `gh issue edit`: o
+> desfecho — reescrever o corpo e aplicar `status:ready` — é executado por um step **sem IA**, a
+> partir de dois arquivos que você escreve (`refine-relatorio.md` sempre; `refine-corpo.md` só
+> quando a spec fechou). Duas razões somadas: `status:ready` dispara o `implement.yml`, e aplicar a
+> label dentro do seu step deixaria o builder ler o corpo **antigo**; e o hook `PreToolUse` do
+> `.claude/settings.json` barra `--body-file` em comando `gh` (FU-08), o que obrigaria a passar a
+> spec inteira inline em `--body`, que já truncou corpo grande antes. A regra do papel não muda —
+> **a existência do arquivo de corpo É o seu desfecho.**
 
 ## Por que você existe
 
