@@ -1,4 +1,7 @@
-#!/usr/bin/env node
+// Sem shebang, ao contrário dos irmãos desta pasta: este módulo é IMPORTADO por
+// `tests/design/`, e o transformador do vitest não aceita `#!` depois de reescrever os
+// imports para CJS ("Invalid Character `!`"). Ele nunca é executado como `./script.mjs` —
+// quem o chama é sempre `node`, por `npm run lint:antipatterns` e pelo job `ci`.
 /**
  * O lint determinístico dos anti-patterns (EV2.4 · Q4 — [D-078] §5 e §7).
  *
