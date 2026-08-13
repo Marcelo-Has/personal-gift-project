@@ -15,14 +15,24 @@ on:
     # componente/rota `.svelte`, qualquer folha de estilo, o shell do documento e o próprio
     # contrato de design. Somam-se os arquivos desta infra, para que uma mudança nela seja
     # exercitada pelo PR que a faz.
+    #
+    # ESTA LISTA TEM DE SER IDÊNTICA À DO `design-critic.yml` (EV2.4 · Q3). O critic consome o
+    # artefato deste job: se ele disparar num PR em que este workflow não roda, espera por um run
+    # que nunca vai existir e reprova por fail-closed um PR correto. Por isso a infra da Q3 também
+    # entra aqui — quem muda a régua ou o critic passa a produzir a evidência que os exercita.
     paths:
       - 'src/**/*.svelte'
       - 'src/app.html'
       - '**/*.css'
       - 'DESIGN.md'
+      - 'docs/design/DESIGN-CRITIC-RUBRIC.md'
+      - '.claude/agents/design-critic.md'
       - '.github/workflows/screenshots.yml'
+      - '.github/workflows/design-critic.yml'
       - '.github/scripts/screenshots.mjs'
       - '.github/scripts/netlify-preview-url.mjs'
+      - '.github/scripts/aguardar-screenshots.mjs'
+      - '.github/scripts/conferir-evidencia.mjs'
 
 # Menor privilégio: ler o código, ler o commit status da Netlify e ler os comentários do PR (as
 # duas fontes da URL do preview). Nada de escrita — este workflow não comenta e não empurra nada.

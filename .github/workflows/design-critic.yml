@@ -1,0 +1,305 @@
+name: Design Critic
+# O `design-critic`: crítica visual independente de cada PR de UI, sobre o RENDERIZADO — nunca
+# sobre o CSS no disco (regra 2 do `docs/design/SKILL-ROUTER.md`: crítica só pós-render). Fecha a
+# EV2.4 · onda Q3, consumindo a evidência que a Q2 ([D-083]) passou a produzir e que até agora
+# ninguém lia. O builder nunca julga a própria saída visual ([D-078] §3).
+on:
+  pull_request:
+    # `labeled`/`unlabeled` pelo mesmo motivo do `review.yml`: o swap `entrega:incompleta` →
+    # `entrega:completa` NÃO emite `synchronize`, e é justamente nesse instante que o PR passa a
+    # ser criticável.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # ESTA LISTA TEM DE SER IDÊNTICA À DO `screenshots.yml`. O critic depende do artefato que
+    # aquele workflow produz: se ele disparasse onde o captador não dispara, ficaria 20 minutos
+    # esperando um run que nunca vai existir e reprovaria um PR correto por fail-closed. A infra
+    # da Q3 entra nas DUAS listas, preservando a propriedade da [D-083] de que uma mudança na
+    # infra é exercitada pelo PR que a faz.
+    paths:
+      - 'src/**/*.svelte'
+      - 'src/app.html'
+      - '**/*.css'
+      - 'DESIGN.md'
+      - 'docs/design/DESIGN-CRITIC-RUBRIC.md'
+      - '.claude/agents/design-critic.md'
+      - '.github/workflows/screenshots.yml'
+      - '.github/workflows/design-critic.yml'
+      - '.github/scripts/screenshots.mjs'
+      - '.github/scripts/netlify-preview-url.mjs'
+      - '.github/scripts/aguardar-screenshots.mjs'
+      - '.github/scripts/conferir-evidencia.mjs'
+
+permissions:
+  contents: read
+  pull-requests: write  # publicar o veredito (step não-IA)
+  issues: read          # ler os comentários do PR no guard-rail do D-014
+  actions: read         # achar e baixar o artefato do run de `Screenshots`
+  id-token: write
+  # Sem `actions: write`, ao contrário do `review.yml`: nada aqui dispara ou re-executa workflow, e
+  # essa permissão deixaria apagar justamente o artefato de evidência que este job existe para ler.
+
+# Sem `concurrency`, ao contrário do `review.yml` e como o `screenshots.yml`: check run cancelado
+# entra no estado do PR como CANCELLED e trava o merge mesmo com o resto verde. Aqui isso pesa mais
+# do que lá, porque este é um GATE — o estado dele precisa significar alguma coisa. O gasto que o
+# `cancel-in-progress` evitaria já está contido pelo gate de label abaixo, que faz o critic rodar
+# sobre entrega fechada e não a cada push de WIP.
+
+jobs:
+  design-critic:
+    # Mesmo gate do `review.yml` ([D-019]): criticar visualmente um estado que o developer-lead
+    # ainda vai reescrever paga a rodada mais cara de IA da fábrica (15 PNGs `fullPage`) sobre uma
+    # tela que não existirá. O swap da label dispara `labeled`, que traz a crítica de volta sobre
+    # o estado final.
+    #
+    # Não há label `needs-design-review`: o critic é um dos 7 quality gates do [D-078] §7, e gate
+    # opt-in não é gate.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'entrega:incompleta') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # Integridade do critic — o bloco [D-033] do `review.yml`/`security.yml`/`verdict.yml`, com
+      # UMA extensão que só existe aqui e que é o ponto do step: a régua do critic mora FORA de
+      # `.claude/`. Sem restaurar `docs/design/` da base, um PR de UI reescreveria o critério que
+      # vai julgá-lo — é o achado ALTO do PR #57/#62 um nível acima.
+      - name: Usar a config de agente e a régua da base, não as da branch sob crítica
+        env:
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "${BASE}"
+
+          # Apaga TODA config de agente da branch sob crítica — raiz E subdiretórios.
+          find . -path ./.git -prune -o -path ./node_modules -prune -o \
+                 \( -name CLAUDE.md -o -name CLAUDE.local.md -o -name AGENTS.md \
+                    -o -name .mcp.json -o -name .claude \) \
+                 -print0 | xargs -0r rm -rf
+
+          # Restaura da base tudo que a base versiona nesses caminhos.
+          git ls-tree -r --name-only FETCH_HEAD \
+            | grep -E '(^|/)(CLAUDE\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/' \
+            | xargs -r git checkout FETCH_HEAD --
+
+          # A régua e o piso de craft: a rubrica do critic, os princípios e os playbooks de
+          # categoria. `rm -rf` antes do checkout porque arquivo que o PR ACRESCENTA nesses
+          # caminhos não sai por `git checkout` da base — e um playbook novo, escrito pelo próprio
+          # PR, seria régua escrita pelo julgado.
+          rm -rf docs/design/DESIGN-CRITIC-RUBRIC.md docs/design/CRAFT-PRINCIPLES.md docs/design/playbooks
+          git ls-tree -r --name-only FETCH_HEAD \
+            | grep -E '^docs/design/(DESIGN-CRITIC-RUBRIC\.md|CRAFT-PRINCIPLES\.md|playbooks/)' \
+            | xargs -r git checkout FETCH_HEAD --
+
+          # O `DESIGN.md` NÃO é restaurado, e é deliberado: PR que altera o contrato visual depois
+          # do gate humano ([D-078] §9) tem de ser julgado contra o contrato NOVO. Quem protege as
+          # §§0–14 é o prompt, que trata diff nelas como achado — não este step.
+
+          # Descarta a credencial que o `actions/checkout` persistiu em `.git/config` ([D-030]).
+          git config --unset-all http.https://github.com/.extraheader || true
+
+          echo "Config de agente e régua do critic restauradas de ${BASE}; credencial descartada."
+
+          # FU-12 (issue #64): linha de base da divergência ESPERADA. O que aparecer ALÉM disto ao
+          # fim do job é mutação de origem desconhecida.
+          git status --porcelain > "${RUNNER_TEMP}/ws-esperado.txt"
+          echo "::group::Workspace após a restauração (divergência esperada)"
+          cat "${RUNNER_TEMP}/ws-esperado.txt"
+          echo "::endgroup::"
+
+      # A evidência é artefato de OUTRO workflow, que espera até 900s pelo deploy preview da
+      # Netlify. Esperar custa minuto de runner; a alternativa (`workflow_run: [Screenshots]`)
+      # custaria o gate inteiro, porque check de `workflow_run` não entra na lista de checks do PR.
+      # O raciocínio completo está no cabeçalho do script.
+      - name: Esperar a evidência visual do PR
+        id: evidencia
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/aguardar-screenshots.mjs
+
+      - name: Baixar os screenshots do run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ steps.evidencia.outputs.run_id }}
+        run: gh run download "${RUN_ID}" --name screenshots --dir artifacts/screenshots
+
+      # O 7º quality gate, e ele roda ANTES do agente de propósito: não se paga uma sessão de IA
+      # para julgar o que não existe. Falhando aqui, o script já escreve a reprovação de ofício no
+      # arquivo de veredito, e o step de publicação (`if: always()`) a publica — o PR fica vermelho
+      # COM explicação, não vermelho e mudo.
+      #
+      # `!cancelled()` e não o default: é justamente quando a espera ou o download falham que não
+      # existe evidência nenhuma, e é aí que este step precisa rodar para escrever a explicação.
+      # Sem isto, a falha mais provável do job — preview da Netlify instável, logo sem captura —
+      # seria a única que ficaria vermelha e muda.
+      - name: Conferir a evidência visual (step não-IA, fail-closed)
+        if: ${{ !cancelled() }}
+        env:
+          VEREDITO_ARQUIVO: ${{ runner.temp }}/design-critic-veredito.md
+        run: node .github/scripts/conferir-evidencia.mjs
+
+      - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+        with:
+          # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
+          # usa a API medida; FACTORY_AUTH=oauth usa a assinatura. A credencial não
+          # usada chega vazia — a action trata string vazia como ausente.
+          anthropic_api_key: ${{ vars.FACTORY_AUTH != 'oauth' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ vars.FACTORY_AUTH == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          allowed_bots: "claude"
+          prompt: |
+            Você é o design-critic (ver .claude/agents/design-critic.md): visual QA independente,
+            read-only, pós-render. Você não edita, não corrige e não abre PR — só julga.
+
+            A RÉGUA — leia os três antes de olhar qualquer imagem, e nesta ordem:
+            1. `docs/design/DESIGN-CRITIC-RUBRIC.md` — 3 pilares × 7 dimensões × severidade. É a
+               FONTE ÚNICA da régua. Você NUNCA deriva critério próprio em runtime: a régua é fixa
+               e versionada, e a variedade entre projetos vem do `DESIGN.md`, não daqui.
+            2. `DESIGN.md` da raiz — o contrato visual APROVADO deste produto. Ele vence qualquer
+               skill e qualquer preferência sua. Julgue contra o que está escrito lá (a assinatura
+               da §3, os tokens da §4, a escala da §5, a responsividade da §10, os estados da §11),
+               não contra o seu gosto.
+            3. `.claude/rules/design-antipatterns.md` — o checklist [CRITIC] (os 26 itens marcados
+               assim). Os itens [LINT] NÃO são seus: são para gate determinístico.
+
+            SOMA-SE a rubrica extra do playbook da categoria declarada na §0 do `DESIGN.md` —
+            hoje `docs/design/playbooks/institucional-marketing.md`. O playbook só APERTA a
+            exigência; nunca substitui a rubrica nem o checklist.
+
+            Anti-pattern não é veto automático: ele é achado quando aparece como default
+            inconsciente. Se o `DESIGN.md` traz justificativa registrada e ligada a ESTE produto,
+            não é achado — é decisão. Confira antes de acusar.
+
+            DE ONDE VEM A VERDADE. O que você julga é o PIXEL, não o código. Crítica sobre
+            código-fonte antecipa problema que o render desmente e deixa passar o que só aparece na
+            tela (regra 2 do `docs/design/SKILL-ROUTER.md`). Portanto:
+            - A evidência está em `artifacts/screenshots/<rota>-<viewport>.png`, nos três viewports
+              375/768/1280. LEIA TODAS as imagens — cada rota em cada largura. Um step anterior já
+              garantiu que estão todas lá.
+            - O disco DIVERGE do commit de propósito: um step deste job restaurou `CLAUDE.md`,
+              `.claude/`, a rubrica e os playbooks da branch BASE ([D-033]), para que este PR não
+              reescreva o critério que o julga. Logo, para afirmar que o PR mudou, removeu ou
+              enfraqueceu qualquer coisa, confirme no `gh pr diff`. Não viu a linha? Não afirme.
+            - Se o `gh pr diff` mostrar alteração em QUALQUER das §§0–14 do `DESIGN.md`, isso é
+              achado High na dimensão 7: alterar o contrato aprovado é `decision-needed` ([D-078]
+              §9). Só a §15 (Memória de design) aceita acréscimo ([D-083] §5).
+
+            O VEREDITO VAI PARA UM ARQUIVO. Você NÃO tem capacidade de publicar no GitHub (FU-09,
+            issue #58): ESCREVA o veredito completo — mesmo que seja "nenhum achado" — em
+            ${{ runner.temp }}/design-critic-veredito.md. Um step separado, sem IA, publica esse
+            arquivo como comentário no PR. `Write` serve só para esse arquivo; não altere nada no
+            repositório. O arquivo já pode existir: sobrescreva-o.
+
+            Formato do arquivo, nesta ordem:
+            - um título `## design-critic — <APROVADO|REPROVADO>`;
+            - um achado por linha, no formato
+              `- [High|Med|Low] D<1-7> · <rota>@<viewport> — <o que está errado> → <correção concreta>`;
+            - uma seção final `### Teste anti-default` respondendo, por escrito, à pergunta
+              obrigatória: **"isso poderia ter saído de qualquer prompt parecido?"** Se a resposta
+              for sim, é achado High na dimensão 7 AINDA QUE a tela esteja funcionalmente correta —
+              é exatamente o defeito que este papel existe para pegar, e o único que nenhum outro
+              gate da fábrica pega;
+            - a última linha, sozinha: `REPROVADO` ou `APROVADO`.
+
+            O fecho é mecânico, não é julgamento: qualquer High → REPROVADO. Dois ou mais Med na
+            MESMA dimensão → REPROVADO. Só Low → APROVADO, com os Low registrados.
+
+            Todo achado vem com correção concreta e com a rota e o viewport em que aparece.
+            "Está genérico" não é achado; "o hero em home@1280 é badge + título + subtítulo + dois
+            botões centrados (anti-pattern 2), e a régua de margem da §3 não aparece em nenhuma
+            largura" é achado.
+
+            ORÇAMENTO E FERRAMENTAS — leia antes de começar, porque tentar o que não existe queima
+            turno à toa. Você tem 60 turnos e SÓ estas ferramentas:
+
+              Read, Glob, Grep, Write, TodoWrite
+              Bash: ls, git log, git show, gh pr view, gh pr diff
+
+            NÃO existem aqui, e cada tentativa é um turno perdido: `cat`, `grep`, `head`, `tail`,
+            `wc`, `find`, `git diff` (use os tools `Read`/`Grep`/`Glob` e o `gh pr diff`) e
+            `gh pr comment` (o veredito vai para o ARQUIVO acima; quem publica é o step não-IA).
+            `Read` abre PNG — é assim que você olha a evidência.
+
+            São 15 imagens e elas são o trabalho: orce turnos para lê-las, não para explorar o
+            repositório. Se o orçamento estiver acabando, PARE de investigar e escreva o arquivo do
+            veredito com o que já tem — crítica parcial publicada vale mais que job vermelho sem
+            nada. Nunca termine sem escrever o arquivo.
+          # Mesma allow-list do Reviewer, e pelos mesmos motivos: `Bash(gh pr comment:*)` fora
+          # (FU-09, issue #58 — quem publica é o step não-IA, a partir do arquivo), e
+          # `cat`/`grep`/`head`/`tail`/`wc`/`find`/`git diff` fora (FU-08 — nenhum é o tool `Read`,
+          # então nenhum respeita a `deny` do `.claude/settings.json`, e `find -exec` é execução
+          # arbitrária).
+          #
+          # `--max-turns 60`, e o prompt repete o número: 15 imagens são o custo fixo do papel, e o
+          # resto do orçamento é análise. Ficou entre os 40 do Verdict e os 80 do Reviewer porque
+          # aqui não há diff grande a percorrer — há evidência a olhar.
+          #
+          # `--model claude-sonnet-5`, por paridade com o `review.yml`. Ler 15 PNGs `fullPage` já
+          # faz deste o job de IA mais caro da fábrica; subir para `opus` (como o `security.yml`)
+          # é a alavanca registrada na [D-084] caso a EV2.5 meça o critic como leniente demais.
+          claude_args: '--max-turns 60 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*)"'
+
+      # FU-10 (issue #59): descarta a credencial que a `claude-code-action` grava em `.git/config`
+      # durante o próprio step acima. Ver [D-032] e o comentário longo no `review.yml`.
+      - name: Descartar credencial do .git/config após o agente
+        if: always()
+        run: |
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
+      # FU-12 (issue #64), itens 1 e 3. Aqui há uma divergência esperada a mais que no `review.yml`
+      # — os PNGs baixados em `artifacts/`, que o `.gitignore` cobre — e é justamente por isso que
+      # a linha de base é tirada DEPOIS da restauração e ANTES do download.
+      - name: Conferir divergência do workspace (FU-12)
+        if: always()
+        run: |
+          set -euo pipefail
+          # `touch` porque o step de restauração pode não ter rodado (falha anterior, `always()`).
+          touch "${RUNNER_TEMP}/ws-esperado.txt"
+          git status --porcelain > "${RUNNER_TEMP}/ws-final.txt"
+          echo "::group::Workspace ao fim do job"
+          cat "${RUNNER_TEMP}/ws-final.txt"
+          echo "::endgroup::"
+          # `|| true`: `grep` sai 1 quando nada sobra, que é o caso BOM e não pode matar o job.
+          grep -Fxv -f "${RUNNER_TEMP}/ws-esperado.txt" "${RUNNER_TEMP}/ws-final.txt" \
+            > "${RUNNER_TEMP}/ws-inesperado.txt" || true
+          if [ -s "${RUNNER_TEMP}/ws-inesperado.txt" ]; then
+            echo "::warning::O workspace divergiu do commit sob crítica além da restauração de config e régua. O veredito pode descrever o disco, não o render — ver o aviso no comentário do PR."
+          else
+            echo "Workspace sem divergência inesperada."
+          fi
+
+      # Publica o veredito E faz as vezes do guard-rail [D-014]. Sem `Bash(gh pr comment:*)` no
+      # agente, quem comenta é este step, não-IA, a partir do arquivo.
+      #
+      # Ele cobre os DOIS caminhos de reprovação: o veredito escrito pelo critic, e a reprovação de
+      # ofício que o `conferir-evidencia.mjs` escreve quando falta screenshot ([D-083] §6). Nos
+      # dois casos existe arquivo, e nos dois casos o PR recebe a explicação.
+      - name: Publicar veredito no PR (step não-IA)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          F: ${{ runner.temp }}/design-critic-veredito.md
+          DIVERGENCIA: ${{ runner.temp }}/ws-inesperado.txt
+          OUT: ${{ runner.temp }}/design-critic-comentario.md
+        run: |
+          set -euo pipefail
+          if [ ! -s "$F" ]; then
+            echo "::error::O design-critic não escreveu veredito em $F. A crítica visual não aconteceu — tratar como reprovado, não como verde."
+            exit 1
+          fi
+          if [ -s "$DIVERGENCIA" ]; then
+            {
+              echo "> [!WARNING]"
+              echo "> **O workspace do runner divergiu do commit sob crítica** (FU-12, issue #64)."
+              echo "> Estes caminhos mudaram fora da restauração de config e régua ([D-033]):"
+              sed 's/^/> - `/; s/$/`/' "$DIVERGENCIA"
+              echo ">"
+              echo "> O veredito abaixo pode descrever o DISCO, não o render. Confira contra"
+              echo "> \`gh pr diff ${PR}\` antes de agir sobre qualquer achado."
+              echo
+              cat "$F"
+            } > "$OUT"
+          else
+            cp "$F" "$OUT"
+          fi
+          gh pr comment "${PR}" --body-file "$OUT"
+          echo "Veredito do design-critic publicado no PR #${PR}."
