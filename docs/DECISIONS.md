@@ -3399,6 +3399,47 @@ precisamente o que aconteceu entre a EV2.3 e agora.
 quatro itens verificáveis e a instrução de uso no cabeçalho. Conferido, não alterado.
 
 ---
+## D-082 | 2026-08-13 | ACEITA
+
+**O `docs/FACTORY-INVENTORY.md` é baseline congelado, não índice vivo: mudança na fábrica entra
+numa seção "Delta desde o baseline", nunca reescrevendo as tabelas.** Correção de rumo dentro da
+EV2.4 · Q1 — e da minha própria [D-081], que fez o contrário.
+
+**O erro, e ele é instrutivo.** O rename do [D-081] deixou a linha
+`` `.claude/agents/developer.md` `` apontando para um arquivo que não existe mais, e a correção
+óbvia foi editar a linha. Só que o cabeçalho do próprio arquivo diz o que ele é: *"a fotografia do
+'antes' do processo de evolução da fábrica"*, par documental da tag `fabrica-baseline-2026-08`, e
+*"qualquer mudança estrutural na fábrica daqui em diante é medida contra este baseline"*. Editar a
+tabela **apaga o antes** — o documento passa a descrever um estado que nunca existiu naquela data,
+e a medição perde a régua. O `git` confirma o desenho: entre a tag e a [D-081] o arquivo não tinha
+sido tocado uma única vez.
+
+**Decisão.** As tabelas de 1 a 9 ficam **imutáveis**, com o texto de 2026-08-11 — inclusive a linha
+do `developer.md`, que continua com o nome que o arquivo tinha naquele dia. O que veio depois vai
+para a seção **Delta desde o baseline**, no fim, na mesma convenção de coluna: uma linha por
+artefato criado, renomeado ou aposentado, com a decisão que o originou. Quando a EV fechar e um
+baseline novo for tirado, a seção se dissolve nas tabelas do inventário seguinte.
+
+A delta nasce com **13 linhas**, cobrindo tudo que a EV1.2, a EV2.3 e a EV2.4 acrescentaram e que
+o inventário não registrava: o harness `bench/`, os quatro papéis novos (`developer-frontend`,
+`developer-backend`, `design-director`, `refiner`) mais o rename do lead, a rule
+`design-antipatterns`, a skill `design-foundation`, o `DESIGN.md`, os contratos de `docs/design/`,
+o `design/assets/` da R-ASSETS, e o gate `gate-design-md.mjs` com o seu teste.
+
+**Por que registrar isto como decisão em vez de só arrumar.** Sem esta entrada, o próximo agente
+que encontrar uma linha desatualizada no inventário faz exatamente o que eu fiz — corrigir a
+tabela — e o baseline se perde em silêncio, um commit bem-intencionado de cada vez. A regra é
+barata de escrever e cara de redescobrir.
+
+**Pendente, e é do dono.** O job `design-md` do [D-081] roda em todo PR mas **não é required
+status check** na proteção da `main` (os cinco de hoje são `ci`, `regras-firebase`, `scans`,
+`review`, `ai-security-review`) — nem o `e2e`, que reprova o CI de propósito desde que existe.
+Enquanto não forem acrescentados, os dois são **alarme, não tranca**: o job fica vermelho e
+visível, mas não barra o merge, e a promessa do [D-078] §2 se cumpre pela metade. A alteração é de
+configuração do repositório, fora do versionamento, e foi barrada aqui pelo classificador de
+permissão — quem aplica é o dono, em Settings → Branches.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
