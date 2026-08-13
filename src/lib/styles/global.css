@@ -24,3 +24,15 @@ body {
 	outline: 2px solid var(--focus);
 	outline-offset: 2px;
 }
+
+/*
+ * Controle de formulário não herda fonte do `body` por padrão do navegador (ele usa a fonte do
+ * sistema operacional) — isso quebra o par Lora/Archivo da §4.5 exatamente nos controles
+ * interativos. Reset padrão, parte da base de composição (§6).
+ */
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}

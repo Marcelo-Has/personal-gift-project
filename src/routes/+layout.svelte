@@ -5,14 +5,30 @@
 	import '$lib/styles/tokens.css';
 	import '$lib/styles/fonts.css';
 	import '$lib/styles/global.css';
+	import { setContext, type Snippet } from 'svelte';
 
 	let { children } = $props();
+
+	// A `.margem` (§3, voz do sistema) vive no layout raiz, mas quem tem o conteúdo dela é a
+	// rota/layout aninhado (ex.: a contagem de passo do questionário). SvelteKit não propaga
+	// snippet de filho para o markup do ancestral — por isso o contexto: cada rota registra o
+	// snippet dela aqui, e o layout raiz apenas o renderiza.
+	let conteudoMargem = $state<Snippet | null>(null);
+	setContext('margem', {
+		definir: (snippet: Snippet | null) => {
+			conteudoMargem = snippet;
+		}
+	});
 </script>
 
 <div class="pagina">
 	<div class="regua" aria-hidden="true"></div>
 	<div class="grade">
-		<div class="margem"></div>
+		<div class="margem">
+			{#if conteudoMargem}
+				{@render conteudoMargem()}
+			{/if}
+		</div>
 		<div class="folha">
 			{@render children()}
 		</div>
