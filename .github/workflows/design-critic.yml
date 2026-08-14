@@ -27,6 +27,10 @@ on:
       - '.github/scripts/netlify-preview-url.mjs'
       - '.github/scripts/aguardar-screenshots.mjs'
       - '.github/scripts/conferir-evidencia.mjs'
+      # EV2.5 (issue #184): a mecânica do teto e a união das duas passadas. Mesma razão dos
+      # anteriores — quem muda o gate produz a evidência que o exercita.
+      - '.github/scripts/veredito-critic.mjs'
+      - '.github/scripts/unir-passadas-critic.mjs'
 
 permissions:
   contents: read
@@ -147,7 +151,29 @@ jobs:
           VEREDITO_ARQUIVO: ${{ runner.temp }}/design-critic-veredito.md
         run: node .github/scripts/conferir-evidencia.mjs
 
-      - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+      # EV2.5 — DUAS PASSADAS INDEPENDENTES ([D-086] item 5, issue #184).
+      #
+      # A Q5 mediu quatro pares de runs gêmeos do critic (mesmo commit, mesmo instante, pipeline
+      # idêntico). Em três deles os vereditos DIVERGIRAM, e a divergência não era de severidade —
+      # era de PERCEPÇÃO: um run via a escada de texto cruzando a régua, o outro não a mencionava;
+      # os dois estavam certos sobre o que viram. O [High] da barra de topo ausente sobreviveu a
+      # OITO rodadas por nunca ter caído na amostra.
+      #
+      # A conclusão da [D-086] é que o critic **amostra** o contrato: cada passada cobre um
+      # subconjunto, e o subconjunto muda. Leniência se corrige com um juiz mais severo;
+      # amostragem, não — um modelo melhor com uma passada só continua sendo uma amostra. O que a
+      # medição mostrou é que a UNIÃO de duas passadas foi, nas quatro vezes, mais completa que
+      # qualquer run isolado.
+      #
+      # Por isso duas passadas com prompt IDÊNTICO: a diversidade tem de vir da amostragem, não de
+      # instruções diferentes — instruções diferentes produziriam dois críticos diferentes, e aí a
+      # união não mediria cobertura, mediria a diferença entre os prompts.
+      #
+      # As duas cópias do prompt são mantidas idênticas por `tests/design/critic-passadas.test.ts`,
+      # que falha se divergirem. Duas cópias de um contrato divergem em silêncio ([D-081]); aqui a
+      # divergência é impossível sem o CI reprovar.
+      - name: Passada A — crítica visual independente
+        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
         with:
           # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
           # usa a API medida; FACTORY_AUTH=oauth usa a assinatura. A credencial não
@@ -194,7 +220,113 @@ jobs:
 
             O VEREDITO VAI PARA UM ARQUIVO. Você NÃO tem capacidade de publicar no GitHub (FU-09,
             issue #58): ESCREVA o veredito completo — mesmo que seja "nenhum achado" — em
-            ${{ runner.temp }}/design-critic-veredito.md. Um step separado, sem IA, publica esse
+            ${{ runner.temp }}/design-critic-veredito-a.md. Um step separado, sem IA, publica esse
+            arquivo como comentário no PR. `Write` serve só para esse arquivo; não altere nada no
+            repositório. O arquivo já pode existir: sobrescreva-o.
+
+            Formato do arquivo, nesta ordem:
+            - um título `## design-critic — <APROVADO|REPROVADO>`;
+            - um achado por linha, no formato
+              `- [High|Med|Low] D<1-7> · <rota>@<viewport> — <o que está errado> → <correção concreta>`;
+            - uma seção final `### Teste anti-default` respondendo, por escrito, à pergunta
+              obrigatória: **"isso poderia ter saído de qualquer prompt parecido?"** Se a resposta
+              for sim, é achado High na dimensão 7 AINDA QUE a tela esteja funcionalmente correta —
+              é exatamente o defeito que este papel existe para pegar, e o único que nenhum outro
+              gate da fábrica pega;
+            - a última linha, sozinha: `REPROVADO` ou `APROVADO`.
+
+            O fecho é mecânico, não é julgamento: qualquer High → REPROVADO. Dois ou mais Med na
+            MESMA dimensão → REPROVADO. Só Low → APROVADO, com os Low registrados.
+
+            Todo achado vem com correção concreta e com a rota e o viewport em que aparece.
+            "Está genérico" não é achado; "o hero em home@1280 é badge + título + subtítulo + dois
+            botões centrados (anti-pattern 2), e a régua de margem da §3 não aparece em nenhuma
+            largura" é achado.
+
+            ORÇAMENTO E FERRAMENTAS — leia antes de começar, porque tentar o que não existe queima
+            turno à toa. Você tem 60 turnos e SÓ estas ferramentas:
+
+              Read, Glob, Grep, Write, TodoWrite
+              Bash: ls, git log, git show, gh pr view, gh pr diff
+
+            NÃO existem aqui, e cada tentativa é um turno perdido: `cat`, `grep`, `head`, `tail`,
+            `wc`, `find`, `git diff` (use os tools `Read`/`Grep`/`Glob` e o `gh pr diff`) e
+            `gh pr comment` (o veredito vai para o ARQUIVO acima; quem publica é o step não-IA).
+            `Read` abre PNG — é assim que você olha a evidência.
+
+            São 15 imagens e elas são o trabalho: orce turnos para lê-las, não para explorar o
+            repositório. Se o orçamento estiver acabando, PARE de investigar e escreva o arquivo do
+            veredito com o que já tem — crítica parcial publicada vale mais que job vermelho sem
+            nada. Nunca termine sem escrever o arquivo.
+          # Mesma allow-list do Reviewer, e pelos mesmos motivos: `Bash(gh pr comment:*)` fora
+          # (FU-09, issue #58 — quem publica é o step não-IA, a partir do arquivo), e
+          # `cat`/`grep`/`head`/`tail`/`wc`/`find`/`git diff` fora (FU-08 — nenhum é o tool `Read`,
+          # então nenhum respeita a `deny` do `.claude/settings.json`, e `find -exec` é execução
+          # arbitrária).
+          #
+          # `--max-turns 60`, e o prompt repete o número: 15 imagens são o custo fixo do papel, e o
+          # resto do orçamento é análise. Ficou entre os 40 do Verdict e os 80 do Reviewer porque
+          # aqui não há diff grande a percorrer — há evidência a olhar.
+          #
+          # `--model claude-sonnet-5`, por paridade com o `review.yml`. Ler 15 PNGs `fullPage` já
+          # faz deste o job de IA mais caro da fábrica; subir para `opus` (como o `security.yml`)
+          # é a alavanca registrada na [D-084] caso a EV2.5 meça o critic como leniente demais.
+          claude_args: '--max-turns 60 --model claude-sonnet-5 --allowed-tools "Read,Glob,Grep,Write,TodoWrite,Bash(ls:*),Bash(git log:*),Bash(git show:*),Bash(gh pr view:*),Bash(gh pr diff:*)"'
+
+      # A SEGUNDA amostra. Prompt idêntico ao da passada A — a diferença de cobertura que a
+      # [D-086] mediu vem da amostragem, não de instrução diferente. Roda mesmo se A falhar
+      # (`if: always()`): uma passada perdida não pode custar as duas, e o step de união trata
+      # ausência de qualquer uma delas.
+      - name: Passada B — segunda amostra independente
+        if: always()
+        uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+        with:
+          # Toggle de auth por variável de repo (D-016): sem FACTORY_AUTH (ou =api)
+          # usa a API medida; FACTORY_AUTH=oauth usa a assinatura. A credencial não
+          # usada chega vazia — a action trata string vazia como ausente.
+          anthropic_api_key: ${{ vars.FACTORY_AUTH != 'oauth' && secrets.ANTHROPIC_API_KEY || '' }}
+          claude_code_oauth_token: ${{ vars.FACTORY_AUTH == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          allowed_bots: "claude"
+          prompt: |
+            Você é o design-critic (ver .claude/agents/design-critic.md): visual QA independente,
+            read-only, pós-render. Você não edita, não corrige e não abre PR — só julga.
+
+            A RÉGUA — leia os três antes de olhar qualquer imagem, e nesta ordem:
+            1. `docs/design/DESIGN-CRITIC-RUBRIC.md` — 3 pilares × 7 dimensões × severidade. É a
+               FONTE ÚNICA da régua. Você NUNCA deriva critério próprio em runtime: a régua é fixa
+               e versionada, e a variedade entre projetos vem do `DESIGN.md`, não daqui.
+            2. `DESIGN.md` da raiz — o contrato visual APROVADO deste produto. Ele vence qualquer
+               skill e qualquer preferência sua. Julgue contra o que está escrito lá (a assinatura
+               da §3, os tokens da §4, a escala da §5, a responsividade da §10, os estados da §11),
+               não contra o seu gosto.
+            3. `.claude/rules/design-antipatterns.md` — o checklist [CRITIC] (os 26 itens marcados
+               assim). Os itens [LINT] NÃO são seus: são para gate determinístico.
+
+            SOMA-SE a rubrica extra do playbook da categoria declarada na §0 do `DESIGN.md` —
+            hoje `docs/design/playbooks/institucional-marketing.md`. O playbook só APERTA a
+            exigência; nunca substitui a rubrica nem o checklist.
+
+            Anti-pattern não é veto automático: ele é achado quando aparece como default
+            inconsciente. Se o `DESIGN.md` traz justificativa registrada e ligada a ESTE produto,
+            não é achado — é decisão. Confira antes de acusar.
+
+            DE ONDE VEM A VERDADE. O que você julga é o PIXEL, não o código. Crítica sobre
+            código-fonte antecipa problema que o render desmente e deixa passar o que só aparece na
+            tela (regra 2 do `docs/design/SKILL-ROUTER.md`). Portanto:
+            - A evidência está em `artifacts/screenshots/<rota>-<viewport>.png`, nos três viewports
+              375/768/1280. LEIA TODAS as imagens — cada rota em cada largura. Um step anterior já
+              garantiu que estão todas lá.
+            - O disco DIVERGE do commit de propósito: um step deste job restaurou `CLAUDE.md`,
+              `.claude/`, a rubrica e os playbooks da branch BASE ([D-033]), para que este PR não
+              reescreva o critério que o julga. Logo, para afirmar que o PR mudou, removeu ou
+              enfraqueceu qualquer coisa, confirme no `gh pr diff`. Não viu a linha? Não afirme.
+            - Se o `gh pr diff` mostrar alteração em QUALQUER das §§0–14 do `DESIGN.md`, isso é
+              achado High na dimensão 7: alterar o contrato aprovado é `decision-needed` ([D-078]
+              §9). Só a §15 (Memória de design) aceita acréscimo ([D-083] §5).
+
+            O VEREDITO VAI PARA UM ARQUIVO. Você NÃO tem capacidade de publicar no GitHub (FU-09,
+            issue #58): ESCREVA o veredito completo — mesmo que seja "nenhum achado" — em
+            ${{ runner.temp }}/design-critic-veredito-b.md. Um step separado, sem IA, publica esse
             arquivo como comentário no PR. `Write` serve só para esse arquivo; não altere nada no
             repositório. O arquivo já pode existir: sobrescreva-o.
 
@@ -283,11 +415,29 @@ jobs:
       # Ele cobre os DOIS caminhos de reprovação: o veredito escrito pelo critic, e a reprovação de
       # ofício que o `conferir-evidencia.mjs` escreve quando falta screenshot ([D-083] §6). Nos
       # dois casos existe arquivo, e nos dois casos o PR recebe a explicação.
+      # EV2.5 — a união das duas amostras num veredito só (issue #184).
+      #
+      # Fail-closed e SEM votação: basta uma passada reprovar. A [D-086] mediu que um defeito visto
+      # por uma passada e não pela outra é defeito real que a outra não amostrou — exigir consenso
+      # jogaria fora exatamente o achado que a segunda passada existe para pegar.
+      #
+      # `always()` porque este step tem de rodar mesmo se uma das passadas falhar; e quando NENHUMA
+      # escreve, ele preserva o arquivo que já estiver lá — que é a reprovação de ofício por
+      # evidência ausente ([D-083] §6).
+      - name: Unir as duas passadas (step não-IA)
+        if: always()
+        env:
+          PASSADA_A: ${{ runner.temp }}/design-critic-veredito-a.md
+          PASSADA_B: ${{ runner.temp }}/design-critic-veredito-b.md
+          VEREDITO_ARQUIVO: ${{ runner.temp }}/design-critic-veredito.md
+        run: node .github/scripts/unir-passadas-critic.mjs
+
       - name: Publicar veredito no PR (step não-IA)
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
           F: ${{ runner.temp }}/design-critic-veredito.md
           DIVERGENCIA: ${{ runner.temp }}/ws-inesperado.txt
           OUT: ${{ runner.temp }}/design-critic-comentario.md
@@ -312,8 +462,13 @@ jobs:
           else
             cp "$F" "$OUT"
           fi
+          # EV2.5 ([D-086] item 3, issue #184) — a memória de QUAIS commits já foram criticados.
+          # Comentário HTML: invisível no corpo renderizado, e o `veredito-critic.mjs` o lê de
+          # volta para derivar a rodada em vez de incrementá-la. É o que torna a contagem
+          # idempotente e faz dois runs do mesmo commit valerem UMA rodada.
+          printf '\n<!-- design-critic:sha=%s -->\n' "${SHA}" >> "$OUT"
           gh pr comment "${PR}" --body-file "$OUT"
-          echo "Veredito do design-critic publicado no PR #${PR}."
+          echo "Veredito do design-critic publicado no PR #${PR} (commit ${SHA})."
 
       # EV2.4 · Q4 — o fecho, e é ele que transforma o critic num GATE.
       #
@@ -334,4 +489,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VEREDITO_ARQUIVO: ${{ runner.temp }}/design-critic-veredito.md
           PR: ${{ github.event.pull_request.number }}
+          # EV2.5 — sem isto a rodada volta a ser contada por invocação de job, e dois runs do
+          # mesmo commit gastam duas rodadas do teto ([D-086] item 3).
+          SHA: ${{ github.event.pull_request.head.sha }}
         run: node .github/scripts/veredito-critic.mjs

@@ -2,11 +2,23 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
 	LABEL_HUMANO,
+	MARCADOR_SHA,
 	PREFIXO_RODADA,
 	lerDesfecho,
 	proximaRodada,
-	rodadaAtual
+	rodadaAtual,
+	shasCriticados
 } from '../../.github/scripts/veredito-critic.mjs';
+
+/** SHAs de commits fictícios, no formato que o GitHub entrega. */
+const SHA_1 = '1111111111111111111111111111111111111111';
+const SHA_2 = '2222222222222222222222222222222222222222';
+const SHA_3 = '3333333333333333333333333333333333333333';
+
+/** Um comentário de veredito como o step de publicação o escreve, com o marcador ao final. */
+const veredito = (sha: string) => ({
+	body: `## design-critic — REPROVADO\n\n- [High] D1 · home@375 — algo\n\n<!-- ${MARCADOR_SHA}${sha} -->`
+});
 
 /**
  * O fecho do `design-critic`: o veredito reprovando de verdade e o teto de 3 rodadas.
@@ -70,7 +82,7 @@ describe('teto de rodadas de iteração visual', () => {
 	});
 
 	it('a primeira reprovação registra a rodada 1 e não chama humano', () => {
-		const passo = proximaRodada([], 3);
+		const passo = proximaRodada({ labels: [], comentarios: [], sha: SHA_1, teto: 3 });
 		expect(passo.nova).toBe(1);
 		expect(passo.adicionar).toEqual([`${PREFIXO_RODADA}1`]);
 		expect(passo.remover).toEqual([]);
@@ -78,7 +90,12 @@ describe('teto de rodadas de iteração visual', () => {
 	});
 
 	it('a segunda troca a label da rodada anterior pela nova', () => {
-		const passo = proximaRodada([{ name: `${PREFIXO_RODADA}1` }], 3);
+		const passo = proximaRodada({
+			labels: [{ name: `${PREFIXO_RODADA}1` }],
+			comentarios: [veredito(SHA_1)],
+			sha: SHA_2,
+			teto: 3
+		});
 		expect(passo.nova).toBe(2);
 		expect(passo.adicionar).toEqual([`${PREFIXO_RODADA}2`]);
 		expect(passo.remover).toEqual([`${PREFIXO_RODADA}1`]);
@@ -86,7 +103,12 @@ describe('teto de rodadas de iteração visual', () => {
 	});
 
 	it('a TERCEIRA estoura o teto e entrega o PR a um humano', () => {
-		const passo = proximaRodada([{ name: `${PREFIXO_RODADA}2` }], 3);
+		const passo = proximaRodada({
+			labels: [{ name: `${PREFIXO_RODADA}2` }],
+			comentarios: [veredito(SHA_1), veredito(SHA_2)],
+			sha: SHA_3,
+			teto: 3
+		});
 		expect(passo.nova).toBe(3);
 		expect(passo.estourou).toBe(true);
 		expect(passo.adicionar).toEqual([`${PREFIXO_RODADA}3`, LABEL_HUMANO]);
@@ -96,6 +118,97 @@ describe('teto de rodadas de iteração visual', () => {
 		// Não se "desestoura": um PR que voltou para a fila depois do humano e reprovou de novo
 		// continua fora da fila automática. O contrário seria devolver o desacordo ao laço que já
 		// falhou três vezes.
-		expect(proximaRodada([{ name: `${PREFIXO_RODADA}3` }], 3).adicionar).toContain(LABEL_HUMANO);
+		const passo = proximaRodada({
+			labels: [{ name: `${PREFIXO_RODADA}3` }],
+			comentarios: [veredito(SHA_1), veredito(SHA_2), veredito(SHA_3)],
+			sha: '4444444444444444444444444444444444444444',
+			teto: 3
+		});
+		expect(passo.adicionar).toContain(LABEL_HUMANO);
+	});
+});
+
+/**
+ * EV2.5 — a regressão do [D-086] item 3 (issue #184).
+ *
+ * O teto media INVOCAÇÃO DE JOB, não iteração: `design-critic.yml` escuta `synchronize` e
+ * `labeled` sem `concurrency`, então dois runs nasciam do mesmo commit e cada um gravava uma
+ * rodada. Medido no PR #178 — dois runs no sha `5bc1abc9`, no mesmo segundo, duas rodadas.
+ *
+ * E era reflexivo: `gh pr edit --remove-label "a,b"` emite DOIS eventos `unlabeled`, então o
+ * comando de RECUPERAÇÃO queimava 2/3 do teto antes de a sessão de correção rodar.
+ *
+ * Estes casos existem para que a contagem nunca volte a depender da ordem ou do número de
+ * invocações. Nenhum deles passaria na implementação anterior.
+ */
+describe('a rodada é derivada do commit, não do número de invocações', () => {
+	it('DOIS runs do MESMO commit contam UMA rodada', () => {
+		const primeiro = proximaRodada({ labels: [], comentarios: [], sha: SHA_1, teto: 3 });
+		// O segundo run já enxerga o veredito que o primeiro publicou.
+		const segundo = proximaRodada({
+			labels: [{ name: `${PREFIXO_RODADA}1` }],
+			comentarios: [veredito(SHA_1)],
+			sha: SHA_1,
+			teto: 3
+		});
+		expect(primeiro.nova).toBe(1);
+		expect(segundo.nova).toBe(1);
+		// E não fica trocando a label por ela mesma — dois eventos de label por nada é a própria
+		// classe de defeito que esta mudança fecha.
+		expect(segundo.remover).toEqual([]);
+	});
+
+	it('dois runs SIMULTÂNEOS do mesmo commit chegam ao mesmo número', () => {
+		// O caso real: nenhum dos dois enxergou o comentário do outro. Como a contagem é um
+		// conjunto e não um incremento, os dois calculam o mesmo valor — sem lock, sem
+		// `concurrency`, em qualquer ordem.
+		const entrada = { labels: [], comentarios: [], sha: SHA_1, teto: 3 };
+		expect(proximaRodada(entrada).nova).toBe(proximaRodada(entrada).nova);
+	});
+
+	it('commits DIFERENTES contam rodadas diferentes — o teto continua existindo', () => {
+		expect(
+			proximaRodada({ labels: [], comentarios: [veredito(SHA_1)], sha: SHA_2, teto: 3 }).nova
+		).toBe(2);
+	});
+
+	it('remover a label de rodada NÃO altera a contagem real', () => {
+		// O comando humano de recuperação deixa de mexer no teto: a verdade está nos commits já
+		// criticados, e o label é só reflexo auditável no quadro.
+		const semLabel = proximaRodada({
+			labels: [],
+			comentarios: [veredito(SHA_1), veredito(SHA_2)],
+			sha: SHA_3,
+			teto: 3
+		});
+		expect(semLabel.nova).toBe(3);
+		expect(semLabel.estourou).toBe(true);
+	});
+
+	it('SHA curto e SHA completo do mesmo commit não contam duas vezes', () => {
+		const passo = proximaRodada({
+			labels: [],
+			comentarios: [veredito(SHA_1.slice(0, 8))],
+			sha: SHA_1.slice(0, 8),
+			teto: 3
+		});
+		expect(passo.nova).toBe(1);
+	});
+
+	it('sem SHA no ambiente, cai no incremento antigo em vez de travar', () => {
+		// Fail-open só na CONTAGEM: um teto que erra para mais gasta orçamento à toa, mas o
+		// desfecho REPROVADO já foi decidido antes e não depende deste cálculo.
+		expect(proximaRodada({ labels: [{ name: `${PREFIXO_RODADA}1` }], sha: '', teto: 3 }).nova).toBe(
+			2
+		);
+	});
+
+	it('lê os SHAs de comentários reais, ignorando texto que não é veredito', () => {
+		const shas = shasCriticados([
+			{ body: 'comentário do dono falando de design-critic sem marcador' },
+			veredito(SHA_1),
+			{ body: `bla bla <!-- ${MARCADOR_SHA}${SHA_2} --> bla` }
+		]);
+		expect([...shas].sort()).toEqual([SHA_1, SHA_2].sort());
 	});
 });
