@@ -663,10 +663,13 @@
 	   não há régua do lado direito. `column-reverse` porque o DOM traz "Voltar/Cancelar" antes de
 	   "Continuar" (a régua de leitura do `.navegacao-etapas` em telas largas), e é a ação primária
 	   que precisa ficar em cima, ocupando a largura toda. `padding-bottom` na `.etapa` reserva o
-	   espaço equivalente para o conteúdo não ficar escondido atrás da barra fixa. */
+	   espaço equivalente para o conteúdo não ficar escondido atrás da barra fixa — `space-nav-fixa`
+	   (§15), não `space-3xl`: com dois botões empilhados de 44px + gap + padding + borda, a barra
+	   real tem 137px, e `space-3xl` (96px) deixava 41px de conteúdo inacessível por scroll em 8 das
+	   9 etapas (achado [High] do design-critic, PR #181, passada B). */
 	@media (max-width: 767px) {
 		.etapa {
-			padding-bottom: var(--space-3xl);
+			padding-bottom: var(--space-nav-fixa);
 		}
 
 		.navegacao-etapas {
