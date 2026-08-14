@@ -290,7 +290,7 @@
 	</div>
 {/snippet}
 
-<section aria-labelledby="titulo-etapa" bind:this={secaoEl}>
+<section class="etapa" aria-labelledby="titulo-etapa" bind:this={secaoEl}>
 	<h2 id="titulo-etapa">{etapa.title}</h2>
 
 	{#if etapa.key === 'people'}
@@ -365,8 +365,8 @@
 			</ul>
 		{/if}
 	{:else if etapa.key === 'howTheyMet'}
-		<label class="sr-only">
-			{etapa.fields?.text}
+		<label>
+			<span class="sr-only">{etapa.fields?.text}</span>
 			<textarea
 				class="campo-texto"
 				class:campo-texto--erro={emErro}
@@ -403,8 +403,8 @@
 			>{etapa.fields?.add}</button
 		>
 	{:else if etapa.key === 'insideJokes'}
-		<label class="sr-only">
-			{etapa.fields?.text}
+		<label>
+			<span class="sr-only">{etapa.fields?.text}</span>
 			<textarea
 				class="campo-texto"
 				class:campo-texto--erro={emErro}
@@ -442,8 +442,8 @@
 			>{etapa.fields?.add}</button
 		>
 	{:else if etapa.key === 'challenges'}
-		<label class="sr-only">
-			{etapa.fields?.text}
+		<label>
+			<span class="sr-only">{etapa.fields?.text}</span>
 			<textarea
 				class="campo-texto"
 				class:campo-texto--erro={emErro}
@@ -452,8 +452,8 @@
 				oninput={(evento) => atualizarLista('challenges', evento.currentTarget.value)}></textarea>
 		</label>
 	{:else if etapa.key === 'futurePlans'}
-		<label class="sr-only">
-			{etapa.fields?.text}
+		<label>
+			<span class="sr-only">{etapa.fields?.text}</span>
 			<textarea
 				class="campo-texto"
 				class:campo-texto--erro={emErro}
@@ -462,8 +462,8 @@
 				oninput={(evento) => atualizarLista('futurePlans', evento.currentTarget.value)}></textarea>
 		</label>
 	{:else if etapa.key === 'specialMessage'}
-		<label class="sr-only">
-			{etapa.fields?.text}
+		<label>
+			<span class="sr-only">{etapa.fields?.text}</span>
 			<textarea
 				class="campo-texto"
 				class:campo-texto--erro={emErro}
@@ -536,9 +536,14 @@
 		border: 0;
 	}
 
-	label {
+	/* §3 — "rótulo" é voz do sistema; `legend` nomeia um grupo de campos, então é rótulo
+	   também (achado [Med] D2, design-critic #181): mesma voz que `label`, não a Lora herdada
+	   do `body`. */
+	label,
+	legend {
 		display: block;
 		margin-bottom: var(--space-xs);
+		padding: 0;
 		font-family: var(--font-sistema);
 		font-size: var(--text-caption);
 		font-weight: var(--weight-sistema);
@@ -650,6 +655,32 @@
 		justify-content: space-between;
 		gap: var(--space-sm);
 		margin-top: var(--space-lg);
+	}
+
+	/* §6, colapso 375: "a ação primária ocupa a largura e fica fixa acima do teclado." Mesmo
+	   desenho de `.cta-fixa` da home (`src/routes/+page.svelte`) — `left` no offset da régua em
+	   375 (`--space-md`, igual a `.regua` do layout raiz) para nunca cruzá-la, `right: 0` porque
+	   não há régua do lado direito. `column-reverse` porque o DOM traz "Voltar/Cancelar" antes de
+	   "Continuar" (a régua de leitura do `.navegacao-etapas` em telas largas), e é a ação primária
+	   que precisa ficar em cima, ocupando a largura toda. `padding-bottom` na `.etapa` reserva o
+	   espaço equivalente para o conteúdo não ficar escondido atrás da barra fixa. */
+	@media (max-width: 767px) {
+		.etapa {
+			padding-bottom: var(--space-3xl);
+		}
+
+		.navegacao-etapas {
+			position: fixed;
+			left: var(--space-md);
+			right: 0;
+			bottom: 0;
+			z-index: 1;
+			flex-direction: column-reverse;
+			margin-top: 0;
+			padding: var(--space-sm) var(--space-md);
+			background: var(--surface);
+			border-top: 1px solid var(--border);
+		}
 	}
 
 	.botao {
