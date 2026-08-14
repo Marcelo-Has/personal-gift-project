@@ -128,7 +128,8 @@ test('deve mostrar a voz do sistema (preço/prazo) dentro do herói em 375px, ac
 		);
 	expect(filhos).toEqual(['div.hero-intro', 'p.hero-sistema-mobile', 'a.cta']);
 
-	await expect(page.getByText(/R\$80.+R\$130/)).toBeVisible();
+	await expect(page.locator('.hero-sistema-mobile')).toBeVisible();
+	await expect(page.locator('.hero-sistema-mobile')).toHaveText(/R\$80.+R\$130/);
 	// A cópia que normalmente vive na `.margem` (via contexto) segue no DOM em 375px, mas escondida
 	// (`display: none`) — não é a que aparece nem a que um leitor de tela anuncia neste viewport.
 	await expect(page.locator('.hero-sistema-desktop')).toBeHidden();
