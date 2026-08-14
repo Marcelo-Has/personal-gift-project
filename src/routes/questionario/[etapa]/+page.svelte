@@ -526,11 +526,12 @@
 </section>
 
 <style>
+	/* §4.2 — agrupamento por espaçamento (2,5×), sem borda nem card (D3, revisão #181):
+	   `border-subtle` é divisor decorativo, nunca delimita controle. */
 	fieldset {
-		margin-bottom: var(--space-sm);
-		padding: var(--space-sm);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-sm);
+		margin: 0 0 var(--space-lg) 0;
+		padding: 0;
+		border: 0;
 	}
 
 	label {
@@ -594,6 +595,12 @@
 	.itens-foto {
 		padding-left: 0;
 		list-style: none;
+	}
+
+	/* Nome de arquivo e mensagem de erro são texto sem espaço previsível (revisão #181,
+	   regressão de overflow horizontal em 375 com 12 itens recusados). */
+	.itens-foto li {
+		overflow-wrap: anywhere;
 	}
 
 	.preview-fotos {

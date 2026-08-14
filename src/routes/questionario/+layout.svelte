@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { setContext } from 'svelte';
 	import { browser } from '$app/environment';
-	import { page } from '$app/state';
-	import { getEtapaIndex, questionarioEtapas } from '$lib/questionario-etapas';
 	import type { CoupleQuestionnaire } from '$lib/order';
 	import {
 		obterOuCriarOrderId,
@@ -66,9 +64,6 @@
 	}
 
 	setContext('salvarRascunhoQuestionario', salvarProgresso);
-
-	const etapaSlug = $derived((page.params as Record<string, string>).etapa ?? '');
-	const indiceAtual = $derived(getEtapaIndex(etapaSlug));
 </script>
 
 <svelte:head>
@@ -76,15 +71,7 @@
 </svelte:head>
 
 <main>
-	<h1>Conte a história de vocês</h1>
-
-	{#if indiceAtual >= 0}
-		<ol class="etapas" aria-label="Etapas do questionário">
-			{#each questionarioEtapas as etapa, i (etapa.slug)}
-				<li aria-current={i === indiceAtual ? 'step' : undefined}>{etapa.title}</li>
-			{/each}
-		</ol>
-	{/if}
+	<h1 class="sr-only">Conte a história de vocês</h1>
 
 	{@render children()}
 </main>
@@ -94,27 +81,5 @@
 		max-width: 40rem;
 		margin: 0 auto;
 		padding: var(--space-md);
-	}
-
-	.etapas {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2xs);
-		padding-left: 0;
-		margin-bottom: var(--space-md);
-		list-style: none;
-		font-size: var(--text-caption);
-	}
-
-	.etapas li {
-		padding: var(--space-3xs) var(--space-2xs);
-		border: 1px solid currentColor;
-		border-radius: var(--radius-full);
-	}
-
-	.etapas li[aria-current='step'] {
-		color: var(--accent);
-		font-weight: var(--weight-forte);
-		border-color: var(--accent);
 	}
 </style>
