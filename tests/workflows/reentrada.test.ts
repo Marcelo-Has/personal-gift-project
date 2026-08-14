@@ -115,7 +115,7 @@ describe.skipIf(!temJq)('seleção de PR parado para re-entrada (daily-report.ym
 		expect(selecionar(prs, LIMITE)).toEqual([]);
 	});
 
-	it('ignora PR com entrega:completa: está esperando merge humano, não sessão nova', () => {
+	it('ignora PR com entrega:completa e CI verde: espera merge humano, não sessão nova', () => {
 		const prs = [
 			{
 				number: 95,
@@ -125,6 +125,122 @@ describe.skipIf(!temJq)('seleção de PR parado para re-entrada (daily-report.ym
 			}
 		];
 		expect(selecionar(prs, LIMITE)).toEqual([]);
+	});
+
+	/**
+	 * EV2.5 — a regressão do [D-086] item 4 (issue #185).
+	 *
+	 * `entrega:completa` não significa CI verde, e isso é POR DESENHO: o contrato do
+	 * `implement.yml` manda o lead rodar `lint` e `test` e PROÍBE `test:e2e` (~115 MB de browser),
+	 * que só roda no CI depois. O label afirma o que o lead VERIFICOU, não o estado do PR.
+	 *
+	 * Antes desta mudança o sweep olhava só o label: o PR fechava como "completo", ficava vermelho
+	 * e nada o recolocava na fila. Aconteceu duas vezes na onda Q5 (#178 e #181), e nas duas quem
+	 * destravou foi gente.
+	 */
+	it('re-dispara PR com entrega:completa quando o CI reprovou', () => {
+		const prs = [
+			{
+				number: 178,
+				title: '[EV2.4-Q5b] Landing',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:completa'),
+				statusCheckRollup: [{ conclusion: 'SUCCESS' }, { conclusion: 'FAILURE' }]
+			}
+		];
+		expect(selecionar(prs, LIMITE)).toEqual(['178\t0']);
+	});
+
+	it('conta como vermelho também TIMED_OUT e STARTUP_FAILURE', () => {
+		const prs = [
+			{
+				number: 200,
+				title: 'a',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:completa'),
+				statusCheckRollup: [{ conclusion: 'TIMED_OUT' }]
+			},
+			{
+				number: 201,
+				title: 'b',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:completa'),
+				statusCheckRollup: [{ conclusion: 'STARTUP_FAILURE' }]
+			}
+		];
+		expect(selecionar(prs, LIMITE)).toEqual(['200\t0', '201\t0']);
+	});
+
+	it('NÃO re-dispara por check CANCELLED: é ruído de concorrência, não defeito', () => {
+		// `design-critic.yml` e `screenshots.yml` não têm `concurrency` DE PROPÓSITO (check run
+		// cancelado trava o merge), então cancelamento é frequente neste repo. Tratá-lo como
+		// vermelho gastaria sessão de IA para consertar o que não quebrou.
+		const prs = [
+			{
+				number: 202,
+				title: 'c',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:completa'),
+				statusCheckRollup: [{ conclusion: 'CANCELLED' }, { conclusion: 'SUCCESS' }]
+			}
+		];
+		expect(selecionar(prs, LIMITE)).toEqual([]);
+	});
+
+	it('CI vermelho NÃO atropela precisa-humano: o teto continua sendo parada dura', () => {
+		const prs = [
+			{
+				number: 203,
+				title: 'd',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:completa', 'precisa-humano', 'reentrada:3'),
+				statusCheckRollup: [{ conclusion: 'FAILURE' }]
+			}
+		];
+		expect(selecionar(prs, LIMITE)).toEqual([]);
+	});
+
+	it('CI vermelho NÃO atropela [BLOQUEADO]: Decision Gate espera humano de propósito', () => {
+		const prs = [
+			{
+				number: 204,
+				title: '[BLOQUEADO] e',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:completa'),
+				statusCheckRollup: [{ conclusion: 'FAILURE' }]
+			}
+		];
+		expect(selecionar(prs, LIMITE)).toEqual([]);
+	});
+
+	it('CI vermelho não dispensa a janela: PR que acabou de mexer não é "parado"', () => {
+		const prs = [
+			{
+				number: 205,
+				title: 'f',
+				updatedAt: RECENTE,
+				labels: rotulo('entrega:completa'),
+				statusCheckRollup: [{ conclusion: 'FAILURE' }]
+			}
+		];
+		expect(selecionar(prs, LIMITE)).toEqual([]);
+	});
+
+	it('PR sem statusCheckRollup nenhum não quebra o filtro do repo inteiro', () => {
+		// O `?` em `.statusCheckRollup[]?` existe para isto: um PR sem a chave (ou com ela nula)
+		// não pode derrubar a seleção de todos os outros — mesmo argumento do achado M2.
+		const prs = [
+			{ number: 206, title: 'g', updatedAt: PARADO, labels: rotulo('entrega:completa') },
+			{
+				number: 207,
+				title: 'h',
+				updatedAt: PARADO,
+				labels: rotulo('entrega:completa'),
+				statusCheckRollup: null
+			},
+			{ number: 208, title: '[WIP] i', updatedAt: PARADO, labels: rotulo('entrega:incompleta') }
+		];
+		expect(selecionar(prs, LIMITE)).toEqual(['208\t0']);
 	});
 
 	it('reporta o MAIOR reentrada:N, para o shell aplicar o teto sobre a contagem certa', () => {

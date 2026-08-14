@@ -30,9 +30,34 @@
  * `conferir-evidencia.mjs`, e é por ela que a reprovação de ofício daquele script (que não tem
  * última linha, porque nem chegou a haver crítica) é lida aqui como o que é: uma reprovação.
  *
+ * EV2.5 — A RODADA PASSA A SER DERIVADA, NÃO INCREMENTADA ([D-086] item 3, issue #184).
+ *
+ * O contador acima tinha um defeito que só apareceu quando a Q5 ligou a fábrica de verdade: ele
+ * media **invocações de job**, não iterações. `design-critic.yml` escuta `synchronize` E
+ * `labeled` e não tem `concurrency` (ausência deliberada — check run CANCELLED trava o merge),
+ * então dois runs podiam nascer do mesmo commit, no mesmo segundo, e cada um gravava uma rodada.
+ * Medido no PR #178: dois runs no sha `5bc1abc9` às 14:17:49, duas rodadas.
+ *
+ * E o defeito era REFLEXIVO: o comando de recuperação `gh pr edit --remove-label "a,b"` emite
+ * DOIS eventos `unlabeled` — ou seja, **limpar o teto queimava o teto**, gastando 2/3 do
+ * orçamento antes de a primeira sessão de correção rodar.
+ *
+ * A correção não é um lock nem `concurrency`: é tornar a contagem **idempotente**. A rodada passa
+ * a ser o número de SHAs DISTINTOS que já receberam veredito neste PR, incluindo o atual. Dois
+ * runs sobre o mesmo commit calculam o mesmo número, em qualquer ordem e sem se enxergarem —
+ * porque contam um conjunto, não incrementam um contador. O teto volta a medir o que a [D-078] §7
+ * queria medir: **desacordo sobre estados revisados**, não aritmética de gatilhos.
+ *
+ * O label `design:rodada-N` continua existindo, mas vira **reflexo auditável** no quadro, não a
+ * fonte da verdade — por isso `rodadaAtual()` segue exportada e o comando de recuperação humano
+ * (remover a label) continua funcionando sem alterar a contagem real.
+ *
  * Entradas, todas por ambiente:
  *   VEREDITO_ARQUIVO   caminho do arquivo escrito pelo agente (ou pelo gate de evidência).
  *   PR                 número do PR. Sem ele o script julga e NÃO mexe em label.
+ *   SHA                commit sob crítica. É ele que torna a contagem idempotente; sem ele o
+ *                      script cai no incremento antigo (fail-open só para a CONTAGEM, nunca
+ *                      para o veredito).
  *   TETO               rodadas antes de `precisa-humano` (padrão 3).
  *   GH_TOKEN           token do runner, para o `gh`.
  *
@@ -44,11 +69,20 @@ import { pathToFileURL } from 'node:url';
 
 const ARQUIVO = (process.env.VEREDITO_ARQUIVO || '').trim();
 const PR = (process.env.PR || '').trim();
+const SHA = (process.env.SHA || '').trim();
 const TETO = Number(process.env.TETO || 3);
 
 /** O prefixo da label que conta as rodadas. Espelha o `reentrada:N` do [D-047]. */
 export const PREFIXO_RODADA = 'design:rodada-';
 export const LABEL_HUMANO = 'precisa-humano';
+
+/**
+ * O marcador que o step de publicação embute (em comentário HTML, invisível no corpo renderizado)
+ * em cada veredito publicado. É a memória de quais commits já foram criticados — e o PR é o lugar
+ * certo para guardá-la, pelo mesmo motivo que a contagem do [D-047] mora em label: fica no próprio
+ * objeto, é auditável por quem olha o PR, e não depende de log nem de janela de tempo.
+ */
+export const MARCADOR_SHA = 'design-critic:sha=';
 
 /**
  * Lê o desfecho do arquivo de veredito.
@@ -100,27 +134,56 @@ export function rodadaAtual(labels) {
 }
 
 /**
+ * Os commits que já receberam veredito neste PR, lidos do `MARCADOR_SHA` nos comentários.
+ *
+ * Aceita SHA curto ou completo e normaliza para minúsculas: o que importa é a IDENTIDADE do
+ * estado revisado, e dois runs do mesmo commit têm de cair no mesmo balde.
+ *
+ * @param {Array<string | { body?: string }> | undefined} comentarios
+ * @returns {Set<string>}
+ */
+export function shasCriticados(comentarios) {
+	const achados = new Set();
+	const padrao = new RegExp(`${MARCADOR_SHA}([0-9a-fA-F]{7,40})`, 'g');
+	for (const c of comentarios || []) {
+		const corpo = typeof c === 'string' ? c : c?.body || '';
+		for (const m of corpo.matchAll(padrao)) achados.add(m[1].toLowerCase());
+	}
+	return achados;
+}
+
+/**
  * O que fazer depois de uma reprovação: qual label entra, qual sai, e se o teto estourou.
+ *
+ * A rodada é **derivada**: `|{SHAs já criticados} ∪ {SHA atual}|`. Isso é o que torna a operação
+ * idempotente — dois runs simultâneos sobre o mesmo commit calculam o mesmo número sem se
+ * enxergarem, porque ambos contam o mesmo conjunto. Nenhum lock, e a ausência de `concurrency`
+ * no workflow (deliberada) deixa de ser um problema.
+ *
+ * Sem `sha` — ambiente incompleto — cai no incremento antigo. É fail-open só na CONTAGEM, nunca
+ * no veredito: um teto que erra para mais gastaria orçamento à toa; o desfecho REPROVADO já foi
+ * decidido antes daqui e não depende deste cálculo.
  *
  * O teto é comparado com a rodada NOVA: com `TETO = 3`, a terceira reprovação já entrega o PR ao
  * humano. Deixar para a quarta seria pagar mais uma rodada do job mais caro da fábrica para
  * confirmar o que a terceira já disse.
  *
- * @param {Array<string | { name?: string }> | undefined} labelsAtuais
- * @param {number} [teto]
+ * @param {{ labels?: Array<string | { name?: string }>, comentarios?: Array<string | { body?: string }>, sha?: string, teto?: number }} [entrada]
  * @returns {{ atual: number, nova: number, adicionar: string[], remover: string[], estourou: boolean }}
  */
-export function proximaRodada(labelsAtuais, teto = TETO) {
-	const atual = rodadaAtual(labelsAtuais);
-	const nova = atual + 1;
+export function proximaRodada({ labels, comentarios, sha, teto = TETO } = {}) {
+	const atual = rodadaAtual(labels);
+	const criticados = shasCriticados(comentarios);
+	if (sha) criticados.add(String(sha).toLowerCase());
+	const nova = criticados.size > 0 ? criticados.size : atual + 1;
 	return {
 		atual,
 		nova,
-		adicionar: [
-			`${PREFIXO_RODADA}${nova}`,
-			...(nova >= teto ? [LABEL_HUMANO] : [])
-		],
-		remover: atual > 0 ? [`${PREFIXO_RODADA}${atual}`] : [],
+		adicionar: [`${PREFIXO_RODADA}${nova}`, ...(nova >= teto ? [LABEL_HUMANO] : [])],
+		// Só tira a label anterior quando ela de fato ficou obsoleta. Re-criticar o MESMO commit
+		// mantém o número, e nesse caso remover-e-readicionar produziria dois eventos de label
+		// por nada — que é a própria classe de defeito que esta mudança fecha.
+		remover: atual > 0 && atual !== nova ? [`${PREFIXO_RODADA}${atual}`] : [],
 		estourou: nova >= teto
 	};
 }
@@ -138,12 +201,20 @@ function gh(args, { tolerarFalha = false } = {}) {
 }
 
 /**
- * Labels do PR. Falha de rede aqui não pode virar "rodada 1" para sempre — daí o `throw`.
+ * Labels e comentários do PR, numa chamada só. Falha de rede aqui não pode virar "rodada 1" para
+ * sempre — daí o `throw`.
+ *
+ * Os comentários são a memória dos SHAs já criticados (`MARCADOR_SHA`), e vêm junto das labels de
+ * propósito: são lidos no mesmo instante, então não há janela em que um esteja atualizado e o
+ * outro não.
+ *
  * @param {string} numero
+ * @returns {{ labels: Array<{ name?: string }>, comentarios: Array<{ body?: string }> }}
  */
-function labelsDoPr(numero) {
-	const r = gh(['pr', 'view', numero, '--json', 'labels']);
-	return JSON.parse(r.stdout || '{"labels":[]}').labels || [];
+function estadoDoPr(numero) {
+	const r = gh(['pr', 'view', numero, '--json', 'labels,comments']);
+	const dados = JSON.parse(r.stdout || '{"labels":[],"comments":[]}');
+	return { labels: dados.labels || [], comentarios: dados.comments || [] };
 }
 
 /**
@@ -188,7 +259,14 @@ function main() {
 	}
 
 	try {
-		const passo = proximaRodada(labelsDoPr(PR));
+		const { labels, comentarios } = estadoDoPr(PR);
+		const passo = proximaRodada({ labels, comentarios, sha: SHA });
+		if (!SHA) {
+			console.log(
+				'::warning::Sem `SHA` no ambiente: a rodada foi contada por incremento, não por commit ' +
+					'distinto. Dois runs do mesmo commit voltam a contar duas rodadas ([D-086] item 3).'
+			);
+		}
 		garantirLabel(
 			`${PREFIXO_RODADA}${passo.nova}`,
 			'C5DEF5',

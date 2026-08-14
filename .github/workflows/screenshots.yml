@@ -33,6 +33,10 @@ on:
       - '.github/scripts/netlify-preview-url.mjs'
       - '.github/scripts/aguardar-screenshots.mjs'
       - '.github/scripts/conferir-evidencia.mjs'
+      # EV2.5 (issue #184): a mecânica do teto e a união das duas passadas. Mesma razão dos
+      # anteriores — quem muda o gate produz a evidência que o exercita.
+      - '.github/scripts/veredito-critic.mjs'
+      - '.github/scripts/unir-passadas-critic.mjs'
 
 # Menor privilégio: ler o código, ler o commit status da Netlify e ler os comentários do PR (as
 # duas fontes da URL do preview). Nada de escrita — este workflow não comenta e não empurra nada.

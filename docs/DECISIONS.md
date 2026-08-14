@@ -3819,6 +3819,404 @@ deliberada — a mudança de infra é exercitada pelo PR que a faz.
 workflow: o App da fábrica não tem escopo `workflows`.
 
 ---
+## D-086 | 2026-08-14 | ACEITA
+
+**A fábrica valida CONTRATOS e não valida AMBIENTES. As ondas Q1–Q4 foram validadas por
+leitura estática e por teste de unidade sobre os scripts; a Q5 foi a primeira a RODAR os
+gates ponta a ponta contra PRs de UI reais, e encontrou quatro defeitos estruturais —
+nenhum deles visível em leitura estática, dois deles capazes de travar a fábrica inteira.**
+EV2.4 · onda Q5 (páginas-piloto), fechando o ciclo que a [D-085] deixou "provado com
+violação plantada" mas nunca exercitado por um PR de verdade.
+
+**Por quê agora.** A [D-085] fecha dizendo que "o primeiro PR de UI real encontra o critic
+vermelho, e o trabalho dele é derivar do `DESIGN.md`". Foram dois PRs de UI real (#176,
+#178). O critic de fato ficou vermelho — mas por motivos que a [D-085] não previu, e que
+só apareceram porque alguém ligou a fábrica e olhou. **A lição não é sobre design: é sobre
+o que "testado" significava até aqui.** Um gate cujo teste de unidade passa e cujo job
+falha em todo PR é indistinguível, em leitura estática, de um gate que funciona.
+
+**1. O `design-critic` era um gate que NENHUM PR podia passar** — corrigido em `e40fd7a`.
+`conferir-evidencia.mjs` obtinha a lista de telas esperadas por `spawn` de
+`screenshots.mjs --listar`, e esse módulo importa `playwright-core`. O job do critic não roda
+`npm ci`. O `spawn` falhava, o gate de evidência era **fail-closed** (corretamente), o
+veredito nunca era escrito, e a reprovação de ofício da [D-083] §6 saía **vermelha e MUDA**
+em todo PR de UI. O gate mais caro da fábrica não podia ser passado por construção.
+
+Por que a leitura estática não pegaria: o acoplamento entra por **`spawn`**, não por
+`import`. Uma checagem estática de dependências do módulo do gate não vê o processo filho.
+A regressão que acompanha o fix **executa os scripts fora da árvore do repositório**, que é
+o único jeito de reproduzir "sem `node_modules`" dentro de um teste que roda com
+`node_modules` presente.
+
+**2. A re-entrada do FU-17 NUNCA funcionou** — corrigido em `7dec21a`. Os dois atuadores de
+re-entrada disparam com o `GITHUB_TOKEN` do job, o que faz o actor ser
+`github-actions[bot]`; a `claude-code-action` recusa antes de instanciar o agente
+("non-human actor"). Dois no-ops de 40 s queimaram `reentrada:2` e `reentrada:3` e
+entregaram o PR #178 a `precisa-humano` sem que uma única sessão tivesse rodado.
+
+O mecanismo sobreviveu ao FU-17 inteiro porque **toda re-entrada anterior tinha sido
+manual** — actor humano, caminho feliz. O automático nunca havia sido exercitado. Fix:
+`allowed_bots: "claude,github-actions"`, com regressão geral.
+
+**Validado em produção nesta mesma onda**, que é o ponto de método do item 6: o run
+`31814905412` falhou no guard-rail ("Exigir PR aberto pelo developer-lead"), gravou
+`reentrada:2` e disparou o run `31815691816` — **que instanciou o agente e trabalhou**. É a
+primeira re-entrada automática da história do projeto que não é um no-op de 40 s. O teste de
+regressão provava a condição; só o exercício em ambiente real provou o mecanismo.
+
+**3. O teto de rodadas conta RUNS, não iterações — e estoura por aritmética, não por
+desacordo. NÃO CORRIGIDO.** Evidência: dois runs do critic no MESMO sha `7b55220a`, no
+MESMO instante, cada um gravando uma rodada. `design-critic.yml` escuta `synchronize` **e**
+`labeled` e não tem `concurrency` (ausência deliberada, para não deixar check run
+CANCELLED travando o merge). Somado a isso, cada push incremental depois de
+`entrega:completa` dispara uma rodada — e o contrato do `implement.yml` **EXIGE** push
+incremental ("NUNCA só no fim").
+
+**As duas regras se contradizem**: o contrato do builder manda fazer exatamente o que
+consome o orçamento do crítico.
+
+**E o defeito é reflexivo: limpar o teto queima o teto.** Medido nesta sessão. O comando de
+recuperação `gh pr edit 178 --remove-label "precisa-humano,design:rodada-5"` emite **dois**
+eventos `unlabeled`; com `entrega:completa` ainda presente, os dois passam o gate e viram
+dois runs do critic no mesmo sha `5bc1abc9`, no mesmo segundo (14:17:49) — **duas rodadas
+gastas pelo ato de zerar as rodadas**. O PR voltou a `precisa-humano` uma reprovação depois.
+O operador que segue o procedimento de recuperação gasta 2/3 do teto antes de a primeira
+sessão rodar.
+
+**Mitigação operacional que funciona, medida na mesma sessão:** retirar `entrega:completa`
+**ANTES** de tocar em qualquer outra label. O gate de label do `design-critic.yml` passa a
+barrar, e os eventos `unlabeled` seguintes viram runs `skipped` — verificado: três runs,
+três `skipped`, zero rodadas gastas. Isso também mantém o critic fora dos pushes
+incrementais do builder, que é o outro braço da contradição. **A ordem das operações virou
+procedimento, não preferência.**
+
+Correção conceitual, quando for feita: contar rodada por **veredito sobre um estado
+revisado**, desduplicando por SHA — não por invocação de job.
+
+**4. `entrega:completa` não significa CI verde, POR DESENHO. NÃO CORRIGIDO.** O contrato do
+`implement.yml` manda rodar `lint` e `test` e **proíbe** `test:e2e` (~115 MB de browser),
+que só roda no CI depois. Logo o label é uma afirmação sobre o que o lead verificou, não
+sobre o estado do PR. Mas o guard-rail decide re-entrada olhando **só o label**: o PR fecha
+como "completo", fica vermelho no CI, e **nada recoloca a fábrica nele**. O PR #178 ficou
+exatamente nesse estado. Hoje quem tira o PR de lá é gente.
+
+**5. VARIÂNCIA DO CRITIC — e ela não é leniência. Vereditos opostos com DIFF ZERO.**
+
+A primeira evidência veio de pares com diff pequeno: `65f48397`→`9c201d6` (26 linhas)
+APROVADO→REPROVADO; `d8c3a2a6`→`c0474cb7` (14 linhas) REPROVADO com 3 High na dimensão 7 →
+APROVADO **com a condição que gerou os High inalterada**. Já bastava para suspeitar, mas
+ainda dava para argumentar que o diff explicava a diferença.
+
+**A prova definitiva não tem diff.** No PR #178, sha `9cea4eb3`, dois runs do critic
+dispararam no MESMO instante (14:40:11) sobre o MESMO commit, com o pipeline idêntico —
+os onze steps iguais, evidência visual conferida, agente executado, veredito publicado. O
+step 11 divergiu: run `31810646274` **REPROVADO**, run `31810646494` **APROVADO**. Mesma
+entrada, bit a bit. Vereditos opostos.
+
+**E a divergência não foi de tom — foi de percepção.** O run que reprovou descreveu um
+[High] concreto: a voz do sistema roteada para a coluna fixa de 64px da `.margem`
+renderizando como escada de uma palavra por linha. O run que aprovou não mencionou a
+escada; relatou só um desalinhamento vertical [Med] do mesmo elemento. **Um dos dois não
+viu um defeito que ocupa a lateral inteira da página.**
+
+**Consequência prática, e é a parte cara.** O sha seguinte (`e7daebe8`) mexeu em teste, não
+em CSS — e o critic **APROVOU**, deixando o PR com o gate verde. Conferi o PNG renderizado:
+a escada estava lá, em `home@768` e `home@1280`, ~11 linhas, no topo da página. **O gate
+mais caro da fábrica emitiu verde sobre um defeito visual grave e visível.** Não fosse a
+conferência humana do render, o PR teria sido mergeado com ele — que é exatamente o que a
+suspeita sobre o #176 já indicava ter acontecido uma vez.
+
+**Terceira medição, no sha `2cfad3e2`, e ela isola a variável.** Dois runs simultâneos, os
+dois **APROVADOS** — mas com achados [Med] **diferentes**: um descreveu a quebra do rótulo
+em quatro linhas de uma palavra; o outro, um vão de ~180px entre o rótulo e o CTA em 375
+(`align-content` ausente num grid de `100dvh`), que o primeiro não mencionou. Ambos os
+defeitos eram reais — conferi os dois no render. Ou seja: **a instabilidade não está no
+julgamento, está na percepção.** O critic não discorda de si mesmo sobre a gravidade do que
+vê; ele vê coisas diferentes a cada passada. Isso explica os vereditos opostos do item
+anterior sem apelar para severidade, e é o motivo de trocar o modelo não ser a resposta
+óbvia: um modelo melhor com uma passada só continua sendo uma amostra.
+
+**Quarta medição, no sha `d34c4035`, e é a mais eloquente.** Gêmeos de novo, vereditos
+opostos de novo (um REPROVADO, um APROVADO). Mas o que o run reprovador viu não era um
+detalhe: **o wireframe da §6 abre a composição com uma barra de topo** (`Nossa História` à
+esquerda, ação `Começar` à direita, anotada "barra: marca à esq.") **que não existe no
+código nem em nenhum dos três renders**. Confirmado. É um item do contrato inteiro, ausente
+da página — e **oito rodadas de crítica visual não o viram**, incluindo os cinco runs que
+aprovaram o PR.
+
+Isso fecha o diagnóstico: o critic não é leniente nem severo demais, e não erra a gravidade
+do que examina. **Ele amostra.** Cada passada cobre um subconjunto do contrato, e o
+subconjunto muda. Um achado [High] de omissão estrutural pode sobreviver a oito rodadas
+simplesmente por nunca ter caído na amostra.
+
+A implicação operacional é que **duas passadas independentes valem mais que uma passada
+melhor** — a união dos achados dos runs gêmeos foi, nas quatro medições, mais completa que
+qualquer run isolado. Vale registrar a ironia: o bug de concorrência do item 3, que dispara
+o critic em duplicata e queima o teto de rodadas, é **também** o que produziu a segunda
+amostra em todas as quatro medições. O defeito de infra estava compensando o defeito de
+método. Corrigir o item 3 sem endereçar o item 5 **pioraria** a cobertura do gate — as duas
+correções são uma só.
+
+A [D-084] previa "subir para opus se a EV2.5 medir o critic como leniente". O que a Q5
+mediu **não é leniência — é instabilidade nas duas direções**, e é um problema diferente:
+leniência se corrige com um juiz mais severo, instabilidade não. **Um gate que muda de
+opinião sem que a entrada mude não é um gate, é uma amostra.** Um único run do critic não
+tem autoridade para aprovar; só a reprovação carrega informação confiável (quando ele vê um
+defeito, o defeito tende a existir — os dois achados da rodada 5 procederam, e o [High] da
+escada procedeu).
+
+**Vira issue de fábrica para a EV2.5**, antes de qualquer ajuste de severidade ou troca de
+modelo. Trocar para opus agora seria tratar instabilidade como se fosse leniência.
+
+**O que a Q5 confirma sobre o critic, apesar disso.** O critério de conclusão pedia que o
+critic reprovasse ao menos um caso "token-limpo mas genérico", e ele reprovou com fartura:
+High D7 no #176 ("a linha lida como enfeite de borda") e High D1 no #178 ("o placeholder
+mais genérico possível") — este último no LCP declarado, e **contra o texto da própria
+issue**, que contradizia o `DESIGN.md`. O teste anti-default funciona. É a estabilidade do
+veredito que não está resolvida.
+
+**6. O bypass da branch protection continua valendo, agora como exceção NOMEADA.** A `main`
+ganhou proteção ("Changes must be made through a pull request", "5 of 5 required status
+checks") depois que o precedente da [D-079]/[D-084]/[D-085] foi estabelecido, e os dois
+consertos desta onda (`e40fd7a`, `7dec21a`) foram empurrados direto por permissão de admin.
+A decisão do dono: **manter**, restrito a **conserto de fábrica** (workflows e scripts de
+gate), porque a armadilha de bootstrap é real e dupla — o App da fábrica não tem escopo
+`workflows`, e a [D-085] §8 faz o job do critic **restaurar `.github/scripts/` da base**, de
+modo que um PR que conserta o gate seria julgado pelo gate quebrado que ele conserta. Todo
+o resto (produto, docs, inclusive esta entrada) continua obrigado a passar por PR. O bypass
+é exceção com nome e motivo escritos, não prática geral.
+
+**Consequência de método, que é o ponto desta entrada.** "Passou no teste de unidade" e
+"o gate funciona" são afirmações diferentes, e a fábrica vinha tratando as duas como uma
+só. Todo gate novo precisa de **um exercício ponta a ponta em ambiente real** antes de ser
+considerado entregue — não só uma violação plantada contra o script isolado.
+
+**E um corolário que a variância do item 5 impõe:** enquanto o critic for instável, **check
+verde não substitui olhar o PNG renderizado**. O defeito que fechou esta onda era invisível
+no CSS, invisível no diff, aprovado pelo gate — e óbvio na imagem. A conferência do render
+entra no procedimento de merge de PR de UI.
+
+**7. Custo medido, e o que ele diz sobre o placar do PR.** Issue 0 (#175, PR #176):
+**US$ 14,29 / 265 turnos** em 3 sessões. Issue 1 (#177, PR #178): **US$ 33,71 / 544 turnos**
+em 9 sessões com transcrição, mais 3 runs sem transcrição (os dois no-ops do item 2 e um
+cancelado). Total da onda até o merge do #178: **US$ 48,00 / 809 turnos**.
+
+**O número é PARCIAL, e o limite é da própria [D-024]:** `review`, `security`, `verdict` e
+`design-critic` não sobem transcrição, então nada do que o critic gastou está aqui — e ele é
+o job mais caro da fábrica (15 PNGs `fullPage` por rodada, e esta onda teve rodadas em
+duplicata pelo item 3). O custo real da Q5 é materialmente maior que US$ 48,00.
+
+**O placar do PR é a alavanca de custo mais forte que a onda mediu, e agora com n maior.** A
+sessão que morreu em `error_max_turns` sem placar atualizado gastou **US$ 8,35 em 101 turnos
+sem entregar** (US$ 0,083/turno). A seguinte, com o estado real escrito no PR pelo dono,
+fechou em **US$ 1,52 / 41 turnos** (US$ 0,037/turno). As cinco rodadas de fechamento, todas
+com escopo escrito no PR antes do disparo, ficaram em **US$ 2,62 e 52 turnos em média**, e
+as duas mais cirúrgicas (uma linha de CSS; um registro na §15) em 41 e 43 turnos a
+US$ 0,046/turno. **Escopo escrito no PR antes do disparo vale ~3× em custo por entrega** —
+e é gratuito.
+
+**Procedimento que fica:** toda vez que uma sessão morrer, levantar o estado real do diff e
+publicá-lo no PR ANTES de re-disparar. Nunca re-disparar sobre um placar velho.
+
+**8. Ferramentas que o `developer-lead` tenta e não existem no job**, medidas nas
+transcrições: `Monitor`, `ScheduleWakeup`, `curl`, `gh pr checks`, e a flag de corpo por
+arquivo do `gh`. Cada tentativa custa turnos. A ferramenta de lista de tarefas é
+`TaskCreate` (uma por chamada), e estado de check se lê com
+`gh pr view --json statusCheckRollup`. Escrever isso no corpo do PR junto com o escopo
+elimina o desperdício — foi feito nas rodadas de fechamento desta onda.
+
+**9. A [D-024] × subagentes: a ferramenta existe, e o TESTE é que estava errado.** A issue
+#180 (questionário) foi instruída a reportar isso explicitamente, e reportou.
+
+- **A ferramenta de subagente EXISTE no job.** O evento `init` da transcrição do run
+  `31820595126` lista `Task` no array `tools`, e registra em `agents` os tipos
+  `developer-frontend`, `developer-backend` e `developer-lead`. O lead confirmou por escrito
+  no PR #181 que ela funciona e aceita `subagent_type`. **A hipótese de que o harness a
+  tinha removido ou renomeado para outra coisa está refutada.**
+- **Mas o nome diverge entre a interface e o registro, e é isso que quebra a medição.** O
+  lead relata a ferramenta como **`Agent`**; o `init` a registra como **`Task`**. O teste da
+  [D-081] §3 conta `tool_use` com `.name == "Task"` — uma instanciação real apareceria como
+  `Agent`. **O teste daria falso-negativo mesmo com subagentes rodando**, e é provável que
+  seja isso, e não a ausência de subagentes, o que a [D-024] vinha medindo. Antes da próxima
+  medição, o teste tem de contar **os dois nomes**.
+- **A #180 não fechou a questão porque deixou de ser cross-layer na execução:** o `+page.ts`
+  não precisou de mudança nenhuma (o carregamento por slug já cobria a etapa), então o
+  trabalho inteiro ficou em UI e o lead executou direto, com a justificativa registrada no
+  PR. Decisão fundamentada, não falha — mas significa que **a questão original (a transcrição
+  cobre os turnos INTERNOS de um subagente?) segue sem resposta empírica**, agora por falta
+  de um caso genuinamente cross-layer, não por falta de ferramenta.
+
+**O que continua em aberto ao fim da Q5.** Os itens 3 e 4 não estão corrigidos, e o item 5
+vira issue de fábrica da EV2.5 — com a ressalva de que **3 e 5 têm de ser resolvidos
+juntos**. Nas treze sessões medidas da onda o `developer-lead` nunca instanciou subagente
+(`isSidechain: 0` em todas), sempre por camada única de fato. A [D-024] fica com o teste
+corrigido (item 9) à espera de uma issue realmente cross-layer.
+
+---
+## D-087 | 2026-08-14 | ACEITA
+
+**O teto do `design-critic` passa a contar ITERAÇÃO, não invocação de job — e a crítica passa a
+ser DUAS passadas independentes cuja união vale como veredito, com uma reprovação bastando para
+reprovar.** EV2.5, fechando os itens 3 e 5 da [D-086] (issue #184). As duas correções são uma só,
+e a [D-086] já registrava por quê: o bug de concorrência que duplicava runs era **também** o que
+vinha produzindo a segunda amostra que salvou a onda Q5. Corrigir a concorrência sozinha teria
+PIORADO a cobertura do gate.
+
+**1. A rodada é derivada, não incrementada.** `proximaRodada()` fazia `atual + 1` lendo o label
+`design:rodada-N`. Como `design-critic.yml` escuta `synchronize` **e** `labeled` e não tem
+`concurrency` (ausência deliberada — check run `CANCELLED` trava o merge), dois runs nasciam do
+mesmo commit e cada um gravava uma rodada. Medido no PR #178: dois runs no sha `5bc1abc9`, no
+mesmo segundo, duas rodadas.
+
+E o defeito era **reflexivo**: o comando de recuperação `gh pr edit --remove-label "a,b"` emite
+DOIS eventos `unlabeled` — **limpar o teto queimava o teto**, gastando 2/3 do orçamento antes de a
+primeira sessão de correção rodar. Aconteceu comigo, operando a Q5.
+
+A rodada passa a ser **o número de SHAs distintos que já receberam veredito**, incluindo o atual.
+A memória mora num comentário HTML (`<!-- design-critic:sha=… -->`) que o step de publicação
+embute em cada veredito — no próprio PR, auditável, como a contagem do [D-047] mora em label.
+
+**A escolha não foi um lock nem `concurrency`: foi tornar a operação idempotente.** Dois runs
+simultâneos sobre o mesmo commit calculam o mesmo número **sem se enxergarem**, porque contam um
+conjunto em vez de incrementar um contador. Um lock resolveria a corrida ao custo de uma sequência
+frágil; contar um conjunto faz a corrida deixar de importar. O label `design:rodada-N` continua
+existindo como **reflexo auditável** no quadro, e por isso o comando humano de recuperação
+(remover a label) deixou de alterar a contagem real.
+
+Sem `SHA` no ambiente o script cai no incremento antigo: é fail-open **só na contagem**, nunca no
+veredito — um teto que erra para mais gasta orçamento à toa, mas o desfecho `REPROVADO` já foi
+decidido antes e não depende desse cálculo.
+
+**2. Duas passadas independentes, união fail-closed.** A [D-086] mediu quatro pares de runs
+gêmeos (mesmo commit, mesmo instante, pipeline idêntico). Em três deles os vereditos divergiram, e
+a divergência não era de severidade — era de **percepção**: um run descrevia a voz do sistema
+quebrando em escada e cruzando a régua, o outro não a mencionava, e os dois estavam certos sobre o
+que viram. O [High] da barra de topo ausente do wireframe sobreviveu a **oito rodadas** por nunca
+ter caído na amostra.
+
+O critic **amostra** o contrato. Por isso a rodada passa a ter duas passadas com **prompt
+idêntico** — a diversidade tem de vir da amostragem, não de instrução diferente: prompts
+diferentes produziriam dois críticos diferentes, e a união deixaria de medir cobertura para medir
+a diferença entre os textos. As duas cópias do prompt são mantidas iguais por
+`tests/design/critic-passadas.test.ts`, que falha se divergirem — duas cópias de um contrato
+divergem em silêncio ([D-081]), e aqui a divergência passa a reprovar o CI.
+
+**A união é fail-closed e NÃO é votação: basta uma passada reprovar.** Um defeito visto por uma e
+não pela outra é, pela evidência da Q5, defeito real que a outra não amostrou. Exigir consenso
+descartaria exatamente o achado que a segunda passada existe para pegar. Se só uma passada
+escrever, ela vale sozinha com aviso no corpo; se nenhuma escrever, o arquivo existente é
+preservado — porque nesse caso quem o escreveu foi a reprovação de ofício por evidência ausente
+([D-083] §6), e sobrescrevê-la apagaria o motivo.
+
+**3. O custo — e ele não é neutro.** Onde hoje há gatilho duplo, já se pagavam duas passadas e
+contavam-se **duas** rodadas; agora são duas passadas e **uma** rodada, o que melhora. Onde hoje
+há um run só, **o custo por rodada dobra**. A troca é deliberada: o critic é o job de IA mais caro
+da fábrica (15 PNGs `fullPage`), e paga-se cobertura com dinheiro. O que sustenta a escolha é que
+o teto deixa de estourar por aritmética — a Q5 gastou rodadas com duplicação e com o próprio
+comando de recuperação —, então o número de rodadas por PR tende a cair enquanto a cobertura sobe.
+**Fica como medição a fazer na próxima onda de UI**, não como afirmação.
+
+**4. O que NÃO foi feito.** Não se trocou o modelo do critic para opus. A [D-084] previa essa
+alavanca "caso a EV2.5 meça o critic como leniente" — a Q5 mediu **amostragem**, que é outro
+problema: um modelo melhor com uma passada só continua sendo uma amostra. A alavanca permanece
+disponível e não gasta.
+
+Também não se adicionou `concurrency` ao workflow: continua deliberadamente ausente, e a
+idempotência do item 1 tornou a corrida inócua sem precisar cancelar run nenhum.
+
+**5. O teste da [D-024] estava contando o nome errado.** A [D-081] §3 propôs medir o modo
+coordenado com `jq '[.[] | select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name] | group_by(.) | map({(.[0]): length}) | add'`,
+esperando ver `Task: N`. A [D-086] item 9 já registrou que a ferramenta **existe** (o evento
+`init` da transcrição lista `Task` no toolset e registra `developer-frontend`/`developer-backend`
+em `agents`), mas que o `developer-lead` a enxerga como **`Agent`**. Logo o comando conta um nome
+que nunca aparece nos eventos `tool_use`, e **daria falso-negativo mesmo com subagentes rodando**.
+
+O comando correto conta os dois nomes:
+`jq '[.[] | select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name | select(. == "Task" or . == "Agent")] | length'`,
+junto do `jq '[.[] | select(.isSidechain == true)] | length'` original.
+
+A [D-081] §3 **não foi alterada** — entrada existente não se mexe sem gate (regra 4 do
+`CLAUDE.md`); esta entrada a corrige por acréscimo. A questão de fundo (a transcrição cobre os
+turnos INTERNOS de um subagente?) **segue aberta** por falta de um caso genuinamente cross-layer:
+a issue #180 deixou de ser um quando o `+page.ts` não precisou de mudança.
+
+**Aplicado por PR normal, com merge manual do dono** — e não pelo bypass da [D-086] item 6. A
+armadilha de bootstrap daquele item não se aplica aqui: o `design-critic` só roda em paths de UI,
+então não julga PR de workflow. O precedente do bypass fica reservado a conserto de fábrica
+quebrada, que é o que a [D-086] restringiu.
+
+**Como isto será verificado de verdade.** Teste de unidade verde não é gate funcionando — é a
+lição central da [D-086]. A verificação é o **primeiro PR de UI depois deste** (a issue #179,
+barra de topo): confirmar em `gh run list --workflow=design-critic.yml` que dois runs no mesmo SHA
+gravam **uma** rodada, e que o comentário publicado traz os achados **das duas passadas**. Até lá
+a issue #184 fica aberta.
+
+---
+## D-088 | 2026-08-14 | ACEITA
+
+**Um PR marcado `entrega:completa` com CI vermelho volta sozinho para a fila da fábrica. O
+contrato do `developer-lead` NÃO muda: quem observa o CI é um segundo label, aplicado depois, por
+step não-IA.** EV2.5, fechando o item 4 da [D-086] (issue #185).
+
+**O problema não era um bug — era uma contradição entre duas regras que fazem sentido isoladas.**
+O contrato do `implement.yml` manda o lead rodar `lint` e `test` e **proíbe** `test:e2e` (~115 MB
+de browser por sessão), que só roda no CI depois. Logo `entrega:completa` é uma afirmação sobre
+**o que o lead verificou**, não sobre o estado do PR — e as duas coisas divergem legitimamente.
+Mas o guard-rail do `implement.yml` e o sweep do `daily-report.yml` decidiam re-entrada olhando
+**só o label**: o PR fechava como "completo", ficava vermelho, e **nada o recolocava na fila**.
+
+Aconteceu duas vezes na própria onda Q5. O PR #178 ficou parado nesse estado até intervenção
+manual. O PR #181 marcou `entrega:completa` com **8 testes e2e falhando** — e quatro deles eram
+testes que o próprio PR havia escrito. O lead não tinha como saber: o contrato o proíbe de rodar
+e2e. Nas duas vezes quem destravou foi gente.
+
+**A escolha: opção aditiva, não redefinição.** Três caminhos estavam na mesa — (A) o guard-rail
+passar a olhar o `statusCheckRollup` em vez do label; (B) um segundo label separar "o lead
+terminou" de "o CI concorda"; (C) permitir e2e no job. **Escolhida a B.**
+
+A (C) cai fora por custo: 115 MB de browser por sessão, para reproduzir o que o CI já faz de
+graça. A (A) é a mais direta conceitualmente, mas muda o **significado** de `entrega:completa` no
+meio do contrato do lead e mexe na lógica de desfecho do `implement.yml`, que é a parte mais
+delicada da fábrica — o bloco que decide re-entrada, escreve `reentrada:N` e aplica
+`precisa-humano`. A (B) não toca em nada disso: o lead continua marcando o que sempre marcou, e a
+informação que só o CI tem entra por fora, depois, num step separado. **É a mudança que erra mais
+barato**, e desfazê-la é apagar um step.
+
+**Onde mora.** No `daily-report.yml`, que já é o lugar arquitetural do "PR parado" e já tem a rede
+de retaguarda da FU-17. Um step não-IA aplica `ci:vermelho` em PR `entrega:completa` cujo rollup
+reprovou — **e o remove quando o CI volta ao verde**, sem o quê a correção criaria um beco novo no
+lugar do antigo.
+
+**A decisão de re-disparar lê o `statusCheckRollup`, não o label.** O `prs.json` é montado num
+step anterior ao que aplica o label, então depender do label criaria uma dependência de ordem que
+só falharia no primeiro dia de uso. O label é **rastro auditável** no quadro; a decisão vem do
+rollup, no mesmo `jq` que já filtra os candidatos.
+
+**`CANCELLED` NÃO conta como vermelho**, e isso é deliberado: `design-critic.yml` e
+`screenshots.yml` não têm `concurrency` de propósito (check run cancelado trava o merge), então
+cancelamento é ruído frequente neste repo — a onda Q5 teve vários. Tratá-lo como falha gastaria
+sessão de IA consertando o que não quebrou. Contam `FAILURE`, `TIMED_OUT` e `STARTUP_FAILURE`.
+
+**O que NÃO mudou, e é o que impede laço:** os filtros de segurança da FU-17 continuam valendo
+sobre o caminho novo — `precisa-humano` segue sendo parada dura, `[BLOQUEADO]` segue esperando
+humano de propósito (FU-06), a janela `HORAS_PARADO` continua, e o teto `MAX_TENTATIVAS` continua
+sendo o que impede re-entrada infinita. Cada um desses tem caso de teste próprio contra o caminho
+`ci:vermelho`, porque uma correção que atropelasse qualquer deles seria pior que o defeito.
+
+**Latência aceita: até 24h.** O sweep é diário (`cron: 0 11 * * *`), mais `workflow_dispatch`. Um
+gatilho `workflow_run` daria minutos, mas acrescenta workflow e superfície; contra o **infinito**
+de hoje, 24h resolve o problema real. Fica anotado como melhoria futura, não feito agora
+(`.claude/rules/right-sizing.md`).
+
+**Teste.** `tests/workflows/reentrada.test.ts` **extrai o filtro `jq` do workflow e o executa**,
+como já fazia — reimplementar a regra provaria só que sei escrevê-la duas vezes. `jq` não existe
+no Windows, então os casos pulam localmente e valem no job `ci`, mesmo limite dos testes de regra
+do Firebase.
+
+**Aplicado por PR normal, com merge manual do dono**, sem o bypass da [D-086] item 6 — este
+workflow não é julgado por gate nenhum que ele mesmo conserte.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
