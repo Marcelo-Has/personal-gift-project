@@ -658,3 +658,14 @@ token só (sem breakpoint próprio) não acerta os dois exatamente — `21.5rem`
 minimizando o erro em cada um.
 **Origem:** achado do dono no PR #178, rodada 6 (correção de cálculo aplicada na rodada 7, mesma
 issue #177).
+
+### 2026-08-14 · Barra de topo do wireframe da §6 — omitida na landing da V1
+
+**O quê:** a barra de topo do wireframe da §6 ("Nossa História" à esquerda, ação "Começar" à
+direita, primeira linha da composição) não foi entregue na landing (`/`) desta V1.
+**Por quê:** é chrome global — mora no `+layout.svelte` e apareceria em toda rota, inclusive no
+`/questionário`, que é a issue seguinte da onda. Entregá-la dentro do PR da landing acoplaria um
+componente global ao PR de uma rota só, contra `.claude/rules/right-sizing.md`.
+**Consequência aceita:** até essa issue existir, a landing e o questionário abrem sem marca e sem
+navegação no topo. É omissão registrada, não esquecimento.
+**Origem:** achado [High] do `design-critic` no PR #178, e decisão do dono.
