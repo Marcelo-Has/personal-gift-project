@@ -4025,13 +4025,32 @@ arquivo do `gh`. Cada tentativa custa turnos. A ferramenta de lista de tarefas �
 `gh pr view --json statusCheckRollup`. Escrever isso no corpo do PR junto com o escopo
 elimina o desperdício — foi feito nas rodadas de fechamento desta onda.
 
+**9. A [D-024] × subagentes: a ferramenta existe, e o TESTE é que estava errado.** A issue
+#180 (questionário) foi instruída a reportar isso explicitamente, e reportou.
+
+- **A ferramenta de subagente EXISTE no job.** O evento `init` da transcrição do run
+  `31820595126` lista `Task` no array `tools`, e registra em `agents` os tipos
+  `developer-frontend`, `developer-backend` e `developer-lead`. O lead confirmou por escrito
+  no PR #181 que ela funciona e aceita `subagent_type`. **A hipótese de que o harness a
+  tinha removido ou renomeado para outra coisa está refutada.**
+- **Mas o nome diverge entre a interface e o registro, e é isso que quebra a medição.** O
+  lead relata a ferramenta como **`Agent`**; o `init` a registra como **`Task`**. O teste da
+  [D-081] §3 conta `tool_use` com `.name == "Task"` — uma instanciação real apareceria como
+  `Agent`. **O teste daria falso-negativo mesmo com subagentes rodando**, e é provável que
+  seja isso, e não a ausência de subagentes, o que a [D-024] vinha medindo. Antes da próxima
+  medição, o teste tem de contar **os dois nomes**.
+- **A #180 não fechou a questão porque deixou de ser cross-layer na execução:** o `+page.ts`
+  não precisou de mudança nenhuma (o carregamento por slug já cobria a etapa), então o
+  trabalho inteiro ficou em UI e o lead executou direto, com a justificativa registrada no
+  PR. Decisão fundamentada, não falha — mas significa que **a questão original (a transcrição
+  cobre os turnos INTERNOS de um subagente?) segue sem resposta empírica**, agora por falta
+  de um caso genuinamente cross-layer, não por falta de ferramenta.
+
 **O que continua em aberto ao fim da Q5.** Os itens 3 e 4 não estão corrigidos, e o item 5
-vira issue de fábrica da EV2.5 — com a ressalva do item 5 de que **3 e 5 têm de ser
-resolvidos juntos**. A [D-024] segue sem resposta: nas doze sessões medidas da onda, o
-`developer-lead` **nunca instanciou subagente** (`isSidechain: 0`, zero `Task` em todas),
-porque todas as issues eram de camada única. A verificação foi movida para a issue #180
-(questionário), que é cross-layer, com instrução explícita de o lead REPORTAR se a
-ferramenta `Task` existe no job.
+vira issue de fábrica da EV2.5 — com a ressalva de que **3 e 5 têm de ser resolvidos
+juntos**. Nas treze sessões medidas da onda o `developer-lead` nunca instanciou subagente
+(`isSidechain: 0` em todas), sempre por camada única de fato. A [D-024] fica com o teste
+corrigido (item 9) à espera de uma issue realmente cross-layer.
 
 ---
 ## PENDENTES (Decision Gates antes do lançamento)
