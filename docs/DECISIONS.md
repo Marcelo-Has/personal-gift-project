@@ -4152,6 +4152,71 @@ gravam **uma** rodada, e que o comentário publicado traz os achados **das duas 
 a issue #184 fica aberta.
 
 ---
+## D-088 | 2026-08-14 | ACEITA
+
+**Um PR marcado `entrega:completa` com CI vermelho volta sozinho para a fila da fábrica. O
+contrato do `developer-lead` NÃO muda: quem observa o CI é um segundo label, aplicado depois, por
+step não-IA.** EV2.5, fechando o item 4 da [D-086] (issue #185).
+
+**O problema não era um bug — era uma contradição entre duas regras que fazem sentido isoladas.**
+O contrato do `implement.yml` manda o lead rodar `lint` e `test` e **proíbe** `test:e2e` (~115 MB
+de browser por sessão), que só roda no CI depois. Logo `entrega:completa` é uma afirmação sobre
+**o que o lead verificou**, não sobre o estado do PR — e as duas coisas divergem legitimamente.
+Mas o guard-rail do `implement.yml` e o sweep do `daily-report.yml` decidiam re-entrada olhando
+**só o label**: o PR fechava como "completo", ficava vermelho, e **nada o recolocava na fila**.
+
+Aconteceu duas vezes na própria onda Q5. O PR #178 ficou parado nesse estado até intervenção
+manual. O PR #181 marcou `entrega:completa` com **8 testes e2e falhando** — e quatro deles eram
+testes que o próprio PR havia escrito. O lead não tinha como saber: o contrato o proíbe de rodar
+e2e. Nas duas vezes quem destravou foi gente.
+
+**A escolha: opção aditiva, não redefinição.** Três caminhos estavam na mesa — (A) o guard-rail
+passar a olhar o `statusCheckRollup` em vez do label; (B) um segundo label separar "o lead
+terminou" de "o CI concorda"; (C) permitir e2e no job. **Escolhida a B.**
+
+A (C) cai fora por custo: 115 MB de browser por sessão, para reproduzir o que o CI já faz de
+graça. A (A) é a mais direta conceitualmente, mas muda o **significado** de `entrega:completa` no
+meio do contrato do lead e mexe na lógica de desfecho do `implement.yml`, que é a parte mais
+delicada da fábrica — o bloco que decide re-entrada, escreve `reentrada:N` e aplica
+`precisa-humano`. A (B) não toca em nada disso: o lead continua marcando o que sempre marcou, e a
+informação que só o CI tem entra por fora, depois, num step separado. **É a mudança que erra mais
+barato**, e desfazê-la é apagar um step.
+
+**Onde mora.** No `daily-report.yml`, que já é o lugar arquitetural do "PR parado" e já tem a rede
+de retaguarda da FU-17. Um step não-IA aplica `ci:vermelho` em PR `entrega:completa` cujo rollup
+reprovou — **e o remove quando o CI volta ao verde**, sem o quê a correção criaria um beco novo no
+lugar do antigo.
+
+**A decisão de re-disparar lê o `statusCheckRollup`, não o label.** O `prs.json` é montado num
+step anterior ao que aplica o label, então depender do label criaria uma dependência de ordem que
+só falharia no primeiro dia de uso. O label é **rastro auditável** no quadro; a decisão vem do
+rollup, no mesmo `jq` que já filtra os candidatos.
+
+**`CANCELLED` NÃO conta como vermelho**, e isso é deliberado: `design-critic.yml` e
+`screenshots.yml` não têm `concurrency` de propósito (check run cancelado trava o merge), então
+cancelamento é ruído frequente neste repo — a onda Q5 teve vários. Tratá-lo como falha gastaria
+sessão de IA consertando o que não quebrou. Contam `FAILURE`, `TIMED_OUT` e `STARTUP_FAILURE`.
+
+**O que NÃO mudou, e é o que impede laço:** os filtros de segurança da FU-17 continuam valendo
+sobre o caminho novo — `precisa-humano` segue sendo parada dura, `[BLOQUEADO]` segue esperando
+humano de propósito (FU-06), a janela `HORAS_PARADO` continua, e o teto `MAX_TENTATIVAS` continua
+sendo o que impede re-entrada infinita. Cada um desses tem caso de teste próprio contra o caminho
+`ci:vermelho`, porque uma correção que atropelasse qualquer deles seria pior que o defeito.
+
+**Latência aceita: até 24h.** O sweep é diário (`cron: 0 11 * * *`), mais `workflow_dispatch`. Um
+gatilho `workflow_run` daria minutos, mas acrescenta workflow e superfície; contra o **infinito**
+de hoje, 24h resolve o problema real. Fica anotado como melhoria futura, não feito agora
+(`.claude/rules/right-sizing.md`).
+
+**Teste.** `tests/workflows/reentrada.test.ts` **extrai o filtro `jq` do workflow e o executa**,
+como já fazia — reimplementar a regra provaria só que sei escrevê-la duas vezes. `jq` não existe
+no Windows, então os casos pulam localmente e valem no job `ci`, mesmo limite dos testes de regra
+do Firebase.
+
+**Aplicado por PR normal, com merge manual do dono**, sem o bypass da [D-086] item 6 — este
+workflow não é julgado por gate nenhum que ele mesmo conserte.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
