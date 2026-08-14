@@ -14,7 +14,9 @@ import { ROTAS, VIEWPORTS } from '../../.github/scripts/rotas-de-ui.mjs';
  *   2. Aparece ACIMA da primeira dobra (o topo da régua está dentro da altura do viewport, sem
  *      rolar).
  *   3. O offset é o token certo por largura: `--space-md` (24px) abaixo de 768, `--space-2xl`
- *      (64px) a partir de 768 — nunca um literal solto.
+ *      (64px) a partir de 768 — nunca um literal solto. Medido a partir da borda esquerda de
+ *      `.pagina`, não do viewport: a §3 fala em "borda esquerda da coluna de conteúdo", e desde a
+ *      [D-089] a página é centralizada, então as duas medidas deixaram de coincidir.
  *   4. NENHUM elemento cruza a régua — nem para a esquerda dela nem para a direita.
  *
  * Tolerância de 1px para arredondamento subpixel de layout, igual ao gate de viewports.
@@ -89,7 +91,12 @@ for (const { largura, altura } of VIEWPORTS) {
 					return {
 						reguaTop: rRegua.top + window.scrollY,
 						reguaBottom: rRegua.bottom + window.scrollY,
-						reguaLeft: rRegua.left,
+						// Relativo a `.pagina`, NÃO ao viewport: a §3 posiciona a régua "da borda esquerda
+						// da coluna de conteúdo", e desde a [D-089] `.pagina` é centralizada
+						// (`--largura-pagina` + `margin-inline: auto`), como o conceito e o grid da §6
+						// sempre pediram. Medir do viewport passaria a somar a margem de centralização
+						// (80px em 1280) ao offset do token e reprovaria a composição correta.
+						reguaLeft: rRegua.left - rPagina.left,
 						paginaTop: rPagina.top + window.scrollY,
 						paginaBottom: rPagina.bottom + window.scrollY,
 						// A altura REAL da página — não a de `.pagina`, que por construção (a régua é
