@@ -4053,6 +4053,105 @@ juntos**. Nas treze sessões medidas da onda o `developer-lead` nunca instanciou
 corrigido (item 9) à espera de uma issue realmente cross-layer.
 
 ---
+## D-087 | 2026-08-14 | ACEITA
+
+**O teto do `design-critic` passa a contar ITERAÇÃO, não invocação de job — e a crítica passa a
+ser DUAS passadas independentes cuja união vale como veredito, com uma reprovação bastando para
+reprovar.** EV2.5, fechando os itens 3 e 5 da [D-086] (issue #184). As duas correções são uma só,
+e a [D-086] já registrava por quê: o bug de concorrência que duplicava runs era **também** o que
+vinha produzindo a segunda amostra que salvou a onda Q5. Corrigir a concorrência sozinha teria
+PIORADO a cobertura do gate.
+
+**1. A rodada é derivada, não incrementada.** `proximaRodada()` fazia `atual + 1` lendo o label
+`design:rodada-N`. Como `design-critic.yml` escuta `synchronize` **e** `labeled` e não tem
+`concurrency` (ausência deliberada — check run `CANCELLED` trava o merge), dois runs nasciam do
+mesmo commit e cada um gravava uma rodada. Medido no PR #178: dois runs no sha `5bc1abc9`, no
+mesmo segundo, duas rodadas.
+
+E o defeito era **reflexivo**: o comando de recuperação `gh pr edit --remove-label "a,b"` emite
+DOIS eventos `unlabeled` — **limpar o teto queimava o teto**, gastando 2/3 do orçamento antes de a
+primeira sessão de correção rodar. Aconteceu comigo, operando a Q5.
+
+A rodada passa a ser **o número de SHAs distintos que já receberam veredito**, incluindo o atual.
+A memória mora num comentário HTML (`<!-- design-critic:sha=… -->`) que o step de publicação
+embute em cada veredito — no próprio PR, auditável, como a contagem do [D-047] mora em label.
+
+**A escolha não foi um lock nem `concurrency`: foi tornar a operação idempotente.** Dois runs
+simultâneos sobre o mesmo commit calculam o mesmo número **sem se enxergarem**, porque contam um
+conjunto em vez de incrementar um contador. Um lock resolveria a corrida ao custo de uma sequência
+frágil; contar um conjunto faz a corrida deixar de importar. O label `design:rodada-N` continua
+existindo como **reflexo auditável** no quadro, e por isso o comando humano de recuperação
+(remover a label) deixou de alterar a contagem real.
+
+Sem `SHA` no ambiente o script cai no incremento antigo: é fail-open **só na contagem**, nunca no
+veredito — um teto que erra para mais gasta orçamento à toa, mas o desfecho `REPROVADO` já foi
+decidido antes e não depende desse cálculo.
+
+**2. Duas passadas independentes, união fail-closed.** A [D-086] mediu quatro pares de runs
+gêmeos (mesmo commit, mesmo instante, pipeline idêntico). Em três deles os vereditos divergiram, e
+a divergência não era de severidade — era de **percepção**: um run descrevia a voz do sistema
+quebrando em escada e cruzando a régua, o outro não a mencionava, e os dois estavam certos sobre o
+que viram. O [High] da barra de topo ausente do wireframe sobreviveu a **oito rodadas** por nunca
+ter caído na amostra.
+
+O critic **amostra** o contrato. Por isso a rodada passa a ter duas passadas com **prompt
+idêntico** — a diversidade tem de vir da amostragem, não de instrução diferente: prompts
+diferentes produziriam dois críticos diferentes, e a união deixaria de medir cobertura para medir
+a diferença entre os textos. As duas cópias do prompt são mantidas iguais por
+`tests/design/critic-passadas.test.ts`, que falha se divergirem — duas cópias de um contrato
+divergem em silêncio ([D-081]), e aqui a divergência passa a reprovar o CI.
+
+**A união é fail-closed e NÃO é votação: basta uma passada reprovar.** Um defeito visto por uma e
+não pela outra é, pela evidência da Q5, defeito real que a outra não amostrou. Exigir consenso
+descartaria exatamente o achado que a segunda passada existe para pegar. Se só uma passada
+escrever, ela vale sozinha com aviso no corpo; se nenhuma escrever, o arquivo existente é
+preservado — porque nesse caso quem o escreveu foi a reprovação de ofício por evidência ausente
+([D-083] §6), e sobrescrevê-la apagaria o motivo.
+
+**3. O custo — e ele não é neutro.** Onde hoje há gatilho duplo, já se pagavam duas passadas e
+contavam-se **duas** rodadas; agora são duas passadas e **uma** rodada, o que melhora. Onde hoje
+há um run só, **o custo por rodada dobra**. A troca é deliberada: o critic é o job de IA mais caro
+da fábrica (15 PNGs `fullPage`), e paga-se cobertura com dinheiro. O que sustenta a escolha é que
+o teto deixa de estourar por aritmética — a Q5 gastou rodadas com duplicação e com o próprio
+comando de recuperação —, então o número de rodadas por PR tende a cair enquanto a cobertura sobe.
+**Fica como medição a fazer na próxima onda de UI**, não como afirmação.
+
+**4. O que NÃO foi feito.** Não se trocou o modelo do critic para opus. A [D-084] previa essa
+alavanca "caso a EV2.5 meça o critic como leniente" — a Q5 mediu **amostragem**, que é outro
+problema: um modelo melhor com uma passada só continua sendo uma amostra. A alavanca permanece
+disponível e não gasta.
+
+Também não se adicionou `concurrency` ao workflow: continua deliberadamente ausente, e a
+idempotência do item 1 tornou a corrida inócua sem precisar cancelar run nenhum.
+
+**5. O teste da [D-024] estava contando o nome errado.** A [D-081] §3 propôs medir o modo
+coordenado com `jq '[.[] | select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name] | group_by(.) | map({(.[0]): length}) | add'`,
+esperando ver `Task: N`. A [D-086] item 9 já registrou que a ferramenta **existe** (o evento
+`init` da transcrição lista `Task` no toolset e registra `developer-frontend`/`developer-backend`
+em `agents`), mas que o `developer-lead` a enxerga como **`Agent`**. Logo o comando conta um nome
+que nunca aparece nos eventos `tool_use`, e **daria falso-negativo mesmo com subagentes rodando**.
+
+O comando correto conta os dois nomes:
+`jq '[.[] | select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .name | select(. == "Task" or . == "Agent")] | length'`,
+junto do `jq '[.[] | select(.isSidechain == true)] | length'` original.
+
+A [D-081] §3 **não foi alterada** — entrada existente não se mexe sem gate (regra 4 do
+`CLAUDE.md`); esta entrada a corrige por acréscimo. A questão de fundo (a transcrição cobre os
+turnos INTERNOS de um subagente?) **segue aberta** por falta de um caso genuinamente cross-layer:
+a issue #180 deixou de ser um quando o `+page.ts` não precisou de mudança.
+
+**Aplicado por PR normal, com merge manual do dono** — e não pelo bypass da [D-086] item 6. A
+armadilha de bootstrap daquele item não se aplica aqui: o `design-critic` só roda em paths de UI,
+então não julga PR de workflow. O precedente do bypass fica reservado a conserto de fábrica
+quebrada, que é o que a [D-086] restringiu.
+
+**Como isto será verificado de verdade.** Teste de unidade verde não é gate funcionando — é a
+lição central da [D-086]. A verificação é o **primeiro PR de UI depois deste** (a issue #179,
+barra de topo): confirmar em `gh run list --workflow=design-critic.yml` que dois runs no mesmo SHA
+gravam **uma** rodada, e que o comentário publicado traz os achados **das duas passadas**. Até lá
+a issue #184 fica aberta.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
