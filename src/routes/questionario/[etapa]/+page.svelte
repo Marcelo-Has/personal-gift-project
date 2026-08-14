@@ -587,9 +587,19 @@
 
 	.campo-arquivo {
 		display: inline-block;
+		max-width: 100%;
 		padding: var(--space-sm);
 		border: 1px dashed var(--border);
 		border-radius: var(--radius-sm);
+	}
+
+	/* O controle nativo de arquivo é um widget atômico — não quebra por texto como uma palavra
+	   comum, então nem o `overflow-wrap` da `.itens-foto li` nem o `min-width: 0` da `.folha`
+	   (`src/routes/+layout.svelte`) o alcançam. Sem isto, a largura padrão do navegador para o
+	   controle pode ultrapassar o espaço disponível em 375px e empurrar a página inteira para
+	   rolar na horizontal, mesmo com `.campo-arquivo` e `.folha` corretamente dimensionadas. */
+	.campo-arquivo input[type='file'] {
+		max-width: 100%;
 	}
 
 	.itens-foto {
@@ -713,15 +723,15 @@
 			   entrelinha do h2 na primeira linha, para a caixa de linha de "Passo N de M" bater
 			   perto da linha de base do heading (achado [Med] D1, #178). */
 			padding-top: var(--space-xl);
-			/* A coluna `.margem` (`src/routes/+layout.svelte`) só tem `--space-2xl`, a mesma
-			   medida do `left` da régua — estreita demais para frase real (ex.: "características"
-			   quebrando uma palavra por linha e vazando por cima da régua, achado [High] D7 do
-			   design-critic, #181). Não é para encurtar o texto (§11 pede exemplo real e
-			   específico): a régua é só uma linha decorativa dentro da margem, então a caixa de
-			   texto pode usar todo o vão até onde o `padding` da `.folha` começa
-			   (`--space-2xl` do próprio track + `--space-lg` do `margin-inline-start` da folha),
-			   sem entrar na folha em si. */
-			width: calc(100% + var(--space-lg));
+			/* A coluna `.margem` só tem `--space-2xl` — estreita demais para uma palavra como
+			   "características" sem quebra, que vazava sem aviso para fora da caixa e por cima da
+			   régua (achado [High] D7 do design-critic, #181). A tentativa anterior alargou
+			   `.voz-sistema` até o padding da `.folha` para dar mais espaço ao texto — mas isso
+			   força a caixa a se estender por CIMA da régua (que fica exatamente na borda entre
+			   `.margem` e `.folha`, em `--space-2xl`), o que o gate de régua (`e2e/design/regua.spec.ts`)
+			   proíbe para qualquer elemento, decorativo ou não. `overflow-wrap: break-word` resolve
+			   o vazamento sem sair da coluna: a palavra quebra dentro da própria `.margem` em vez de
+			   pintar por cima da régua. */
 			overflow-wrap: break-word;
 		}
 
