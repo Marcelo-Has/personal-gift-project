@@ -128,3 +128,71 @@ describe('separação das partes de um veredito', () => {
 		expect(separarPartes(APROVA()).achados).toEqual([]);
 	});
 });
+
+describe('nenhuma passada escreveu — o PR não pode ficar vermelho E MUDO', () => {
+	it('escreve uma reprovação EXPLICADA quando não há veredito nenhum', async () => {
+		// Regressão do que aconteceu no PR #186: as duas passadas foram puladas pelo impasse
+		// [D-014] (a action recusa rodar em PR que altera o workflow que a invoca), o arquivo
+		// final ficou vazio e o job reprovou sem uma linha no fio do PR explicando por quê — que
+		// é exatamente o defeito que a [D-086] item 1 registrou.
+		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
+		const { join } = await import('node:path');
+		const { execFileSync } = await import('node:child_process');
+
+		const dir = mkdtempSync(join(tmpdir(), 'critic-'));
+		const saida = join(dir, 'veredito.md');
+		try {
+			execFileSync(
+				process.execPath,
+				[`${process.cwd()}/.github/scripts/unir-passadas-critic.mjs`],
+				{
+					env: {
+						...process.env,
+						PASSADA_A: join(dir, 'nao-existe-a.md'),
+						PASSADA_B: join(dir, 'nao-existe-b.md'),
+						VEREDITO_ARQUIVO: saida
+					},
+					encoding: 'utf8'
+				}
+			);
+			const conteudo = readFileSync(saida, 'utf8');
+			expect(conteudo.split('\n').at(-1)).toBe('REPROVADO');
+			expect(conteudo).toMatch(/D-014/);
+			expect(conteudo).toMatch(/merge manual/i);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('NÃO sobrescreve a reprovação de ofício por evidência ausente', async () => {
+		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
+		const { join } = await import('node:path');
+		const { execFileSync } = await import('node:child_process');
+
+		const dir = mkdtempSync(join(tmpdir(), 'critic-'));
+		const saida = join(dir, 'veredito.md');
+		const oficio = 'Faltam screenshots: reprovação de ofício ([D-083] §6).';
+		writeFileSync(saida, oficio, 'utf8');
+		try {
+			execFileSync(
+				process.execPath,
+				[`${process.cwd()}/.github/scripts/unir-passadas-critic.mjs`],
+				{
+					env: {
+						...process.env,
+						PASSADA_A: join(dir, 'nao-existe-a.md'),
+						PASSADA_B: join(dir, 'nao-existe-b.md'),
+						VEREDITO_ARQUIVO: saida
+					},
+					encoding: 'utf8'
+				}
+			);
+			// Apagar o motivo da reprovação seria trocar um vermelho explicado por um vermelho mudo.
+			expect(readFileSync(saida, 'utf8')).toBe(oficio);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});

@@ -143,11 +143,51 @@ function main() {
 	].filter((p) => p.conteudo.trim() !== '');
 
 	if (passadas.length === 0) {
-		// Nenhuma passada escreveu. O arquivo de saída pode já conter a reprovação de ofício do
-		// `conferir-evidencia.mjs` — sobrescrevê-la apagaria o motivo da reprovação.
+		// Nenhuma passada escreveu. Dois casos, e o arquivo de saída os distingue.
+		if (lerSeExistir(SAIDA).trim() !== '') {
+			// Já existe veredito: é a reprovação de ofício por evidência ausente ([D-083] §6).
+			// Sobrescrevê-la apagaria o motivo da reprovação.
+			console.log(
+				'::warning::Nenhuma das duas passadas escreveu veredito. Preservando o arquivo existente ' +
+					'(reprovação de ofício). O `veredito-critic.mjs` decide o desfecho.'
+			);
+			return 0;
+		}
+
+		// Nada escrito por ninguém. O job reprova de qualquer forma (fail-closed), mas reprovar
+		// EM SILÊNCIO é o pior modo de falha da fábrica — a [D-086] item 1 registrou justamente
+		// um gate que ficava "vermelho e MUDO" em todo PR de UI, sem nada no fio explicando por
+		// quê. Então o motivo é escrito aqui.
+		//
+		// A causa mais provável é o impasse [D-014]: a `claude-code-action` recusa rodar quando o
+		// PR altera o workflow que a invoca. Nesse caso o vermelho é ESPERADO, não tem conserto
+		// na branch, e o desfecho é merge manual.
+		writeFileSync(
+			SAIDA,
+			[
+				'## design-critic — REPROVADO',
+				'',
+				'> [!WARNING]',
+				'> **Nenhuma das duas passadas produziu veredito.** A crítica visual não aconteceu —',
+				'> por fail-closed isto é reprovação, não aprovação.',
+				'',
+				'Causas conhecidas, em ordem de probabilidade:',
+				'',
+				'1. **Impasse [D-014]** — este PR altera um workflow, e a `claude-code-action` recusa',
+				'   rodar em PR que muda o workflow que a invoca. É o caso esperado em PR de fábrica:',
+				'   o vermelho **não tem conserto na branch**, e o desfecho é **merge manual** (label',
+				'   `merge-manual`). Confirme no log dos steps `Passada A`/`Passada B` se aparece',
+				'   `Workflow validation failed`.',
+				'2. As duas passadas esgotaram o orçamento de turnos sem escrever o arquivo.',
+				'3. Falha de infraestrutura nos dois steps de agente.',
+				'',
+				'REPROVADO'
+			].join('\n'),
+			'utf8'
+		);
 		console.log(
-			'::warning::Nenhuma das duas passadas escreveu veredito. Preservando o arquivo existente ' +
-				'(reprovação de ofício, se houver). O `veredito-critic.mjs` decide o desfecho.'
+			'::warning::Nenhuma passada escreveu e não havia veredito de ofício. Escrita uma ' +
+				'reprovação EXPLICADA — o PR fica vermelho com o motivo no fio, nunca vermelho e mudo.'
 		);
 		return 0;
 	}
