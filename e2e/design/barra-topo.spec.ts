@@ -67,8 +67,12 @@ test('vira uma linha só a partir de 768px: marca à esquerda, ação à direita
 	const caixaMarca = await marca.evaluate((el) => el.getBoundingClientRect());
 	const caixaAcao = await acao.evaluate((el) => el.getBoundingClientRect());
 
-	// Mesma linha: os dois têm o mesmo topo (tolerância de arredondamento subpixel).
-	expect(Math.abs(caixaMarca.top - caixaAcao.top)).toBeLessThanOrEqual(1);
+	// Mesma linha: `.barra-topo` usa `align-items: center` (§6) — a ação tem padding vertical
+	// (é um botão) e a marca é só texto, então os TOPOS não coincidem por design; quem coincide é
+	// o centro vertical (tolerância de arredondamento subpixel).
+	const centroMarca = caixaMarca.top + caixaMarca.height / 2;
+	const centroAcao = caixaAcao.top + caixaAcao.height / 2;
+	expect(Math.abs(centroMarca - centroAcao)).toBeLessThanOrEqual(1);
 	// Marca à esquerda da ação.
 	expect(caixaMarca.right).toBeLessThan(caixaAcao.left);
 });
