@@ -34,6 +34,7 @@ interface Medida {
 	reguaLeft: number;
 	paginaTop: number;
 	paginaBottom: number;
+	paginaLeft: number;
 	alturaDocumento: number;
 	viewportHeight: number;
 	cruzamentos: string[];
@@ -99,6 +100,7 @@ for (const { largura, altura } of VIEWPORTS) {
 						reguaLeft: rRegua.left - rPagina.left,
 						paginaTop: rPagina.top + window.scrollY,
 						paginaBottom: rPagina.bottom + window.scrollY,
+						paginaLeft: rPagina.left,
 						// A altura REAL da página — não a de `.pagina`, que por construção (a régua é
 						// `top`/`bottom: 0` DENTRO dela) sempre bate com `reguaBottom` mesmo quando a régua
 						// para no meio da tela. É esta medida, independente de `.pagina`, que prova que a
@@ -141,9 +143,15 @@ for (const { largura, altura } of VIEWPORTS) {
 					`${rota}: a régua não aparece acima da primeira dobra em ${largura}px`
 				).toBeLessThan(medida.viewportHeight);
 
+				// O offset é `--space-md`/`--space-2xl` a partir da borda da FOLHA (`.pagina`), não do
+				// viewport: desde [D-089] `.pagina` centraliza com `margin-inline: auto` a partir de
+				// `--largura-pagina` (1120px), então em telas largas (ex.: 1280px) sobra uma faixa de
+				// `surface` entre o viewport e `.pagina` que não faz parte do offset da régua.
+				const offsetRelativo = medida.reguaLeft - medida.paginaLeft;
 				expect(
-					Math.abs(medida.reguaLeft - offsetEsperado(largura)),
-					`${rota}: offset da régua é ${medida.reguaLeft}px, esperado ${offsetEsperado(largura)}px ` +
+					Math.abs(offsetRelativo - offsetEsperado(largura)),
+					`${rota}: offset da régua é ${offsetRelativo}px (régua em ${medida.reguaLeft}px, folha em ` +
+						`${medida.paginaLeft}px), esperado ${offsetEsperado(largura)}px ` +
 						`(\`--space-md\`/\`--space-2xl\`) em ${largura}px`
 				).toBeLessThanOrEqual(TOLERANCIA);
 
