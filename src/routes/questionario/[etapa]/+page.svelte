@@ -713,6 +713,16 @@
 			   entrelinha do h2 na primeira linha, para a caixa de linha de "Passo N de M" bater
 			   perto da linha de base do heading (achado [Med] D1, #178). */
 			padding-top: var(--space-xl);
+			/* A coluna `.margem` (`src/routes/+layout.svelte`) só tem `--space-2xl`, a mesma
+			   medida do `left` da régua — estreita demais para frase real (ex.: "características"
+			   quebrando uma palavra por linha e vazando por cima da régua, achado [High] D7 do
+			   design-critic, #181). Não é para encurtar o texto (§11 pede exemplo real e
+			   específico): a régua é só uma linha decorativa dentro da margem, então a caixa de
+			   texto pode usar todo o vão até onde o `padding` da `.folha` começa
+			   (`--space-2xl` do próprio track + `--space-lg` do `margin-inline-start` da folha),
+			   sem entrar na folha em si. */
+			width: calc(100% + var(--space-lg));
+			overflow-wrap: break-word;
 		}
 
 		.voz-sistema__passo {

@@ -170,6 +170,11 @@
 	 */
 	.folha {
 		grid-area: conteudo;
+		/* Sem isso, o item de grid usa a largura mínima automática (o min-content do conteúdo,
+		   ex.: um nome de arquivo comprido) como piso — ignorando `overflow-wrap` dos
+		   descendentes e empurrando a página inteira para rolar na horizontal (revisão #181,
+		   achado de e2e em 375 com 12 itens recusados). */
+		min-width: 0;
 		margin-inline-start: var(--space-lg);
 		max-width: var(--medida-leitura);
 		padding: var(--space-md);
