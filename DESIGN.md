@@ -732,3 +732,56 @@ A centralização vai em `.pagina`, não em `.grade`: a régua é `position: abs
 `.pagina`, então centralizar só a grade deixaria a linha para trás.
 
 **Origem:** achado [Med] D1 do `design-critic` no PR #181. Registrada na [D-089].
+
+### 2026-08-14 · Barra de topo do wireframe da §6 — sucessora da omissão, agora entregue
+
+**O quê:** a barra de topo ("Nossa História" à esquerda, ação à direita) passa a existir no
+`+layout.svelte`, acima de `.grade` — chrome global, em toda rota, acima da primeira dobra, sem
+cruzar a régua. Esta entrada é a sucessora prevista na entrada de omissão acima: a landing e o
+questionário deixam de abrir sem marca e sem navegação no topo.
+
+**Decisões tomadas na implementação, sem gate (dentro do wireframe já aprovado da §6):**
+
+- **A ação reusa `homeContent.ctaLabel`/`ctaHref`** ("Começar o meu livro" → `/questionario`) em
+  vez do rótulo curto "[ Começar ]" do wireframe ASCII — o wireframe é ilustrativo, e a própria
+  issue manda "o mesmo rótulo/destino do CTA da home" (anti-pattern 70: dois CTAs com a mesma
+  intenção e rótulos diferentes na mesma página).
+- **A marca é Archivo 800** (`--font-sistema`), não Lora: ela não é conteúdo do casal nem rótulo
+  rebaixado da `.margem` (§3) — é a voz utilitária de capa que a referência Field Notes já
+  descreve na §2 ("tipografia utilitária estreita e pesada"). Fica em `--foreground`, não
+  `--muted`: é identidade, não texto secundário.
+- **Alinhamento sem token novo:** `margin-inline-start` da barra usa os mesmos tokens que já
+  posicionam `.folha` em relação à régua (`--space-lg` no 375; `--space-3xl` — que é exatamente
+  `--space-2xl` da coluna da margem + `--space-lg` do offset da folha — a partir de 768). A marca
+  fica no mesmo eixo X do conteúdo abaixo dela, e a barra nunca começa antes da régua.
+- **Colapso no 375 (a issue pediu para DESENHAR, não só declarar):** a barra empilha — marca em
+  cima, ação embaixo, ocupando a coluna inteira. Em uma só linha, "Nossa História" mais o rótulo
+  completo "Começar o meu livro" não cabem lado a lado em 375px sem apertar as duas (medido por
+  caracteres: as duas juntas passam da largura disponível depois do offset da régua), e encurtar
+  só o rótulo da barra reintroduziria o anti-pattern 70 que a decisão acima evita.
+
+**Origem:** issue #179 (desfecho previsto na entrada de omissão acima, ela mesma originada do
+achado [High] do `design-critic` no PR #178).
+
+### 2026-08-14 · CTA da barra de topo: cheio numa rota, rebaixado noutra
+
+**O quê:** a ação da barra de topo (`.acao-barra`, entrada anterior) deixa de ser sempre
+preenchida em `--accent`. Nas rotas que já têm uma ação primária própria — o questionário
+(`/questionario/**`) e a recuperação de pagamento (`/pedido/cancelado`) — a ação da barra vira
+outline (`border: 1px solid var(--accent)`, fundo transparente, texto em `--accent`), sem
+preenchimento sólido. Nas demais rotas (`/`, `/pedido/sucesso`, `/estilo-e-tamanho`), que hoje só
+têm link secundário, a barra continua cheia.
+
+**Por quê:** com a barra sempre cheia, `pedido-cancelado` e `questionario-pessoas` passaram a ter
+DOIS botões com o mesmo peso visual (`--accent` cheio) competindo pela mesma atenção — o playbook
+§2.2 pede uma ação primária por página, visualmente inequívoca. O caso concreto é pior que
+estético: em `pedido-cancelado`, a barra oferecia "Começar o meu livro" com o mesmo destaque de
+"Tentar pagar de novo", no momento exato de recuperar um pagamento que falhou; em
+`questionario-pessoas`, o rótulo "Começar o meu livro" soa como recomeçar do zero no meio de um
+formulário já preenchido, contra a garantia da §11 de que nada do que foi digitado se perde.
+Achado do `design-critic` (2 reprovações em D4/D1, `sha=dcbe547`), confirmado pelo dono no PR #192.
+
+**Sem token novo:** a régua de tokens (`--accent`, `--radius-sm`) que já estiliza a versão cheia
+resolve a versão outline — só troca `background`/`border`, sem introduzir cor ou raio novos.
+
+**Origem:** revisão do dono no PR #192, issue #179.
