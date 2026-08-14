@@ -732,3 +732,33 @@ A centralização vai em `.pagina`, não em `.grade`: a régua é `position: abs
 `.pagina`, então centralizar só a grade deixaria a linha para trás.
 
 **Origem:** achado [Med] D1 do `design-critic` no PR #181. Registrada na [D-089].
+
+### 2026-08-14 · Barra de topo do wireframe da §6 — sucessora da omissão, agora entregue
+
+**O quê:** a barra de topo ("Nossa História" à esquerda, ação à direita) passa a existir no
+`+layout.svelte`, acima de `.grade` — chrome global, em toda rota, acima da primeira dobra, sem
+cruzar a régua. Esta entrada é a sucessora prevista na entrada de omissão acima: a landing e o
+questionário deixam de abrir sem marca e sem navegação no topo.
+
+**Decisões tomadas na implementação, sem gate (dentro do wireframe já aprovado da §6):**
+
+- **A ação reusa `homeContent.ctaLabel`/`ctaHref`** ("Começar o meu livro" → `/questionario`) em
+  vez do rótulo curto "[ Começar ]" do wireframe ASCII — o wireframe é ilustrativo, e a própria
+  issue manda "o mesmo rótulo/destino do CTA da home" (anti-pattern 70: dois CTAs com a mesma
+  intenção e rótulos diferentes na mesma página).
+- **A marca é Archivo 800** (`--font-sistema`), não Lora: ela não é conteúdo do casal nem rótulo
+  rebaixado da `.margem` (§3) — é a voz utilitária de capa que a referência Field Notes já
+  descreve na §2 ("tipografia utilitária estreita e pesada"). Fica em `--foreground`, não
+  `--muted`: é identidade, não texto secundário.
+- **Alinhamento sem token novo:** `margin-inline-start` da barra usa os mesmos tokens que já
+  posicionam `.folha` em relação à régua (`--space-lg` no 375; `--space-3xl` — que é exatamente
+  `--space-2xl` da coluna da margem + `--space-lg` do offset da folha — a partir de 768). A marca
+  fica no mesmo eixo X do conteúdo abaixo dela, e a barra nunca começa antes da régua.
+- **Colapso no 375 (a issue pediu para DESENHAR, não só declarar):** a barra empilha — marca em
+  cima, ação embaixo, ocupando a coluna inteira. Em uma só linha, "Nossa História" mais o rótulo
+  completo "Começar o meu livro" não cabem lado a lado em 375px sem apertar as duas (medido por
+  caracteres: as duas juntas passam da largura disponível depois do offset da régua), e encurtar
+  só o rótulo da barra reintroduziria o anti-pattern 70 que a decisão acima evita.
+
+**Origem:** issue #179 (desfecho previsto na entrada de omissão acima, ela mesma originada do
+achado [High] do `design-critic` no PR #178).
