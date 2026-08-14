@@ -638,10 +638,23 @@ aceita `calc()` composto nessa propriedade — por isso um novo degrau, não uma
 
 | Token | Valor | Papel |
 | --- | --- | --- |
-| `space-4xl` | `12rem` (192px) | `margin-top` da voz do sistema do herói (`.hero-sistema-desktop`) a partir de 768, aproximando-a da altura do CTA (§3, §6) |
+| `space-4xl` | `21.5rem` (344px) | `margin-top` da voz do sistema do herói (`.hero-sistema-desktop`) a partir de 768, aproximando-a da altura do CTA (§3, §6) |
 
-**Aproximação deliberada, não medição exata:** 192px é uma estimativa a partir da altura somada do
-`h1` (`display`, 2 linhas por wireframe da §6), a frase de apoio e o `gap` até o CTA — não uma
-medição de render (sem browser disponível nesta sessão, como nas rodadas anteriores). Se o próximo
-render mostrar o valor ainda errado, o ajuste é só o valor deste token, não a abordagem.
+**Aproximação deliberada, não medição exata:** o valor é uma estimativa a partir da altura somada do
+`h1` (`display`), a frase de apoio e o `gap` até o CTA — não uma medição de render (sem browser
+disponível nesta sessão, como nas rodadas anteriores). Se o próximo render mostrar o valor ainda
+errado, o ajuste é só o valor deste token, não a abordagem.
 **Origem:** achado do dono no PR #178, rodada 6.
+
+### 2026-08-14 · Correção do `--space-4xl`: a estimativa da rodada 6 assumia o `h1` errado
+
+**Por que corrigir:** a estimativa da rodada 6 (192px) partiu de um `h1` de 2 linhas — mas o render
+mostrou 3 linhas em 1280 e 4 em 768 (a `.margem` fixa em 64px de largura não muda a largura da
+coluna de leitura da `.folha`, só a do rótulo). Recalculando com o número de linhas real: `folha`
+padding-top (`--space-xl`, 48px) + altura do `h1` (`--text-display`/`--leading-display`, 3 ou 4
+linhas conforme o breakpoint) + `margin-top` do `.apoio` (`--space-xs`, 12px) + altura do `.apoio`
+(2 linhas em ambos) + `gap` até o `.cta` (`--space-lg`, 32px) dá ≈317px em 1280 e ≈371px em 768. Um
+token só (sem breakpoint próprio) não acerta os dois exatamente — `21.5rem` (344px) é a média,
+minimizando o erro em cada um.
+**Origem:** achado do dono no PR #178, rodada 6 (correção de cálculo aplicada na rodada 7, mesma
+issue #177).

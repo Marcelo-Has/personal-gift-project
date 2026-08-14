@@ -297,8 +297,9 @@
 	 * A partir de 768 a cópia visível é a que vive na `.margem` de verdade (via `getContext`,
 	 * `vozDoSistema` acima), à esquerda da régua. `--space-4xl` (§15, "Memória de design") aproxima
 	 * o texto da altura do CTA — o gate de tokens não permite um `calc()` composto para mirar a
-	 * altura exata do bloco (que muda com o tamanho do h1/apoio), então o valor é uma estimativa
-	 * registrada como token, não medição de render.
+	 * altura exata do bloco (que muda com o tamanho do h1/apoio, e o h1 quebra em número de linhas
+	 * diferente por breakpoint), então o valor é a MÉDIA entre o que 768 (4 linhas de h1) e 1280 (3
+	 * linhas) precisam — aproximação, não medição de render.
 	 */
 	.hero-sistema-desktop {
 		display: none;
