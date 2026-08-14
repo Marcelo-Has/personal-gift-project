@@ -78,6 +78,7 @@
 
 <style>
 	main {
+		min-width: 0;
 		max-width: 40rem;
 		margin: 0 auto;
 		padding: var(--space-md);

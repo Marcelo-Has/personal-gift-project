@@ -283,13 +283,6 @@
 		<p class="voz-sistema__passo" role="status">Passo {indiceAtual + 1} de {totalEtapas}</p>
 		{#if emErro}
 			<p class="voz-sistema__erro" role="alert">{TEXTO_ERRO_CAMPO}</p>
-		{:else}
-			{#if etapa.intro}
-				<p class="voz-sistema__ajuda">{etapa.intro}</p>
-			{/if}
-			{#if etapa.example && campoPrincipalVazio}
-				<p class="voz-sistema__exemplo">{etapa.example}</p>
-			{/if}
 		{/if}
 		{#if offline}
 			<p class="voz-sistema__offline">{TEXTO_OFFLINE}</p>
@@ -479,6 +472,15 @@
 		</label>
 	{/if}
 
+	{#if !emErro}
+		{#if etapa.intro}
+			<p class="voz-sistema__ajuda">{etapa.intro}</p>
+		{/if}
+		{#if etapa.example && campoPrincipalVazio}
+			<p class="voz-sistema__exemplo">{etapa.example}</p>
+		{/if}
+	{/if}
+
 	<nav class="navegacao-etapas" aria-label="Navegação do questionário">
 		{#if etapaAnterior}
 			<button type="button" class="botao botao--secundario" onclick={voltar}>Voltar</button>
@@ -603,14 +605,20 @@
 	}
 
 	.itens-foto {
+		min-width: 0;
 		padding-left: 0;
 		list-style: none;
 	}
 
 	/* Nome de arquivo e mensagem de erro são texto sem espaço previsível (revisão #181,
-	   regressão de overflow horizontal em 375 com 12 itens recusados). */
+	   regressão de overflow horizontal em 375 com 12 itens recusados). `min-width: 0` porque o
+	   próprio `<li>` (não só o `.folha` ancestral) precisa ter permissão de encolher abaixo do
+	   min-content do nome de arquivo para `overflow-wrap` de fato quebrar a linha em vez de
+	   vazar. */
 	.itens-foto li {
+		min-width: 0;
 		overflow-wrap: anywhere;
+		word-break: break-word;
 	}
 
 	.preview-fotos {
@@ -710,9 +718,27 @@
 		color: var(--destructive);
 	}
 
-	.voz-sistema__ajuda,
-	.voz-sistema__exemplo,
 	.voz-sistema__offline {
+		color: var(--muted);
+	}
+
+	/*
+	 * `ajuda`/`ex.:` (§11): o wireframe "Um passo do questionário" (§6) desenha os dois DENTRO da
+	 * folha, abaixo do campo — não na margem, que é estreita demais (`--space-2xl`, a mesma medida
+	 * do `left` da régua) para frase real ("características" quebrava uma palavra por linha e
+	 * vazava por cima da régua, achado [High] D7 do design-critic, #181; a correção anterior
+	 * alargou a margem até a folha, o que cruzava a régua — o texto tinha de mudar de COLUNA, não
+	 * a margem de LARGURA). Continuam em Archivo/voz do sistema (§3) mesmo fisicamente à direita da
+	 * régua: o conteúdo é gerado pelo produto, não escrito pelo casal.
+	 */
+	.voz-sistema__ajuda,
+	.voz-sistema__exemplo {
+		margin-top: var(--space-2xs);
+		font-family: var(--font-sistema);
+		font-weight: var(--weight-sistema);
+		font-stretch: var(--font-stretch-sistema);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
 		color: var(--muted);
 	}
 
@@ -723,15 +749,9 @@
 			   entrelinha do h2 na primeira linha, para a caixa de linha de "Passo N de M" bater
 			   perto da linha de base do heading (achado [Med] D1, #178). */
 			padding-top: var(--space-xl);
-			/* A coluna `.margem` só tem `--space-2xl` — estreita demais para uma palavra como
-			   "características" sem quebra, que vazava sem aviso para fora da caixa e por cima da
-			   régua (achado [High] D7 do design-critic, #181). A tentativa anterior alargou
-			   `.voz-sistema` até o padding da `.folha` para dar mais espaço ao texto — mas isso
-			   força a caixa a se estender por CIMA da régua (que fica exatamente na borda entre
-			   `.margem` e `.folha`, em `--space-2xl`), o que o gate de régua (`e2e/design/regua.spec.ts`)
-			   proíbe para qualquer elemento, decorativo ou não. `overflow-wrap: break-word` resolve
-			   o vazamento sem sair da coluna: a palavra quebra dentro da própria `.margem` em vez de
-			   pintar por cima da régua. */
+			/* Defesa adicional: `.voz-sistema` só carrega "Passo N de M" e, eventualmente, o erro
+			   (§11) — nenhum dos dois deveria estourar `--space-2xl`, mas `break-word` custa nada
+			   e evita repetir o vazamento sobre a régua que motivou esta rodada (#181). */
 			overflow-wrap: break-word;
 		}
 
