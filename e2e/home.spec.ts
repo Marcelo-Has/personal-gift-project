@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
 
+/** As 7 seções da §6, na ordem — os `id` de `aria-labelledby` de `src/routes/+page.svelte`. */
+const SECOES_EM_ORDEM = [
+	'promessa',
+	'impresso',
+	'cinco-minutos',
+	'preco-prazo',
+	'quem-escreve',
+	'prova',
+	'fechamento'
+];
+
 test('deve exibir a promessa do herói quando a home é carregada', async ({ page }) => {
 	await page.goto('/');
 
@@ -42,3 +53,56 @@ test('deve definir title e meta description da página para SEO mínimo', async 
 	const description = page.locator('meta[name="description"]');
 	await expect(description).toHaveAttribute('content', /.+/);
 });
+
+test('deve ter as 7 seções da §6 presentes, na ordem, e um único h1', async ({ page }) => {
+	await page.goto('/');
+
+	await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+
+	const idsRenderizados = await page
+		.locator('main > section[aria-labelledby]')
+		.evaluateAll((secoes) => secoes.map((secao) => secao.getAttribute('aria-labelledby')));
+	expect(idsRenderizados).toEqual(SECOES_EM_ORDEM);
+});
+
+test('deve ter o mesmo rótulo e o mesmo destino de CTA nas seções 1 e 7 (anti-pattern 70)', async ({
+	page
+}) => {
+	await page.goto('/');
+
+	const ctaPromessa = page.locator('section[aria-labelledby="promessa"] a.cta');
+	const ctaFechamento = page.locator('section[aria-labelledby="fechamento"] a.cta');
+
+	await expect(ctaPromessa).toHaveCount(1);
+	await expect(ctaFechamento).toHaveCount(1);
+	await expect(ctaPromessa).toHaveText(await ctaFechamento.textContent());
+	await expect(ctaPromessa).toHaveAttribute(
+		'href',
+		(await ctaFechamento.getAttribute('href')) ?? ''
+	);
+});
+
+test('deve fixar a ação primária no rodapé, em dvh, quando a promessa sai da tela em 375px', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.goto('/');
+
+	const ctaHero = page.locator('section[aria-labelledby="promessa"] a.cta');
+	await expect(ctaHero).not.toHaveClass(/cta-fixa/);
+
+	await page.locator('section[aria-labelledby="impresso"]').scrollIntoViewIfNeeded();
+	await expect(ctaHero).toHaveClass(/cta-fixa/);
+	await expect(ctaHero).toHaveCSS('position', 'fixed');
+});
+
+for (const largura of [375, 768, 1280]) {
+	test(`deve popular a .margem da home com a voz do sistema em ${largura}px`, async ({ page }) => {
+		await page.setViewportSize({ width: largura, height: 900 });
+		await page.goto('/');
+
+		const margem = page.locator('.margem');
+		await expect(margem).not.toBeEmpty();
+		await expect(margem.getByText(/R\$80.+R\$130/)).toBeVisible();
+	});
+}
