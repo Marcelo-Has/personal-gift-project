@@ -94,9 +94,21 @@
 	 * (absoluta, `top`/`bottom` a 0 DENTRO dela) para junto com o cartão mais curto, e sobra
 	 * `--surface` nua abaixo — a régua nunca alcança o fim visível da página.
 	 */
+	/*
+	 * `max-width` + `margin-inline: auto` é o que faz a folha ficar "ao centro", como o conceito da
+	 * §6 descreve ("uma folha ao centro com uma régua de margem à esquerda") e como o grid de 12
+	 * colunas da mesma seção especifica (conteúdo máximo 1120px). Sem isto a composição colava na
+	 * borda esquerda e toda a sobra de largura em 1280 — quase um terço do viewport — virava uma
+	 * faixa de `surface` de um lado só, em TODA tela do produto ([D-089]).
+	 *
+	 * A centralização vai em `.pagina`, não em `.grade`, porque a régua é `position: absolute`
+	 * DENTRO de `.pagina`: centralizar só a grade deixaria a linha para trás, no eixo antigo.
+	 */
 	.pagina {
 		position: relative;
+		max-width: var(--largura-pagina);
 		min-height: 100dvh;
+		margin-inline: auto;
 	}
 
 	/*

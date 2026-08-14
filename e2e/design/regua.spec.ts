@@ -14,7 +14,9 @@ import { ROTAS, VIEWPORTS } from '../../.github/scripts/rotas-de-ui.mjs';
  *   2. Aparece ACIMA da primeira dobra (o topo da régua está dentro da altura do viewport, sem
  *      rolar).
  *   3. O offset é o token certo por largura: `--space-md` (24px) abaixo de 768, `--space-2xl`
- *      (64px) a partir de 768 — nunca um literal solto.
+ *      (64px) a partir de 768 — nunca um literal solto. Medido a partir da borda esquerda de
+ *      `.pagina`, não do viewport: a §3 fala em "borda esquerda da coluna de conteúdo", e desde a
+ *      [D-089] a página é centralizada, então as duas medidas deixaram de coincidir.
  *   4. NENHUM elemento cruza a régua — nem para a esquerda dela nem para a direita.
  *
  * Tolerância de 1px para arredondamento subpixel de layout, igual ao gate de viewports.
@@ -32,6 +34,7 @@ interface Medida {
 	reguaLeft: number;
 	paginaTop: number;
 	paginaBottom: number;
+	paginaLeft: number;
 	alturaDocumento: number;
 	viewportHeight: number;
 	cruzamentos: string[];
@@ -89,9 +92,13 @@ for (const { largura, altura } of VIEWPORTS) {
 					return {
 						reguaTop: rRegua.top + window.scrollY,
 						reguaBottom: rRegua.bottom + window.scrollY,
+						// Absoluto (do viewport). Quem transforma em offset relativo à folha é a asserção,
+						// subtraindo `paginaLeft` — assim a mensagem de erro mostra as duas coordenadas e
+						// diz onde a régua está E onde a folha está.
 						reguaLeft: rRegua.left,
 						paginaTop: rPagina.top + window.scrollY,
 						paginaBottom: rPagina.bottom + window.scrollY,
+						paginaLeft: rPagina.left,
 						// A altura REAL da página — não a de `.pagina`, que por construção (a régua é
 						// `top`/`bottom: 0` DENTRO dela) sempre bate com `reguaBottom` mesmo quando a régua
 						// para no meio da tela. É esta medida, independente de `.pagina`, que prova que a
@@ -134,9 +141,15 @@ for (const { largura, altura } of VIEWPORTS) {
 					`${rota}: a régua não aparece acima da primeira dobra em ${largura}px`
 				).toBeLessThan(medida.viewportHeight);
 
+				// O offset é `--space-md`/`--space-2xl` a partir da borda da FOLHA (`.pagina`), não do
+				// viewport: desde [D-089] `.pagina` centraliza com `margin-inline: auto` a partir de
+				// `--largura-pagina` (1120px), então em telas largas (ex.: 1280px) sobra uma faixa de
+				// `surface` entre o viewport e `.pagina` que não faz parte do offset da régua.
+				const offsetRelativo = medida.reguaLeft - medida.paginaLeft;
 				expect(
-					Math.abs(medida.reguaLeft - offsetEsperado(largura)),
-					`${rota}: offset da régua é ${medida.reguaLeft}px, esperado ${offsetEsperado(largura)}px ` +
+					Math.abs(offsetRelativo - offsetEsperado(largura)),
+					`${rota}: offset da régua é ${offsetRelativo}px (régua em ${medida.reguaLeft}px, folha em ` +
+						`${medida.paginaLeft}px), esperado ${offsetEsperado(largura)}px ` +
 						`(\`--space-md\`/\`--space-2xl\`) em ${largura}px`
 				).toBeLessThanOrEqual(TOLERANCIA);
 
