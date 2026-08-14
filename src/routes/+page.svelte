@@ -38,16 +38,16 @@
 <main>
 	<!-- 1. Promessa + ação (§6): fazer sentir a promessa e oferecer a ação; não explica o processo. -->
 	<section class="hero" aria-labelledby="promessa">
+		<div class="hero-intro">
+			<h1 id="promessa" class="promessa" bind:this={promessaEl}>{homeContent.hero.promise}</h1>
+			<p class="apoio">{homeContent.hero.lead}</p>
+		</div>
 		<div class="hero-foto">
 			<p>{homeContent.hero.fotoAusente}</p>
 		</div>
-		<div class="hero-texto">
-			<h1 id="promessa" class="promessa" bind:this={promessaEl}>{homeContent.hero.promise}</h1>
-			<p class="apoio">{homeContent.hero.lead}</p>
-			<a class="cta" class:cta-fixa={!promessaVisivel} href={resolve(homeContent.ctaHref)}>
-				{homeContent.ctaLabel}
-			</a>
-		</div>
+		<a class="cta" class:cta-fixa={!promessaVisivel} href={resolve(homeContent.ctaHref)}>
+			{homeContent.ctaLabel}
+		</a>
 	</section>
 
 	<!-- 2. O que está impresso (§6): responde "por que não é uma caneca com foto?"; não mostra preço. -->
@@ -146,6 +146,18 @@
 	.hero {
 		display: grid;
 		grid-template-columns: 1fr;
+		/*
+		 * A ordem de leitura da §6 é "a promessa, depois a foto ao lado dela, depois o botão". Isso
+		 * já é a ordem do DOM (`.hero-intro` → `.hero-foto` → `.cta`), então quem usa leitor de tela
+		 * ouve nessa ordem em qualquer viewport. `grid-template-areas` mapeia esse DOM para a posição
+		 * visual (texto à esquerda/acima, foto à direita/abaixo) sem `order`: `order` só muda a ordem
+		 * VISUAL, não a ordem em que um leitor de tela em modo de leitura percorre a página (WCAG
+		 * 1.3.2, Meaningful Sequence).
+		 */
+		grid-template-areas:
+			'intro'
+			'foto'
+			'cta';
 		gap: var(--space-lg);
 		/* O primeiro viewport é o herói (§10): é o que faz "a promessa sair da tela" ter sentido
 		   antes de fixar a ação no rodapé. `dvh`, nunca `vh` — a barra do navegador in-app entra e
@@ -156,22 +168,18 @@
 	@media (min-width: 768px) {
 		.hero {
 			grid-template-columns: 3fr 2fr;
+			grid-template-areas:
+				'intro foto'
+				'cta   foto';
 			align-items: start;
 			min-height: 0;
 		}
 	}
 
-	/*
-	 * A ordem de leitura da §6 é "a promessa, depois a foto ao lado dela, depois o botão" — a foto
-	 * entra ANTES do botão para quem usa leitor de tela. O marcado por isso tem `.hero-foto` antes
-	 * de `.hero-texto` (a foto ainda não existe — §7.2 — então ela precisa ser anunciada antes da
-	 * ação, não depois); a ordem VISUAL (texto à esquerda/acima, foto à direita/abaixo) continua a
-	 * mesma de antes, via `order`.
-	 */
-	.hero-texto {
+	.hero-intro {
+		grid-area: intro;
 		display: flex;
 		flex-direction: column;
-		order: 1;
 	}
 
 	.promessa {
@@ -198,14 +206,15 @@
 		color: var(--muted);
 	}
 
-	.hero-texto .cta {
-		margin-top: var(--space-lg);
+	.hero > .cta {
+		grid-area: cta;
+		justify-self: start;
 	}
 
 	/* A §6 pede que o botão ocupe a largura da coluna no 375, mesmo antes de virar `.cta-fixa`. */
 	@media (max-width: 767px) {
-		.hero-texto .cta {
-			align-self: stretch;
+		.hero > .cta {
+			justify-self: stretch;
 		}
 	}
 
@@ -254,6 +263,7 @@
 
 	/* A região da foto (§7.2): vazia e marcada — nunca um substituto (banco de imagens, ilustração). */
 	.hero-foto {
+		grid-area: foto;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -262,7 +272,6 @@
 		color: var(--muted);
 		border: 1px dashed var(--border);
 		border-radius: var(--radius-md);
-		order: 2;
 	}
 
 	/* Sem isso a caixa tracejada fica bem mais baixa que a coluna de texto, com um vão vazio

@@ -107,18 +107,17 @@ for (const largura of [375, 768, 1280]) {
 	});
 }
 
-test('deve anunciar a região da foto antes do CTA do herói para leitor de tela (ordem de leitura §6)', async ({
+test('deve anunciar a promessa, depois a foto, depois o CTA, na ordem do DOM (ordem de leitura §6)', async ({
 	page
 }) => {
 	await page.goto('/');
 
 	const filhos = await page
-		.locator('section[aria-labelledby="promessa"] > div')
-		.evaluateAll((divs) => divs.map((div) => div.className.split(' ')));
-	expect(filhos).toEqual([
-		expect.arrayContaining(['hero-foto']),
-		expect.arrayContaining(['hero-texto'])
-	]);
+		.locator('section[aria-labelledby="promessa"] > *')
+		.evaluateAll((els) =>
+			els.map((el) => `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`)
+		);
+	expect(filhos).toEqual(['div.hero-intro', 'div.hero-foto', 'a.cta']);
 });
 
 test('deve ocupar a largura da coluna com o CTA do herói em 375px, antes de fixar no rodapé', async ({
@@ -127,12 +126,12 @@ test('deve ocupar a largura da coluna com o CTA do herói em 375px, antes de fix
 	await page.setViewportSize({ width: 375, height: 812 });
 	await page.goto('/');
 
-	const heroTexto = page.locator('section[aria-labelledby="promessa"] .hero-texto');
+	const heroIntro = page.locator('section[aria-labelledby="promessa"] .hero-intro');
 	const cta = page.locator('section[aria-labelledby="promessa"] a.cta');
 
-	const larguraTexto = await heroTexto.evaluate((el) => el.getBoundingClientRect().width);
+	const larguraIntro = await heroIntro.evaluate((el) => el.getBoundingClientRect().width);
 	const larguraCta = await cta.evaluate((el) => el.getBoundingClientRect().width);
-	expect(larguraCta).toBeGreaterThan(larguraTexto * 0.9);
+	expect(larguraCta).toBeGreaterThan(larguraIntro * 0.9);
 });
 
 for (const largura of [768, 1280]) {
@@ -142,11 +141,16 @@ for (const largura of [768, 1280]) {
 		await page.setViewportSize({ width: largura, height: 900 });
 		await page.goto('/');
 
-		const heroTexto = page.locator('section[aria-labelledby="promessa"] .hero-texto');
+		const alturaColuna = await page.evaluate(() => {
+			const intro = document.querySelector('section[aria-labelledby="promessa"] .hero-intro');
+			const cta = document.querySelector('section[aria-labelledby="promessa"] a.cta');
+			if (!intro || !cta) throw new Error('hero-intro ou cta ausente');
+			const inicio = intro.getBoundingClientRect().top;
+			const fim = cta.getBoundingClientRect().bottom;
+			return fim - inicio;
+		});
 		const heroFoto = page.locator('section[aria-labelledby="promessa"] .hero-foto');
-
-		const alturaTexto = await heroTexto.evaluate((el) => el.getBoundingClientRect().height);
 		const alturaFoto = await heroFoto.evaluate((el) => el.getBoundingClientRect().height);
-		expect(alturaFoto).toBeGreaterThan(alturaTexto * 0.9);
+		expect(alturaFoto).toBeGreaterThan(alturaColuna * 0.9);
 	});
 }
