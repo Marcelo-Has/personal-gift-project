@@ -4145,6 +4145,33 @@ armadilha de bootstrap daquele item não se aplica aqui: o `design-critic` só r
 então não julga PR de workflow. O precedente do bypass fica reservado a conserto de fábrica
 quebrada, que é o que a [D-086] restringiu.
 
+**VERIFICADO EM PRODUÇÃO — e a primeira execução real já pagou a mudança.** No PR #181
+(questionário), commit `93945b45`, com a branch atualizada para ter o workflow desta entrada:
+
+**A contagem.** Dois runs do critic dispararam no MESMO commit, no MESMO segundo (18:37:45) — a
+condição exata do item 3. Os dois gravaram **`Rodada 1 de 3`**. No mesmo PR, minutos antes e com
+o workflow anterior, dois runs igualmente simultâneos haviam gravado rodadas **1 e 2**. A
+contagem derivada faz o que prometia: dois runs, um commit, **uma rodada**.
+
+**A cobertura, e é o resultado que importa.** Cada run uniu **2 passadas**, e elas divergiram da
+forma mais extrema possível:
+
+| | Achados | Veredito |
+| --- | --- | --- |
+| Passada A | 2 (um [High], um [Med]) | REPROVADO |
+| Passada B | **0** | **APROVADO** |
+
+Mesmo commit, mesmo prompt, mesmo instante. Uma passada viu dois defeitos; a outra não viu
+**nenhum**. E os dois achados da passada A eram reais: a §6 exige, por escrito, que no 375 "a ação
+primária ocupa a largura e fica fixa acima do teclado", e isso não estava implementado; e o
+`<legend>` do fieldset herdava Lora — voz do casal — onde a §3 lista "rótulo" como voz do sistema.
+
+**Se a regra fosse votação por maioria, ou se existisse só a passada B, este PR teria sido
+APROVADO com os dois defeitos.** A regra fail-closed ("basta uma reprovar") não é conservadorismo
+teórico: ela foi o que separou aprovação de reprovação na primeira vez que rodou. É também a
+confirmação mais direta possível da tese do item 5 — o critic **amostra**, e a amostra pode ser
+vazia.
+
 **CONSEQUÊNCIA OPERACIONAL MEDIDA NO MERGE, e ela vale para toda mudança futura em workflow de
 IA.** A `claude-code-action` exige que o arquivo do workflow seja **idêntico ao da branch
 padrão** — é a mesma validação do impasse [D-014], mas ela morde por um segundo motivo que não
