@@ -25,6 +25,18 @@
 </main>
 
 <style>
+	/* O `h1` não tinha regra nenhuma nestas três telas: herdava o bold e o `font-size` do
+	   user-agent, contra o par 400/800 da §4.5 (o papel `heading` é Lora 400, nunca bold
+	   reflexo) e fora da escala da §5. A home já fazia certo em `.promessa`; estas não.
+	   Achado [High] D2 do design-critic no PR #191. */
+	h1 {
+		margin: 0;
+		font-family: var(--font-livro);
+		font-size: var(--text-h1);
+		font-weight: var(--weight-normal);
+		line-height: var(--leading-h1);
+	}
+
 	/* O link herda o azul default do UA se ninguém disser nada — e isso seria uma SEGUNDA
 	   cor de acento fora do sistema, contra a §4.1 ("um acento só"). Achado do design-critic
 	   no PR #191. */
