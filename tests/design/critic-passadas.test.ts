@@ -39,7 +39,9 @@ function promptDaPassada(rotulo: 'A' | 'B'): string {
 	const abertura = yaml.indexOf('prompt: |\n', inicioStep);
 	const fim = yaml.indexOf('claude_args:', abertura);
 	if (abertura === -1 || fim === -1) {
-		throw new Error(`Prompt da passada ${rotulo} não delimitado — o teste ficou órfão do workflow.`);
+		throw new Error(
+			`Prompt da passada ${rotulo} não delimitado — o teste ficou órfão do workflow.`
+		);
 	}
 	return yaml.slice(abertura + 'prompt: |\n'.length, fim).trimEnd();
 }
@@ -79,7 +81,10 @@ describe('união das passadas — fail-closed, não votação', () => {
 		// era real. Diluir isso por maioria descartaria o achado.
 		const saida = unir([
 			{ rotulo: 'A', conteudo: APROVA() },
-			{ rotulo: 'B', conteudo: REPROVA('- [High] D1 · home@768 — escada de uma palavra por linha\n') }
+			{
+				rotulo: 'B',
+				conteudo: REPROVA('- [High] D1 · home@768 — escada de uma palavra por linha\n')
+			}
 		]);
 		expect(saida.split('\n').at(-1)).toBe('REPROVADO');
 		expect(saida).toContain('escada de uma palavra por linha');
