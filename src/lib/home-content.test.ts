@@ -75,11 +75,10 @@ describe('homeContent', () => {
 		}
 	});
 
-	it('nunca deve usar exclamação nem travessão como pontuação de interface (fora do title, §9/69)', () => {
-		const semTitle = textosVoltadosAoComprador().filter((texto) => texto !== homeContent.pageTitle);
-		for (const texto of semTitle) {
+	it('nunca deve usar exclamação nem travessão como pontuação de interface (anti-pattern 69)', () => {
+		for (const texto of textosVoltadosAoComprador()) {
 			expect(texto, `"${texto}" usa exclamação`).not.toContain('!');
-			expect(texto, `"${texto}" usa travessão fora do title`).not.toContain('—');
+			expect(texto, `"${texto}" usa travessão`).not.toContain('—');
 		}
 	});
 });

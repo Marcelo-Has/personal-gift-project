@@ -38,15 +38,15 @@
 <main>
 	<!-- 1. Promessa + ação (§6): fazer sentir a promessa e oferecer a ação; não explica o processo. -->
 	<section class="hero" aria-labelledby="promessa">
+		<div class="hero-foto">
+			<p>{homeContent.hero.fotoAusente}</p>
+		</div>
 		<div class="hero-texto">
 			<h1 id="promessa" class="promessa" bind:this={promessaEl}>{homeContent.hero.promise}</h1>
 			<p class="apoio">{homeContent.hero.lead}</p>
 			<a class="cta" class:cta-fixa={!promessaVisivel} href={resolve(homeContent.ctaHref)}>
 				{homeContent.ctaLabel}
 			</a>
-		</div>
-		<div class="hero-foto">
-			<p>{homeContent.hero.fotoAusente}</p>
 		</div>
 	</section>
 
@@ -161,9 +161,17 @@
 		}
 	}
 
+	/*
+	 * A ordem de leitura da §6 é "a promessa, depois a foto ao lado dela, depois o botão" — a foto
+	 * entra ANTES do botão para quem usa leitor de tela. O marcado por isso tem `.hero-foto` antes
+	 * de `.hero-texto` (a foto ainda não existe — §7.2 — então ela precisa ser anunciada antes da
+	 * ação, não depois); a ordem VISUAL (texto à esquerda/acima, foto à direita/abaixo) continua a
+	 * mesma de antes, via `order`.
+	 */
 	.hero-texto {
 		display: flex;
 		flex-direction: column;
+		order: 1;
 	}
 
 	.promessa {
@@ -192,6 +200,13 @@
 
 	.hero-texto .cta {
 		margin-top: var(--space-lg);
+	}
+
+	/* A §6 pede que o botão ocupe a largura da coluna no 375, mesmo antes de virar `.cta-fixa`. */
+	@media (max-width: 767px) {
+		.hero-texto .cta {
+			align-self: stretch;
+		}
 	}
 
 	/* A ação primária: `--accent` é a tinta, e ela aparece aqui porque "isto avança o livro" (§4.1). */
@@ -247,6 +262,15 @@
 		color: var(--muted);
 		border: 1px dashed var(--border);
 		border-radius: var(--radius-md);
+		order: 2;
+	}
+
+	/* Sem isso a caixa tracejada fica bem mais baixa que a coluna de texto, com um vão vazio
+	   antes da seção seguinte — `stretch` faz a caixa acompanhar a altura real do herói. */
+	@media (min-width: 768px) {
+		.hero-foto {
+			align-self: stretch;
+		}
 	}
 
 	/* 2. O que está impresso — a única cor saturada do produto é a foto do casal (§7.2); o trecho

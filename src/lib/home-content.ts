@@ -8,7 +8,7 @@
  */
 
 export const homeContent = {
-	pageTitle: 'Nossa História — o livro sobre a história de vocês, em cinco minutos',
+	pageTitle: 'Nossa História: o livro sobre a história de vocês, em cinco minutos',
 	pageDescription:
 		'Você escreve como se conheceram, as fotos e as piadas de vocês. Em cinco minutos, tudo vira um livro impresso pronto para presentear.',
 

@@ -106,3 +106,44 @@ for (const largura of [375, 768, 1280]) {
 		await expect(margem.getByText(/R\$80.+R\$130/)).toBeVisible();
 	});
 }
+
+test('deve anunciar a região da foto antes do CTA do herói para leitor de tela (ordem de leitura §6)', async ({
+	page
+}) => {
+	await page.goto('/');
+
+	const filhos = await page
+		.locator('section[aria-labelledby="promessa"] > div')
+		.evaluateAll((divs) => divs.map((div) => div.className));
+	expect(filhos).toEqual(['hero-foto', 'hero-texto']);
+});
+
+test('deve ocupar a largura da coluna com o CTA do herói em 375px, antes de fixar no rodapé', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.goto('/');
+
+	const heroTexto = page.locator('section[aria-labelledby="promessa"] .hero-texto');
+	const cta = page.locator('section[aria-labelledby="promessa"] a.cta');
+
+	const larguraTexto = await heroTexto.evaluate((el) => el.getBoundingClientRect().width);
+	const larguraCta = await cta.evaluate((el) => el.getBoundingClientRect().width);
+	expect(larguraCta).toBeGreaterThan(larguraTexto * 0.9);
+});
+
+for (const largura of [768, 1280]) {
+	test(`deve esticar a caixa da foto ausente para acompanhar a coluna de texto em ${largura}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: largura, height: 900 });
+		await page.goto('/');
+
+		const heroTexto = page.locator('section[aria-labelledby="promessa"] .hero-texto');
+		const heroFoto = page.locator('section[aria-labelledby="promessa"] .hero-foto');
+
+		const alturaTexto = await heroTexto.evaluate((el) => el.getBoundingClientRect().height);
+		const alturaFoto = await heroFoto.evaluate((el) => el.getBoundingClientRect().height);
+		expect(alturaFoto).toBeGreaterThan(alturaTexto * 0.9);
+	});
+}
