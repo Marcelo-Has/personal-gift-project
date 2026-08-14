@@ -15,9 +15,13 @@ export const homeContent = {
 	ctaLabel: 'Começar o meu livro',
 	ctaHref: '/questionario',
 
-	/** Voz do sistema da home — vive na `.margem` (§3), nunca na `.folha`. */
-	sistemaPrecoPrazo:
-		'R$80 a R$130 · o valor do seu tamanho e o prazo de entrega ainda estão sendo definidos',
+	/**
+	 * Voz do sistema da home — vive na `.margem` (§3), nunca na `.folha`. É o RÓTULO do wireframe
+	 * da §6 ("quanto custa · quando chega"), não o valor: o valor (a faixa R$80–130 e a pendência
+	 * honesta) já mora na seção 4, à direita da régua. Rótulo é o que cabe nos 64px da `.margem` —
+	 * o texto completo do valor não cabia (achado do dono na rodada 5 do PR #178).
+	 */
+	sistemaPrecoPrazo: 'quanto custa · quando chega',
 
 	hero: {
 		promise: 'Você já tem a história de vocês. Em cinco minutos, ela vira um livro.',

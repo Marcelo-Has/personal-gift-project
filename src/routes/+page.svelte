@@ -295,10 +295,10 @@
 
 	/*
 	 * A partir de 768 a cópia visível é a que vive na `.margem` de verdade (via `getContext`,
-	 * `vozDoSistema` acima), à esquerda da régua. `--space-3xl` afasta o texto do topo da coluna —
-	 * mesma razão do item acima, o gate de tokens não permite um `calc()` composto para mirar a
-	 * altura exata do bloco do CTA, então o valor é o maior degrau da escala de espaço (§4.2) em vez
-	 * de um pixel solto; aproxima a região do herói sem tentar precisão de pixel.
+	 * `vozDoSistema` acima), à esquerda da régua. `--space-4xl` (§15, "Memória de design") aproxima
+	 * o texto da altura do CTA — o gate de tokens não permite um `calc()` composto para mirar a
+	 * altura exata do bloco (que muda com o tamanho do h1/apoio), então o valor é uma estimativa
+	 * registrada como token, não medição de render.
 	 */
 	.hero-sistema-desktop {
 		display: none;
@@ -307,7 +307,7 @@
 	@media (min-width: 768px) {
 		.hero-sistema-desktop {
 			display: block;
-			margin-top: var(--space-3xl);
+			margin-top: var(--space-4xl);
 		}
 	}
 

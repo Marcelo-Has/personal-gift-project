@@ -626,3 +626,22 @@ mesmo objeto e violaria R-ASSETS: seria `criada-na-Fundação` onde existia asse
 **Substituído por:** Lora como voz do livro e de todo conteúdo do casal (§4.5), com a proveniência
 `derivada-de-asset` registrada na §14.
 **Origem:** Fundação — passo 1 (R-ASSETS).
+
+### 2026-08-14 · Novo token de espaço: `--space-4xl`, para alinhar a voz do sistema do herói ao CTA
+
+**Por que um token novo:** a `.hero-sistema-desktop` (§3, "quanto custa · quando chega") vive na
+`.margem`, uma coluna separada da `.hero` que contém a promessa/apoio/CTA — as duas colunas não
+compartilham linha de grid, então a única forma de aproximar o rótulo da altura do CTA sem medir o
+DOM em runtime é um `margin-top` fixo. `--space-3xl` (96px), o maior degrau existente, terminava
+muito antes do botão em 768/1280 (achado do dono, PR #178, rodada 6). O gate de tokens do CI não
+aceita `calc()` composto nessa propriedade — por isso um novo degrau, não uma expressão.
+
+| Token | Valor | Papel |
+| --- | --- | --- |
+| `space-4xl` | `12rem` (192px) | `margin-top` da voz do sistema do herói (`.hero-sistema-desktop`) a partir de 768, aproximando-a da altura do CTA (§3, §6) |
+
+**Aproximação deliberada, não medição exata:** 192px é uma estimativa a partir da altura somada do
+`h1` (`display`, 2 linhas por wireframe da §6), a frase de apoio e o `gap` até o CTA — não uma
+medição de render (sem browser disponível nesta sessão, como nas rodadas anteriores). Se o próximo
+render mostrar o valor ainda errado, o ajuste é só o valor deste token, não a abordagem.
+**Origem:** achado do dono no PR #178, rodada 6.
