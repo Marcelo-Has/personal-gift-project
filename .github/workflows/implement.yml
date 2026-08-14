@@ -188,7 +188,27 @@ jobs:
           # usada chega vazia — a action trata string vazia como ausente.
           anthropic_api_key: ${{ vars.FACTORY_AUTH != 'oauth' && secrets.ANTHROPIC_API_KEY || '' }}
           claude_code_oauth_token: ${{ vars.FACTORY_AUTH == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          allowed_bots: "claude"
+          # `github-actions` entra na lista na EV2.4 · Q5, e sem ele a RE-ENTRADA DO FU-17 NUNCA
+          # FUNCIONOU. Os dois atuadores de recuperação da fábrica — o guard-rail deste arquivo
+          # (`gh workflow run implement.yml` no fim do step "Exigir PR aberto") e a retaguarda do
+          # `daily-report.yml` — disparam com o `GITHUB_TOKEN` do job, e o run resultante tem
+          # `github-actions[bot]` como actor. A action rejeitava isso ANTES de rodar o agente:
+          #
+          #   Action failed with error: Workflow initiated by non-human actor: github-actions
+          #   (type: Bot). Add bot to allowed_bots list or use '*' to allow all bots.
+          #
+          # Efeito medido no PR #178 (issue #177, a landing da Q5): a sessão 1 terminou incompleta,
+          # o guard-rail re-disparou, o run morreu em 40s sem agente e sem transcrição, o contador
+          # subiu para `reentrada:2`, o guard-rail re-disparou de novo, mesma coisa, `reentrada:3`
+          # e `precisa-humano`. O orçamento inteiro de recuperação foi gasto em dois no-ops. O bug
+          # não apareceu na issue #175 porque ali as re-entradas foram disparadas À MÃO pelo dono
+          # (actor humano), não pelo guard-rail — é por isso que ele sobreviveu ao [FU-17].
+          #
+          # Não afrouxa o gate de quem pode disparar: quem decide isso é o `if:` do job (dispatch,
+          # `status:ready`, ou comentário de OWNER) e a permissão do GitHub para dispatch. Esta
+          # lista é o filtro de ACTOR dentro da action, e os únicos bots que chegam aqui por
+          # dispatch são os dois workflows da própria fábrica, acima. `*` seria largo demais.
+          allowed_bots: "claude,github-actions"
           prompt: |
             Você é o developer-lead (contrato em .claude/agents/developer-lead.md).
             Implemente de ponta a ponta a issue
