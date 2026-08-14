@@ -114,8 +114,11 @@ test('deve anunciar a região da foto antes do CTA do herói para leitor de tela
 
 	const filhos = await page
 		.locator('section[aria-labelledby="promessa"] > div')
-		.evaluateAll((divs) => divs.map((div) => div.className));
-	expect(filhos).toEqual(['hero-foto', 'hero-texto']);
+		.evaluateAll((divs) => divs.map((div) => div.className.split(' ')));
+	expect(filhos).toEqual([
+		expect.arrayContaining(['hero-foto']),
+		expect.arrayContaining(['hero-texto'])
+	]);
 });
 
 test('deve ocupar a largura da coluna com o CTA do herói em 375px, antes de fixar no rodapé', async ({
