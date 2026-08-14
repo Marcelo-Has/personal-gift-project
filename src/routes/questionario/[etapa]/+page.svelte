@@ -80,6 +80,28 @@
 	const emErro = $derived(tentouAvancar && !validacaoEtapa.success);
 	const resumoValido = $derived(questionarioSchema.safeParse(questionario).success);
 
+	/**
+	 * Estado "vazio" (§11): o exemplo na margem é o convite antes de escrever — some quando o
+	 * campo principal já tem conteúdo. Nas etapas de vários subcampos (people/milestones/trips)
+	 * não há um único "valor" para checar; o exemplo fica de guia enquanto a etapa existir.
+	 */
+	const campoPrincipalVazio = $derived.by(() => {
+		switch (etapa.key) {
+			case 'howTheyMet':
+				return questionario.howTheyMet.trim() === '';
+			case 'insideJokes':
+				return questionario.insideJokes.join('').trim() === '';
+			case 'challenges':
+				return questionario.challenges.join('').trim() === '';
+			case 'futurePlans':
+				return questionario.futurePlans.join('').trim() === '';
+			case 'specialMessage':
+				return questionario.specialMessage.trim() === '';
+			default:
+				return true;
+		}
+	});
+
 	// A voz do sistema desta etapa (§3): sempre a contagem de passo; "ex."/rótulo quando não há
 	// erro (o erro toma o lugar deles, para não lotar a margem); offline é aditivo aos dois.
 	$effect(() => {
@@ -265,7 +287,7 @@
 			{#if etapa.intro}
 				<p class="voz-sistema__ajuda">{etapa.intro}</p>
 			{/if}
-			{#if etapa.example}
+			{#if etapa.example && campoPrincipalVazio}
 				<p class="voz-sistema__exemplo">{etapa.example}</p>
 			{/if}
 		{/if}
