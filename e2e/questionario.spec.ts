@@ -27,9 +27,12 @@ test('deve bloquear o avanço e mostrar erro em português quando a etapa está 
 }) => {
 	await abrirEtapa(page, '/questionario/pessoas');
 
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
-	await expect(page.getByRole('alert')).toContainText('Informe o nome.');
+	// Texto fixo da §11 (DESIGN.md) — a lista de mensagens do Zod não chega mais à tela.
+	await expect(page.getByRole('alert')).toContainText(
+		'Falta responder isto para o livro ter o que contar.'
+	);
 	await expect(page).toHaveURL(/\/questionario\/pessoas$/);
 });
 
@@ -53,7 +56,7 @@ test('deve preservar o preenchimento ao voltar para uma etapa anterior', async (
 		.getByRole('group', { name: 'Pessoa 2' })
 		.getByLabel('Características (uma por linha)')
 		.fill('engraçada');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/fotos$/);
 
@@ -78,41 +81,41 @@ test('deve completar o fluxo feliz até o resumo, com o CTA apontando para /esti
 		.getByRole('group', { name: 'Pessoa 2' })
 		.getByLabel('Características (uma por linha)')
 		.fill('engraçada');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/fotos$/);
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/como-se-conheceram$/);
 	await page
 		.getByRole('textbox', { name: 'Como vocês se conheceram', exact: true })
 		.fill('Nos conhecemos na faculdade.');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/momentos$/);
 	await page.getByRole('button', { name: 'Adicionar momento' }).click();
 	await page.getByLabel('Título').fill('Primeiro encontro');
 	await page.getByLabel('Descrição').fill('No parque, num domingo.');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/piadas$/);
 	await page.getByRole('textbox', { name: 'Piadas internas', exact: true }).fill('pizza de sexta');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/viagens$/);
 	await page.getByRole('button', { name: 'Adicionar viagem' }).click();
 	await page.getByLabel('Destino').fill('Bariloche');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/dificuldades$/);
 	await page
 		.getByRole('textbox', { name: 'Dificuldades superadas', exact: true })
 		.fill('distância');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/planos$/);
 	await page.getByRole('textbox', { name: 'Planos futuros', exact: true }).fill('morar juntos');
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 	await expect(page).toHaveURL(/\/questionario\/mensagem$/);
 	await page

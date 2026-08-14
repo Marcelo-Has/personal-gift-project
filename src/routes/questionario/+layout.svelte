@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { getContext, setContext, type Snippet } from 'svelte';
+	import { setContext } from 'svelte';
 	import { browser } from '$app/environment';
-	import { page } from '$app/state';
-	import { getEtapaIndex, questionarioEtapas } from '$lib/questionario-etapas';
 	import type { CoupleQuestionnaire } from '$lib/order';
 	import {
 		obterOuCriarOrderId,
@@ -66,67 +64,23 @@
 	}
 
 	setContext('salvarRascunhoQuestionario', salvarProgresso);
-
-	const totalEtapas = questionarioEtapas.length;
-	const etapaSlug = $derived((page.params as Record<string, string>).etapa ?? '');
-	const indiceAtual = $derived(getEtapaIndex(etapaSlug));
-
-	// A contagem de passo é a voz do sistema (§3): vive na `.margem` do layout raiz, não na
-	// coluna de conteúdo. O layout raiz é quem sabe renderizar `.margem` — aqui só registramos
-	// o snippet no contexto dele, e desfazemos ao sair do questionário.
-	const margem = getContext<{ definir: (snippet: Snippet | null) => void }>('margem');
-	$effect(() => {
-		margem.definir(indiceAtual >= 0 ? progresso : null);
-		return () => margem.definir(null);
-	});
 </script>
-
-{#snippet progresso()}
-	<p role="status">Passo {indiceAtual + 1} de {totalEtapas}</p>
-{/snippet}
 
 <svelte:head>
 	<title>Nossa História — questionário</title>
 </svelte:head>
 
 <main>
-	<h1>Conte a história de vocês</h1>
-
-	{#if indiceAtual >= 0}
-		<ol class="etapas" aria-label="Etapas do questionário">
-			{#each questionarioEtapas as etapa, i (etapa.slug)}
-				<li aria-current={i === indiceAtual ? 'step' : undefined}>{etapa.title}</li>
-			{/each}
-		</ol>
-	{/if}
+	<h1 class="sr-only">Conte a história de vocês</h1>
 
 	{@render children()}
 </main>
 
 <style>
 	main {
+		min-width: 0;
 		max-width: 40rem;
 		margin: 0 auto;
 		padding: var(--space-md);
-	}
-
-	.etapas {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2xs);
-		padding-left: 0;
-		margin-bottom: var(--space-md);
-		list-style: none;
-		font-size: var(--text-caption);
-	}
-
-	.etapas li {
-		padding: var(--space-3xs) var(--space-2xs);
-		border: 1px solid currentColor;
-		border-radius: var(--radius-full);
-	}
-
-	.etapas li[aria-current='step'] {
-		font-weight: var(--weight-forte);
 	}
 </style>
