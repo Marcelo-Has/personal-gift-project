@@ -36,3 +36,22 @@ select,
 textarea {
 	font: inherit;
 }
+
+/*
+ * Rótulo programático sem ocupar espaço visual — usado onde a pergunta (heading) já comunica o
+ * campo para quem enxerga, mas o `<label>` continua obrigatório para leitor de tela (§12).
+ */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	/* stylelint-disable-next-line declaration-property-value-allowed-list -- técnica padrão de
+	   ocultação visual acessível: o `-1px` neutraliza o próprio `width`/`height` de 1px acima, não
+	   é ritmo da §4.2 (não há token de espaço negativo). */
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}

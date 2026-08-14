@@ -26,6 +26,17 @@ type EtapaFor<K extends keyof CoupleQuestionnaire> = {
 	schema: z.ZodType<CoupleQuestionnaire[K]>;
 	/** Rótulos de campo usados pela página da etapa (evita copy inline no .svelte). */
 	fields?: Record<string, string>;
+	/**
+	 * Exemplo real e específico do que entra no campo (DESIGN.md §11, estado "vazio" do
+	 * "Campo de escrita do questionário"): nunca "João Silva". Ausente na etapa `photos`, que
+	 * não é campo de escrita.
+	 */
+	example?: string;
+	/**
+	 * Rótulo do botão "Avançar" desta etapa, nomeando o destino (DESIGN.md §9: nunca
+	 * "Continuar" sozinho). Ausente na última etapa, que não tem botão de avançar.
+	 */
+	continuarPara?: string;
 };
 
 export type QuestionarioEtapa = {
@@ -42,14 +53,17 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 		fields: {
 			name: 'Nome',
 			traits: 'Características (uma por linha)'
-		}
+		},
+		example: 'ex.: Marcela · teimosa, engraçada, organizada',
+		continuarPara: 'Continuar para as fotos'
 	},
 	{
 		slug: 'fotos',
 		title: 'Fotos do casal',
 		intro: 'O envio de fotos chega em breve — por enquanto esta etapa é só um espaço reservado.',
 		key: 'photos',
-		schema: photosSchema
+		schema: photosSchema,
+		continuarPara: 'Continuar para como vocês se conheceram'
 	},
 	{
 		slug: 'como-se-conheceram',
@@ -59,7 +73,9 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 		schema: howTheyMetSchema,
 		fields: {
 			text: 'Como vocês se conheceram'
-		}
+		},
+		example: 'ex.: nos conhecemos numa festa de aniversário em comum, em 2019',
+		continuarPara: 'Continuar para os momentos importantes'
 	},
 	{
 		slug: 'momentos',
@@ -72,7 +88,9 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 			description: 'Descrição',
 			add: 'Adicionar momento',
 			remove: 'Remover momento'
-		}
+		},
+		example: 'ex.: o dia em que se mudaram para o primeiro apartamento juntos',
+		continuarPara: 'Continuar para as piadas internas'
 	},
 	{
 		slug: 'piadas',
@@ -82,7 +100,9 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 		schema: insideJokesSchema,
 		fields: {
 			text: 'Piadas internas'
-		}
+		},
+		example: 'ex.: aquele apelido que só vocês dois entendem',
+		continuarPara: 'Continuar para as viagens'
 	},
 	{
 		slug: 'viagens',
@@ -95,7 +115,9 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 			description: 'Descrição (opcional)',
 			add: 'Adicionar viagem',
 			remove: 'Remover viagem'
-		}
+		},
+		example: 'ex.: Paraty — o fim de semana em que perderam o ônibus de volta',
+		continuarPara: 'Continuar para as dificuldades superadas'
 	},
 	{
 		slug: 'dificuldades',
@@ -105,7 +127,9 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 		schema: challengesSchema,
 		fields: {
 			text: 'Dificuldades superadas'
-		}
+		},
+		example: 'ex.: a mudança de cidade que quase separou vocês',
+		continuarPara: 'Continuar para os planos futuros'
 	},
 	{
 		slug: 'planos',
@@ -115,7 +139,9 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 		schema: futurePlansSchema,
 		fields: {
 			text: 'Planos futuros'
-		}
+		},
+		example: 'ex.: morar juntos ano que vem',
+		continuarPara: 'Continuar para a mensagem especial'
 	},
 	{
 		slug: 'mensagem',
@@ -125,7 +151,8 @@ export const questionarioEtapas: QuestionarioEtapa[] = [
 		schema: specialMessageSchema,
 		fields: {
 			text: 'Mensagem especial'
-		}
+		},
+		example: 'ex.: o que você diria se estivesse com essa pessoa agora'
 	}
 ];
 

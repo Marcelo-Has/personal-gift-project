@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, setContext, type Snippet } from 'svelte';
+	import { setContext } from 'svelte';
 	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { getEtapaIndex, questionarioEtapas } from '$lib/questionario-etapas';
@@ -67,23 +67,9 @@
 
 	setContext('salvarRascunhoQuestionario', salvarProgresso);
 
-	const totalEtapas = questionarioEtapas.length;
 	const etapaSlug = $derived((page.params as Record<string, string>).etapa ?? '');
 	const indiceAtual = $derived(getEtapaIndex(etapaSlug));
-
-	// A contagem de passo é a voz do sistema (§3): vive na `.margem` do layout raiz, não na
-	// coluna de conteúdo. O layout raiz é quem sabe renderizar `.margem` — aqui só registramos
-	// o snippet no contexto dele, e desfazemos ao sair do questionário.
-	const margem = getContext<{ definir: (snippet: Snippet | null) => void }>('margem');
-	$effect(() => {
-		margem.definir(indiceAtual >= 0 ? progresso : null);
-		return () => margem.definir(null);
-	});
 </script>
-
-{#snippet progresso()}
-	<p role="status">Passo {indiceAtual + 1} de {totalEtapas}</p>
-{/snippet}
 
 <svelte:head>
 	<title>Nossa História — questionário</title>
@@ -127,6 +113,8 @@
 	}
 
 	.etapas li[aria-current='step'] {
+		color: var(--accent);
 		font-weight: var(--weight-forte);
+		border-color: var(--accent);
 	}
 </style>

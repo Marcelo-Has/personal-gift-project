@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, tick, type Snippet } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { browser } from '$app/environment';
 	import { getEtapaIndex, questionarioEtapas } from '$lib/questionario-etapas';
 	import { questionarioSchema } from '$lib/order-schema';
 	import { getSessionIdToken } from '$lib/firebase/session';
@@ -22,14 +23,24 @@
 
 	const questionario = getContext<CoupleQuestionnaire>('questionario');
 	const salvarRascunho = getContext<() => Promise<void>>('salvarRascunhoQuestionario');
+	const margem = getContext<{ definir: (snippet: Snippet | null) => void }>('margem');
 	const indicesPessoas: (0 | 1)[] = [0, 1];
 
+	const totalEtapas = questionarioEtapas.length;
 	const indiceAtual = $derived(getEtapaIndex(etapa.slug));
 	const etapaAnterior = $derived(questionarioEtapas[indiceAtual - 1]);
 	const proximaEtapa = $derived(questionarioEtapas[indiceAtual + 1]);
 	const ehUltimaEtapa = $derived(!proximaEtapa);
 
+	// Texto fixo do estado "erro" da tabela §11 ("Campo de escrita do questionário") — a
+	// própria issue manda usar o texto de lá, não inventar um por campo.
+	const TEXTO_ERRO_CAMPO = 'Falta responder isto para o livro ter o que contar.';
+	// Idem, estado "offline / degradado" da mesma linha.
+	const TEXTO_OFFLINE = 'Salvo aqui neste aparelho. Vai subir quando a conexão voltar.';
+
 	let tentouAvancar = $state(false);
+	let secaoEl = $state<HTMLElement>();
+	let etapaAnteriorSlug: string | null = null;
 
 	$effect(() => {
 		if (etapa) {
@@ -37,13 +48,44 @@
 		}
 	});
 
+	// Foco vai para o primeiro campo do passo novo ao avançar (§4.6: vale sempre, não só sob
+	// `prefers-reduced-motion` — é a única pista de orientação que não depende da régua crescendo).
+	$effect(() => {
+		const slugAtual = etapa.slug;
+		if (etapaAnteriorSlug !== null && etapaAnteriorSlug !== slugAtual) {
+			tick().then(() => {
+				secaoEl?.querySelector<HTMLElement>('input, textarea')?.focus();
+			});
+		}
+		etapaAnteriorSlug = slugAtual;
+	});
+
+	// Offline/degradado (§11): o rascunho já é melhor-esforço (`+layout.svelte`); aqui só
+	// refletimos o estado de rede para a voz do sistema avisar que nada se perde.
+	let offline = $state(false);
+	$effect(() => {
+		if (!browser) return;
+		offline = !navigator.onLine;
+		const marcarOnline = () => (offline = false);
+		const marcarOffline = () => (offline = true);
+		window.addEventListener('online', marcarOnline);
+		window.addEventListener('offline', marcarOffline);
+		return () => {
+			window.removeEventListener('online', marcarOnline);
+			window.removeEventListener('offline', marcarOffline);
+		};
+	});
+
 	const validacaoEtapa = $derived(etapa.schema.safeParse(questionario[etapa.key]));
-	const mensagensErro = $derived(
-		tentouAvancar && !validacaoEtapa.success
-			? validacaoEtapa.error.issues.map((issue) => issue.message)
-			: []
-	);
+	const emErro = $derived(tentouAvancar && !validacaoEtapa.success);
 	const resumoValido = $derived(questionarioSchema.safeParse(questionario).success);
+
+	// A voz do sistema desta etapa (§3): sempre a contagem de passo; "ex."/rótulo quando não há
+	// erro (o erro toma o lugar deles, para não lotar a margem); offline é aditivo aos dois.
+	$effect(() => {
+		margem.definir(vozDoSistema);
+		return () => margem.definir(null);
+	});
 
 	function avancar() {
 		tentouAvancar = true;
@@ -83,6 +125,36 @@
 
 	function atualizarTraits(indice: 0 | 1, valor: string) {
 		questionario.people[indice].traits = valor.split('\n');
+	}
+
+	/**
+	 * Overflow (§11): "texto de 40 linhas: o campo cresce até 12 linhas e passa a rolar
+	 * internamente; nada é truncado sem aviso." O campo cresce com o conteúdo até a altura de
+	 * 12 linhas e, dali em diante, rola — nunca corta o que foi digitado.
+	 */
+	function autoResize(node: HTMLTextAreaElement) {
+		const MAX_LINHAS = 12;
+
+		function ajustar() {
+			node.style.height = 'auto';
+			const estilo = getComputedStyle(node);
+			const linha = parseFloat(estilo.lineHeight) || 24;
+			const paddingVertical = parseFloat(estilo.paddingTop) + parseFloat(estilo.paddingBottom);
+			const alturaMaxima = linha * MAX_LINHAS + paddingVertical;
+			const alturaConteudo = node.scrollHeight;
+			const alturaFinal = Math.min(alturaConteudo, alturaMaxima);
+			node.style.height = `${alturaFinal}px`;
+			node.style.overflowY = alturaConteudo > alturaMaxima ? 'auto' : 'hidden';
+		}
+
+		ajustar();
+		node.addEventListener('input', ajustar);
+
+		return {
+			destroy() {
+				node.removeEventListener('input', ajustar);
+			}
+		};
 	}
 
 	/**
@@ -184,9 +256,27 @@
 	}
 </script>
 
-<section aria-labelledby="titulo-etapa">
+{#snippet vozDoSistema()}
+	<div class="voz-sistema">
+		<p class="voz-sistema__passo" role="status">Passo {indiceAtual + 1} de {totalEtapas}</p>
+		{#if emErro}
+			<p class="voz-sistema__erro" role="alert">{TEXTO_ERRO_CAMPO}</p>
+		{:else}
+			{#if etapa.intro}
+				<p class="voz-sistema__ajuda">{etapa.intro}</p>
+			{/if}
+			{#if etapa.example}
+				<p class="voz-sistema__exemplo">{etapa.example}</p>
+			{/if}
+		{/if}
+		{#if offline}
+			<p class="voz-sistema__offline">{TEXTO_OFFLINE}</p>
+		{/if}
+	</div>
+{/snippet}
+
+<section aria-labelledby="titulo-etapa" bind:this={secaoEl}>
 	<h2 id="titulo-etapa">{etapa.title}</h2>
-	<p>{etapa.intro}</p>
 
 	{#if etapa.key === 'people'}
 		{#each indicesPessoas as indice (indice)}
@@ -194,18 +284,26 @@
 				<legend>Pessoa {indice + 1}</legend>
 				<label>
 					{etapa.fields?.name}
-					<input type="text" bind:value={questionario.people[indice].name} />
+					<input
+						type="text"
+						class="campo-texto campo-texto--curto"
+						class:campo-texto--erro={emErro}
+						bind:value={questionario.people[indice].name}
+					/>
 				</label>
 				<label>
 					{etapa.fields?.traits}
 					<textarea
+						class="campo-texto"
+						class:campo-texto--erro={emErro}
+						use:autoResize
 						value={questionario.people[indice].traits.join('\n')}
 						oninput={(evento) => atualizarTraits(indice, evento.currentTarget.value)}></textarea>
 				</label>
 			</fieldset>
 		{/each}
 	{:else if etapa.key === 'photos'}
-		<label>
+		<label class="campo-arquivo">
 			Selecionar fotos
 			<input
 				type="file"
@@ -242,15 +340,23 @@
 						{:else}
 							<span>Prévia indisponível — a foto continua salva.</span>
 						{/if}
-						<button type="button" onclick={() => removerFotoEnviada(indice)}>Remover</button>
+						<button
+							type="button"
+							class="botao botao--secundario"
+							onclick={() => removerFotoEnviada(indice)}>Remover</button
+						>
 					</li>
 				{/each}
 			</ul>
 		{/if}
 	{:else if etapa.key === 'howTheyMet'}
-		<label>
+		<label class="sr-only">
 			{etapa.fields?.text}
-			<textarea bind:value={questionario.howTheyMet}></textarea>
+			<textarea
+				class="campo-texto"
+				class:campo-texto--erro={emErro}
+				use:autoResize
+				bind:value={questionario.howTheyMet}></textarea>
 		</label>
 	{:else if etapa.key === 'milestones'}
 		{#each questionario.milestones as momento, indice (indice)}
@@ -258,20 +364,36 @@
 				<legend>Momento {indice + 1}</legend>
 				<label>
 					{etapa.fields?.title}
-					<input type="text" bind:value={momento.title} />
+					<input
+						type="text"
+						class="campo-texto campo-texto--curto"
+						class:campo-texto--erro={emErro}
+						bind:value={momento.title}
+					/>
 				</label>
 				<label>
 					{etapa.fields?.description}
-					<textarea bind:value={momento.description}></textarea>
+					<textarea
+						class="campo-texto"
+						class:campo-texto--erro={emErro}
+						use:autoResize
+						bind:value={momento.description}></textarea>
 				</label>
-				<button type="button" onclick={() => removerMomento(indice)}>{etapa.fields?.remove}</button>
+				<button type="button" class="botao botao--secundario" onclick={() => removerMomento(indice)}
+					>{etapa.fields?.remove}</button
+				>
 			</fieldset>
 		{/each}
-		<button type="button" onclick={adicionarMomento}>{etapa.fields?.add}</button>
+		<button type="button" class="botao botao--secundario" onclick={adicionarMomento}
+			>{etapa.fields?.add}</button
+		>
 	{:else if etapa.key === 'insideJokes'}
-		<label>
+		<label class="sr-only">
 			{etapa.fields?.text}
 			<textarea
+				class="campo-texto"
+				class:campo-texto--erro={emErro}
+				use:autoResize
 				value={questionario.insideJokes.join('\n')}
 				oninput={(evento) => atualizarLista('insideJokes', evento.currentTarget.value)}></textarea>
 		</label>
@@ -281,54 +403,71 @@
 				<legend>Viagem {indice + 1}</legend>
 				<label>
 					{etapa.fields?.destination}
-					<input type="text" bind:value={viagem.destination} />
+					<input
+						type="text"
+						class="campo-texto campo-texto--curto"
+						class:campo-texto--erro={emErro}
+						bind:value={viagem.destination}
+					/>
 				</label>
 				<label>
 					{etapa.fields?.description}
-					<input type="text" bind:value={viagem.description} />
+					<input
+						type="text"
+						class="campo-texto campo-texto--curto"
+						bind:value={viagem.description}
+					/>
 				</label>
-				<button type="button" onclick={() => removerViagem(indice)}>{etapa.fields?.remove}</button>
+				<button type="button" class="botao botao--secundario" onclick={() => removerViagem(indice)}
+					>{etapa.fields?.remove}</button
+				>
 			</fieldset>
 		{/each}
-		<button type="button" onclick={adicionarViagem}>{etapa.fields?.add}</button>
+		<button type="button" class="botao botao--secundario" onclick={adicionarViagem}
+			>{etapa.fields?.add}</button
+		>
 	{:else if etapa.key === 'challenges'}
-		<label>
+		<label class="sr-only">
 			{etapa.fields?.text}
 			<textarea
+				class="campo-texto"
+				class:campo-texto--erro={emErro}
+				use:autoResize
 				value={questionario.challenges.join('\n')}
 				oninput={(evento) => atualizarLista('challenges', evento.currentTarget.value)}></textarea>
 		</label>
 	{:else if etapa.key === 'futurePlans'}
-		<label>
+		<label class="sr-only">
 			{etapa.fields?.text}
 			<textarea
+				class="campo-texto"
+				class:campo-texto--erro={emErro}
+				use:autoResize
 				value={questionario.futurePlans.join('\n')}
 				oninput={(evento) => atualizarLista('futurePlans', evento.currentTarget.value)}></textarea>
 		</label>
 	{:else if etapa.key === 'specialMessage'}
-		<label>
+		<label class="sr-only">
 			{etapa.fields?.text}
-			<textarea bind:value={questionario.specialMessage}></textarea>
+			<textarea
+				class="campo-texto"
+				class:campo-texto--erro={emErro}
+				use:autoResize
+				bind:value={questionario.specialMessage}></textarea>
 		</label>
-	{/if}
-
-	{#if mensagensErro.length > 0}
-		<ul class="erros" role="alert">
-			{#each mensagensErro as mensagem, i (i)}
-				<li>{mensagem}</li>
-			{/each}
-		</ul>
 	{/if}
 
 	<nav class="navegacao-etapas" aria-label="Navegação do questionário">
 		{#if etapaAnterior}
-			<button type="button" onclick={voltar}>Voltar</button>
+			<button type="button" class="botao botao--secundario" onclick={voltar}>Voltar</button>
 		{:else}
-			<a href={resolve('/')}>Cancelar</a>
+			<a class="botao botao--secundario" href={resolve('/')}>Cancelar</a>
 		{/if}
 
 		{#if !ehUltimaEtapa}
-			<button type="button" onclick={avancar}>Avançar</button>
+			<button type="button" class="botao botao--primario" onclick={avancar}
+				>{etapa.continuarPara}</button
+			>
 		{/if}
 	</nav>
 
@@ -356,7 +495,7 @@
 
 			{#if resumoValido}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- rota criada só na #34; resolve() exige que a rota já exista. -->
-				<a class="cta" href="/estilo-e-tamanho">Escolher estilo e tamanho</a>
+				<a class="botao botao--primario" href="/estilo-e-tamanho">Escolher estilo e tamanho</a>
 			{:else}
 				<p>Volte e complete as etapas anteriores para continuar.</p>
 			{/if}
@@ -367,22 +506,67 @@
 <style>
 	fieldset {
 		margin-bottom: var(--space-sm);
+		padding: var(--space-sm);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
 	}
 
 	label {
 		display: block;
 		margin-bottom: var(--space-xs);
+		font-family: var(--font-sistema);
+		font-size: var(--text-caption);
+		font-weight: var(--weight-sistema);
 	}
 
-	input,
-	textarea {
+	h2 {
+		margin-top: 0;
+		font-family: var(--font-livro);
+		font-size: var(--text-h2);
+		font-weight: var(--weight-normal);
+		line-height: var(--leading-h2);
+	}
+
+	.campo-texto {
 		display: block;
+		box-sizing: border-box;
 		width: 100%;
+		max-width: var(--medida-leitura);
 		margin-top: var(--space-3xs);
+		padding: var(--space-sm);
+		font-family: var(--font-livro);
+		font-size: var(--text-body);
+		font-weight: var(--weight-normal);
+		line-height: var(--leading-body);
+		color: var(--foreground);
+		background: var(--surface-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		resize: none;
 	}
 
-	.erros {
-		color: var(--destructive);
+	.campo-texto--curto {
+		max-width: 24rem;
+	}
+
+	.campo-texto:hover {
+		border-color: var(--foreground);
+	}
+
+	.campo-texto:disabled {
+		color: var(--muted);
+		cursor: not-allowed;
+	}
+
+	.campo-texto--erro {
+		border-color: var(--destructive);
+	}
+
+	.campo-arquivo {
+		display: inline-block;
+		padding: var(--space-sm);
+		border: 1px dashed var(--border);
+		border-radius: var(--radius-sm);
 	}
 
 	.itens-foto {
@@ -411,22 +595,99 @@
 		width: 8rem;
 		height: 8rem;
 		object-fit: cover;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-sm);
 	}
 
 	.navegacao-etapas {
 		display: flex;
 		justify-content: space-between;
-		margin-top: var(--space-md);
+		gap: var(--space-sm);
+		margin-top: var(--space-lg);
 	}
 
-	.cta {
-		display: inline-block;
-		margin-top: var(--space-sm);
+	.botao {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
 		padding: var(--space-xs) var(--space-md);
-		font-weight: var(--weight-forte);
+		font-family: var(--font-sistema);
+		font-size: var(--text-caption);
+		font-weight: var(--weight-sistema);
 		text-decoration: none;
-		border: 1px solid currentColor;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+	}
+
+	/* §4.1 — "Avançar" é ação primária: um dos três lugares legítimos do único acento. */
+	.botao--primario {
+		color: var(--surface-raised);
+		background: var(--accent);
+		border: 1px solid var(--accent);
+	}
+
+	.botao--primario:hover {
+		background: var(--foreground);
+		border-color: var(--foreground);
+	}
+
+	.botao--primario:active {
+		background: var(--foreground);
+		border-color: var(--foreground);
+	}
+
+	.botao--primario:disabled {
+		color: var(--muted);
+		background: var(--border-subtle);
+		border-color: var(--border-subtle);
+		cursor: not-allowed;
+	}
+
+	.botao--secundario {
+		color: var(--foreground);
+		background: var(--surface-raised);
+		border: 1px solid var(--border);
+	}
+
+	.botao--secundario:hover {
+		border-color: var(--foreground);
+	}
+
+	.botao--secundario:active {
+		background: var(--surface);
+	}
+
+	.voz-sistema {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2xs);
+	}
+
+	.voz-sistema p {
+		margin: 0;
+	}
+
+	.voz-sistema__erro {
+		color: var(--destructive);
+	}
+
+	.voz-sistema__ajuda,
+	.voz-sistema__exemplo,
+	.voz-sistema__offline {
+		color: var(--muted);
+	}
+
+	@media (min-width: 768px) {
+		.voz-sistema {
+			/* Aproximação (sem browser nesta sessão para medir, mesma ressalva do `--space-4xl`
+			   em §15): alinha o topo do bloco ao padding-top da folha (`--space-xl`) e usa a
+			   entrelinha do h2 na primeira linha, para a caixa de linha de "Passo N de M" bater
+			   perto da linha de base do heading (achado [Med] D1, #178). */
+			padding-top: var(--space-xl);
+		}
+
+		.voz-sistema__passo {
+			line-height: var(--leading-h2);
+		}
 	}
 </style>
