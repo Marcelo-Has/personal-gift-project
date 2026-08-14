@@ -47,8 +47,10 @@ jobs:
           limite=$(date -u -d "${HORAS_PARADO} hours ago" +%Y-%m-%dT%H:%M:%SZ)
           desde=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 
+          # `statusCheckRollup` desde a EV2.5 ([D-086] item 4, issue #185): é ele que permite
+          # distinguir "o lead disse que terminou" de "o CI concorda". Ver o step `ci:vermelho`.
           gh pr list --state open --limit 50 \
-            --json number,title,url,updatedAt,labels > "${RUNNER_TEMP}/prs.json"
+            --json number,title,url,updatedAt,labels,statusCheckRollup > "${RUNNER_TEMP}/prs.json"
           jq -r --arg limite "$limite" '
             .[]
             | select(any(.labels[]; .name == "entrega:incompleta"))
@@ -174,6 +176,63 @@ jobs:
       # A contagem de tentativas é mantida pelo `implement.yml`, que rotula `reentrada:N` ao
       # fim de cada sessão. Aqui só LEMOS esse teto — rotular também faria a mesma sessão ser
       # contada duas vezes.
+      # EV2.5 — `entrega:completa` NÃO significa CI verde, e isso é POR DESENHO ([D-086] item 4,
+      # issue #185).
+      #
+      # O contrato do `implement.yml` manda o developer-lead rodar `lint` e `test` e PROÍBE
+      # `test:e2e` (~115 MB de browser), que só roda no CI depois. Logo o label é uma afirmação
+      # sobre o que o lead VERIFICOU, não sobre o estado do PR — e as duas coisas divergem
+      # legitimamente. Mas o guard-rail e o sweep decidiam re-entrada olhando só o label: o PR
+      # fechava como "completo", ficava vermelho, e NADA o recolocava na fila. Aconteceu duas
+      # vezes na onda Q5 (#178 e #181), e nas duas quem destravou foi gente.
+      #
+      # A correção é ADITIVA, e de propósito: em vez de mudar o significado de `entrega:completa`
+      # no meio do contrato do lead (que é a parte mais delicada do `implement.yml`), um segundo
+      # label passa a carregar o que só o CI sabe. O lead continua marcando o que sempre marcou.
+      #
+      # Step não-IA e antes do agente, pelo mesmo motivo do [D-043]: atuador feito por agente é
+      # silenciado pela mesma falha que deveria consertar.
+      - name: Marcar PR com CI vermelho (step não-IA)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          gh label create 'ci:vermelho' --color 'B60205' --force \
+            --description 'Entrega marcada completa, mas o CI reprovou (EV2.5, D-086 item 4)' >/dev/null
+
+          # Só PR marcado `entrega:completa`: em `entrega:incompleta` o sweep abaixo já atua, e
+          # marcar os dois não acrescentaria nada.
+          #
+          # `FAILURE`/`TIMED_OUT`/`STARTUP_FAILURE` contam como vermelho. `CANCELLED` NÃO conta:
+          # a onda Q5 mostrou que check cancelado por concorrência é ruído frequente neste repo
+          # (o `design-critic` e o `screenshots` não têm `concurrency` de propósito), e re-disparar
+          # a fábrica por causa dele gastaria sessão de IA para consertar o que não quebrou.
+          jq -r '
+            .[]
+            | select(any(.labels[]; .name == "entrega:completa"))
+            | { n: .number,
+                vermelho: ([.statusCheckRollup[]?
+                            | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT"
+                                     or .conclusion == "STARTUP_FAILURE")] | length > 0),
+                marcado: (any(.labels[]; .name == "ci:vermelho")) }
+            | "\(.n)\t\(.vermelho)\t\(.marcado)"
+          ' "${RUNNER_TEMP}/prs.json" > "${RUNNER_TEMP}/ci-estado.tsv"
+
+          while IFS=$'\t' read -r pr vermelho marcado; do
+            [ -n "${pr:-}" ] || continue
+            if [ "${vermelho}" = 'true' ] && [ "${marcado}" = 'false' ]; then
+              gh pr edit "${pr}" --add-label 'ci:vermelho' >/dev/null
+              echo "PR #${pr}: entrega:completa com CI vermelho — marcado \`ci:vermelho\`."
+            elif [ "${vermelho}" = 'false' ] && [ "${marcado}" = 'true' ]; then
+              # Tirar o label quando o CI fica verde é o que impede o PR de ficar preso na fila
+              # depois de consertado — sem isto a correção criaria um beco novo no lugar do antigo.
+              gh pr edit "${pr}" --remove-label 'ci:vermelho' >/dev/null
+              echo "PR #${pr}: CI voltou ao verde — \`ci:vermelho\` removido."
+            fi
+          done < "${RUNNER_TEMP}/ci-estado.tsv"
+
       - name: Re-entrada em PR parado (step não-IA)
         if: always()
         env:
@@ -186,13 +245,31 @@ jobs:
           limite=$(date -u -d "${HORAS_PARADO} hours ago" +%Y-%m-%dT%H:%M:%SZ)
           : > "${RUNNER_TEMP}/redisparos.txt"
 
-          # `prs.json` veio do step anterior. Um PR só entra aqui se estiver aberto, marcado
-          # `entrega:incompleta`, parado além da janela, sem `precisa-humano` e sem
-          # `[BLOQUEADO]` no título — este último é Decision Gate esperando humano DE
-          # PROPÓSITO (FU-06), e re-disparar desfaria aquele conserto.
+          # `prs.json` veio do step anterior. Um PR só entra aqui se estiver aberto, parado além
+          # da janela, sem `precisa-humano` e sem `[BLOQUEADO]` no título — este último é Decision
+          # Gate esperando humano DE PROPÓSITO (FU-06), e re-disparar desfaria aquele conserto.
+          #
+          # E entra por UM de dois motivos (EV2.5 — [D-086] item 4, issue #185):
+          #   a) `entrega:incompleta` — o lead não terminou (o caso original da FU-17);
+          #   b) `entrega:completa` MAS o CI reprovou — o lead terminou o que podia verificar, e o
+          #      que ele é PROIBIDO de rodar (`test:e2e`) reprovou depois. Sem isto o PR fecha como
+          #      "completo", fica vermelho e nada o recoloca na fila.
+          #
+          # O vermelho é lido do `statusCheckRollup`, não do label `ci:vermelho` que o step
+          # anterior aplica: o `prs.json` foi montado ANTES daquele step, então depender do label
+          # criaria uma dependência de ordem que só falharia no primeiro dia. O label é rastro
+          # auditável no quadro; a decisão vem do rollup.
+          #
+          # `CANCELLED` fora da conta, pelo mesmo motivo do step anterior: neste repo é ruído
+          # frequente de concorrência, e gastaria sessão de IA consertando o que não quebrou.
           jq -r --arg limite "$limite" '
+            def reprovado:
+              [.statusCheckRollup[]?
+               | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT"
+                        or .conclusion == "STARTUP_FAILURE")] | length > 0;
             .[]
-            | select(any(.labels[]; .name == "entrega:incompleta"))
+            | select(any(.labels[]; .name == "entrega:incompleta")
+                     or (any(.labels[]; .name == "entrega:completa") and reprovado))
             | select(any(.labels[]; .name == "precisa-humano") | not)
             | select(.updatedAt < $limite)
             | select(.title | startswith("[BLOQUEADO]") | not)
