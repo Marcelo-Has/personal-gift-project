@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -433,4 +434,65 @@ describe.skipIf(!temJq)('filtro de comentários da retomada (implement.yml)', ()
 		];
 		expect(lerComentarios(comments)).toEqual(['--- github-actions', '--- Marcelo-Has']);
 	});
+});
+
+/**
+ * A re-entrada do [FU-17] nunca funcionou, e nenhum teste pegou — porque todos os casos acima
+ * exercitam a SELEÇÃO (quem re-disparar) e nenhum a EXECUÇÃO (o disparo consegue rodar o agente?).
+ *
+ * Os dois atuadores de recuperação da fábrica — o guard-rail do `implement.yml` e a retaguarda do
+ * `daily-report.yml` — chamam `gh workflow run implement.yml` com o `GITHUB_TOKEN` do job. O run
+ * resultante tem `github-actions[bot]` como actor, e a `claude-code-action` recusa actor de bot
+ * fora de `allowed_bots` ANTES de rodar o agente:
+ *
+ *   Action failed with error: Workflow initiated by non-human actor: github-actions (type: Bot).
+ *
+ * Medido no PR #178 (EV2.4 · Q5): dois no-ops de 40s consumiram `reentrada:2` e `reentrada:3` e
+ * levaram o PR a `precisa-humano` sem que nenhum agente rodasse. O bug sobreviveu ao [FU-17]
+ * porque nas issues anteriores as re-entradas foram disparadas À MÃO pelo dono — actor humano.
+ *
+ * A regra que este bloco fixa é geral, não o caso: **workflow que é alvo de `gh workflow run`
+ * dentro deste repositório tem de aceitar `github-actions` em `allowed_bots`.** Vale para o
+ * próximo atuador que alguém escrever, não só para este.
+ */
+describe('workflow disparado por outro workflow aceita o actor bot', () => {
+	const DIR = join(process.cwd(), '.github', 'workflows');
+
+	/** Os alvos de `gh workflow run <arquivo>` em qualquer workflow do repositório. */
+	function alvosDeDispatch(): string[] {
+		const alvos = new Set<string>();
+		for (const arquivo of readdirSync(DIR).filter((f) => f.endsWith('.yml'))) {
+			const texto = readFileSync(join(DIR, arquivo), 'utf8').replace(/\r\n/g, '\n');
+			for (const linha of texto.split('\n')) {
+				// Só a CHAMADA, não a menção em comentário: comentário começa com `#` depois da indentação.
+				if (/^\s*#/.test(linha)) continue;
+				const casou = linha.match(/gh workflow run\s+([\w.-]+\.yml)/);
+				if (casou !== null) alvos.add(casou[1]);
+			}
+		}
+		return [...alvos];
+	}
+
+	/** O valor de `allowed_bots:` de um workflow, ou `null` se ele não declara a chave. */
+	function allowedBots(arquivo: string): string | null {
+		const texto = readFileSync(join(DIR, arquivo), 'utf8').replace(/\r\n/g, '\n');
+		const casou = texto.match(/^\s*allowed_bots:\s*["']?([^"'\n]+)["']?\s*$/m);
+		return casou === null ? null : casou[1].trim();
+	}
+
+	it('deve haver pelo menos um alvo de dispatch — senão este guard-rail não guarda nada', () => {
+		expect(alvosDeDispatch().length).toBeGreaterThan(0);
+	});
+
+	it.each(alvosDeDispatch())(
+		'%s é disparado por outro workflow, então precisa de `github-actions` em allowed_bots',
+		(alvo) => {
+			const bots = allowedBots(alvo);
+			expect(bots, `${alvo} não declara allowed_bots`).not.toBeNull();
+			expect(
+				(bots as string).split(',').map((b) => b.trim()),
+				`${alvo} recusaria o actor github-actions[bot] e o run morreria antes do agente`
+			).toContain('github-actions');
+		}
+	);
 });
