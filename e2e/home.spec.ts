@@ -21,7 +21,7 @@ test('deve explicar as etapas do fluxo (questionário, estilo/tamanho, prévia e
 }) => {
 	await page.goto('/');
 
-	await expect(page.getByRole('heading', { name: 'Em cinco minutos' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 2, name: 'Em cinco minutos' })).toBeVisible();
 	await expect(page.getByText('Você responde o questionário')).toBeVisible();
 	await expect(page.getByText('Você escolhe estilo e tamanho')).toBeVisible();
 	await expect(page.getByText('Você vê a prévia e paga')).toBeVisible();
