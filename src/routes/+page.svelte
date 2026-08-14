@@ -164,6 +164,9 @@
 		   antes de fixar a ação no rodapé. `dvh`, nunca `vh` — a barra do navegador in-app entra e
 		   sai (§13, anti-pattern 6). */
 		min-height: 100dvh;
+		/* Sem isso, `align-content: normal` se comporta como `stretch` em grid: as três linhas
+		   `auto` esticam para preencher os 100dvh e a sobra vira vão entre elas, não depois delas. */
+		align-content: start;
 	}
 
 	@media (min-width: 768px) {
