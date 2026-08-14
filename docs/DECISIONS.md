@@ -4145,6 +4145,29 @@ armadilha de bootstrap daquele item não se aplica aqui: o `design-critic` só r
 então não julga PR de workflow. O precedente do bypass fica reservado a conserto de fábrica
 quebrada, que é o que a [D-086] restringiu.
 
+**CONSEQUÊNCIA OPERACIONAL MEDIDA NO MERGE, e ela vale para toda mudança futura em workflow de
+IA.** A `claude-code-action` exige que o arquivo do workflow seja **idêntico ao da branch
+padrão** — é a mesma validação do impasse [D-014], mas ela morde por um segundo motivo que não
+estava previsto: **assim que este PR entrou na `main`, o critic parou em TODOS os PRs abertos
+cuja branch ainda tinha a versão anterior do `design-critic.yml`.** Não é o PR que ALTERA o
+workflow que é recusado; é qualquer PR que ainda NÃO o tenha.
+
+Medido no PR #181 minutos depois do merge: dois runs no mesmo commit, os dois com
+`Skipping action due to workflow validation`, veredito vazio — e, pior, a contagem de rodada
+caindo no incremento antigo, porque o step que rodou era o da branch, sem a variável `SHA`. Os
+dois runs gravaram rodadas DIFERENTES (1 e 2), que é exatamente o sintoma que esta entrada
+existe para eliminar. **O sintoma se disfarça de regressão da própria correção**, e custou uma
+investigação até o log mostrar `workflow validation`.
+
+Também derruba uma suposição que eu tinha: para `pull_request`, o workflow executado é o da
+**branch do PR**, não o do merge commit com a base. Por isso um PR aberto antes da mudança
+continua rodando a versão velha até ser atualizado.
+
+**Procedimento que fica:** depois de mergear mudança em workflow de IA, **atualizar a branch de
+todo PR aberto** (`gh pr update-branch`) antes de esperar qualquer veredito. E ao ler um vermelho
+logo depois de um merge desses, procurar `workflow validation` no log **antes** de procurar
+defeito no código.
+
 **Como isto será verificado de verdade.** Teste de unidade verde não é gate funcionando — é a
 lição central da [D-086]. A verificação é o **primeiro PR de UI depois deste** (a issue #179,
 barra de topo): confirmar em `gh run list --workflow=design-critic.yml` que dois runs no mesmo SHA
