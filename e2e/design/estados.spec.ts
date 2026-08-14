@@ -64,7 +64,7 @@ test.describe('Campo de escrita do questionário (DESIGN.md §11)', () => {
 
 		// A pergunta E a orientação. Um campo vazio sem nenhuma das duas é o estado vazio
 		// não-desenhado que o anti-pattern 58 descreve. A orientação é voz do sistema (§3):
-		// vive na margem, não dentro da `<section>` do conteúdo do casal.
+		// vive na folha, abaixo do campo (rodada 4, #181 — a margem de 64px não cabe frase real).
 		const secao = page.getByRole('region').first();
 		await expect(secao.getByRole('heading', { level: 2 })).not.toBeEmpty();
 		const orientacao = page.locator('.voz-sistema__ajuda');
@@ -72,7 +72,7 @@ test.describe('Campo de escrita do questionário (DESIGN.md §11)', () => {
 		await expect(orientacao).not.toBeEmpty();
 
 		// E o vazio NÃO é erro: entrar na etapa não pode acusar quem ainda não respondeu.
-		await expect(page.locator('.erros')).toHaveCount(0);
+		await expect(page.getByRole('alert')).toHaveCount(0);
 	});
 
 	test('erro: avançar sem responder nomeia o que falta e é anunciado por leitor de tela', async ({
