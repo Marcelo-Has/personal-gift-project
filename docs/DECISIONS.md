@@ -4267,6 +4267,74 @@ do Firebase.
 workflow não é julgado por gate nenhum que ele mesmo conserte.
 
 ---
+## D-089 | 2026-08-14 | ACEITA
+
+**Duas contradições internas do `DESIGN.md` resolvidas pelo dono, e o acabamento das rotas que
+ainda eram beco-sem-saída.** Fecha a EV2.5. As duas primeiras são **alteração de contrato aprovado
+em gate humano** (regra 3 do próprio `DESIGN.md`) e por isso vieram de decisão explícita, não de
+inferência: a issue #189 foi aberta como `decision-needed` e respondida.
+
+**1. A voz do sistema é definida pela TIPOGRAFIA, não pela coluna** (§3 e §11 corrigidas).
+
+O `DESIGN.md` se contradizia, e o PR #181 oscilou entre as duas leituras por três rodadas:
+
+| Fonte | Onde a ajuda do campo ficava |
+| --- | --- |
+| §6, wireframe "Um passo do questionário" | dentro da folha; na margem, só `ex.` |
+| §6, colapso 375 | "a ajuda fica logo abaixo do campo" |
+| §3 | "à esquerda da régua fica tudo que o sistema diz — ... ajuda ..." |
+| §11 | "a pergunta e, **na margem**, um exemplo real" |
+
+**Vence o wireframe.** A §3 passa a distinguir **rótulo** (contagem de passo, unidade, prazo,
+`ex.:` — cabe na coluna e fica à esquerda) de **texto do sistema que não é rótulo** (ajuda,
+exemplo, erro — fica junto do que explica, à direita da régua, e continua em Archivo 800/14). A §11
+foi corrigida no mesmo sentido.
+
+**O motivo é físico, e foi medido.** A coluna da margem tem `space-2xl` (64px). Texto corrido ali
+quebra numa palavra por linha e acaba **cruzando a régua** — o `regua.spec` reprovou exatamente
+isso quando a ajuda foi movida para a margem, e a mesma classe de defeito já havia custado duas
+rodadas na landing (#178, a escada "R$80 a / R$130 · o / valor do / seu..."). Manter a §3 ao pé da
+letra exigiria encurtar ajuda e exemplo ao tamanho de um rótulo, ou alargar a coluna — e alargar a
+coluna é mudar a assinatura, que é gate maior que este.
+
+A régua continua sendo fronteira semântica: o que muda é **como** ela separa — pela voz
+tipográfica, que acompanha o texto onde ele estiver, em vez de pela coordenada, que não comporta
+frase.
+
+**2. A folha volta a ficar AO CENTRO** (`--largura-pagina`, `margin-inline: auto` no layout raiz).
+
+O critic achou, e procede: em 1280 o bloco margem+conteúdo colava na borda esquerda e toda a sobra
+— quase um terço do viewport — virava faixa de `surface` de um lado só, **em toda tela do
+produto**. A §6 diz o contrário em dois lugares: o conceito ("*uma folha ao centro* com uma régua
+de margem à esquerda") e o grid de 12 colunas ("conteúdo máximo 1120px, margem externa 40px").
+
+Aqui **não houve alteração de contrato** — houve implementação do que o contrato já dizia e nunca
+foi feito. A centralização vai em `.pagina`, não em `.grade`, porque a régua é `position: absolute`
+dentro dela: centralizar só a grade deixaria a linha para trás.
+
+**3. Três becos-sem-saída fechados** (dimensão D4 da rubrica: "a navegação não tem
+becos-sem-saída").
+
+- **`pedido-cancelado`** era o pior: o texto prometia *"você pode tentar novamente quando quiser"*
+  e a tela não oferecia nenhuma ação. **Promessa de saída que não existe é pior que beco
+  silencioso** — é o oposto do que a §9 pede (nomear o problema *e* a saída). Ganhou o CTA que o
+  texto promete.
+- **`pedido-sucesso`** não tinha saída nenhuma. Ganhou o caminho para o início — e **não** um link
+  de "acompanhar pedido", porque a tela de acompanhamento da §11 ainda não existe e prometer o que
+  não há foi justamente o defeito anterior.
+- **`estilo-e-tamanho`**, sem catálogo publicado, prendia quem chegasse. Ganhou o caminho de volta
+  ao questionário.
+
+**4. Itálico removido de `estilo-e-tamanho`.** Nenhum dos quatro papéis da §4.5 prevê itálico
+(display/heading/body/caption são todos peso reto) e não havia justificativa registrada. O
+rebaixamento passa a vir de `--muted`, que é o token para isso.
+
+**Sobre o método.** As duas contradições existiam desde a aprovação do `DESIGN.md` ([D-080]) e
+nenhuma leitura estática as tinha pego — foi preciso o critic julgar o render e um PR oscilar entre
+as duas leituras para que aparecessem. É a mesma lição da [D-086], aplicada ao contrato de design
+em vez de à infraestrutura: **contrato revisado não é contrato exercitado.**
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real

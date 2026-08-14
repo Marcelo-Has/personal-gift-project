@@ -92,8 +92,13 @@ duas vozes do produto.**
 
 - **À direita da régua fica tudo que vem do casal** — o que o comprador escreveu, os nomes, as
   fotos, os trechos do livro. Sempre em **Lora**, a mesma fonte em que o livro é impresso.
-- **À esquerda da régua fica tudo que o sistema diz** — rótulo, contagem de passo, ajuda, unidade,
-  prazo, mensagem de erro. Sempre em **Archivo 800**, corpo 14.
+- **À esquerda da régua fica o que o sistema diz em RÓTULO** — contagem de passo, unidade, prazo,
+  marcador curto (`ex.:`). Sempre em **Archivo 800**, corpo 14.
+- **A voz do sistema é definida pela TIPOGRAFIA, não só pela coluna.** Texto do sistema que não é
+  rótulo — ajuda de campo, exemplo, mensagem de erro — fica **à direita da régua, junto do que
+  explica**, e continua em Archivo 800/14 para permanecer reconhecível como fala do sistema. A
+  coluna da esquerda tem `space-2xl` (64px) e comporta rótulo, não frase: texto corrido ali quebra
+  numa palavra por linha e acaba cruzando a régua ([D-089], medido no PR #181).
 - **Nenhum elemento cruza a régua.** No 375, onde não cabe uma coluna à esquerda, a voz do sistema
   sobe para imediatamente **acima** do bloco, alinhada à régua, mantendo a mesma família e o mesmo
   peso — a divisão continua legível, só muda de eixo.
@@ -489,7 +494,7 @@ com a voz do sistema alinhada a ela; em 768 e 1280 ela é a divisão de duas col
 
 | Componente-chave | Vazio | Carregando | Erro | Overflow | Offline / degradado |
 | --- | --- | --- | --- | --- | --- |
-| **Campo de escrita do questionário** | a pergunta e, na margem, um exemplo real e específico do que entra ali (nunca "João Silva") | não se aplica — o campo não carrega dado | na margem, à esquerda: "Falta responder isto para o livro ter o que contar." O campo ganha `border` em `destructive` **e** o texto do erro (cor nunca sozinha) | texto de 40 linhas: o campo cresce até 12 linhas e passa a rolar internamente; nada é truncado sem aviso | o rascunho fica no dispositivo e a margem diz "Salvo aqui neste aparelho. Vai subir quando a conexão voltar." **O que foi digitado nunca se perde** |
+| **Campo de escrita do questionário** | a pergunta e, junto do campo, um exemplo real e específico do que entra ali (nunca "João Silva"), em Archivo 800/14 — a margem leva só o rótulo `ex.:` ([D-089]) | não se aplica — o campo não carrega dado | junto do campo, em Archivo 800/14: "Falta responder isto para o livro ter o que contar." O campo ganha `border` em `destructive` **e** o texto do erro (cor nunca sozinha) | texto de 40 linhas: o campo cresce até 12 linhas e passa a rolar internamente; nada é truncado sem aviso | o rascunho fica no dispositivo e a margem diz "Salvo aqui neste aparelho. Vai subir quando a conexão voltar." **O que foi digitado nunca se perde** |
 | **Envio de foto** | contorno tracejado em `border` + "Uma foto de vocês dois. JPG ou PNG, até 8 MB." | esqueleto com a **proporção exata** da miniatura final, para o layout não pular (nunca spinner) | "A foto tem 12 MB; o limite é 8 MB. Escolha outra ou reduza." — no lugar da miniatura que falhou, com a ação de trocar ali mesmo | 30 fotos onde cabem 8: as 8 primeiras aparecem e a margem diz quantas ficaram de fora e quais entram no livro | envio pausa e retoma; a margem diz o que já subiu e o que falta, por nome de arquivo |
 | **Contêiner da prévia** | "A prévia aparece aqui quando o livro terminar de ser montado." + o tempo estimado | esqueleto com a forma do spread (dois quadrados) e a contagem real de páginas prontas — a geração é lenta e o progresso é informação, não enfeite | "A montagem parou na página 12. Já tentamos duas vezes. Escreva para a gente e resolvemos sem você refazer nada." — o erro nunca sugere recomeçar do zero | nome do casal com 60 caracteres: quebra em duas linhas no `display`, nunca reticências | a prévia já baixada continua visível e navegável; a ação de pagar fica desabilitada com o motivo escrito ao lado |
 | **Pedido (acompanhamento)** | "Você ainda não tem nenhum livro." + a ação de começar | esqueleto de uma linha de pedido | "Não conseguimos ler o status agora. Seu pedido está seguro; recarregue em instantes." | 300 pedidos (caso do admin): lista virtualizada, densidade alta — é a única superfície de operação repetida do produto | mostra o último status conhecido **com a hora em que foi lido**, nunca um status velho sem data |
@@ -669,3 +674,40 @@ componente global ao PR de uma rota só, contra `.claude/rules/right-sizing.md`.
 **Consequência aceita:** até essa issue existir, a landing e o questionário abrem sem marca e sem
 navegação no topo. É omissão registrada, não esquecimento.
 **Origem:** achado [High] do `design-critic` no PR #178, e decisão do dono.
+
+### 2026-08-14 · A voz do sistema passa a ser definida pela TIPOGRAFIA, não pela coluna (§3 e §11)
+
+**O quê:** a §3 agora distingue **rótulo** (contagem de passo, unidade, prazo, `ex.:` — fica à
+esquerda da régua) de **texto do sistema que não é rótulo** (ajuda de campo, exemplo, mensagem de
+erro — fica junto do que explica, à direita da régua, e continua em Archivo 800/14). A §11 foi
+corrigida no mesmo sentido, na linha do campo de escrita do questionário.
+
+**Por quê:** o documento se contradizia. O wireframe da §6 desenha a ajuda dentro da folha e o
+parágrafo de colapso 375 diz "a ajuda fica logo abaixo do campo"; a §3 e a §11 diziam o oposto. O
+PR #181 oscilou entre as duas leituras por três rodadas.
+
+**O motivo é físico e foi medido:** a coluna da margem tem `space-2xl` (64px). Texto corrido ali
+quebra numa palavra por linha e acaba **cruzando a régua** — o `regua.spec` reprovou exatamente
+isso, e a mesma classe de defeito já custara duas rodadas na landing (#178). A régua continua sendo
+fronteira semântica; o que muda é que ela separa **pela voz tipográfica**, que acompanha o texto
+onde ele estiver, em vez de pela coordenada, que não comporta frase.
+
+**Origem:** achado [High] D7 do `design-critic` no PR #181 → issue #189 (`decision-needed`) →
+decisão do dono. Registrada na [D-089].
+
+### 2026-08-14 · Novo token de largura: `--largura-pagina`, para a folha ficar ao centro
+
+| Token | Valor | Papel |
+| --- | --- | --- |
+| `largura-pagina` | `70rem` (1120px) | `max-width` do `.pagina` no layout raiz, com `margin-inline: auto` |
+
+**Por quê:** em 1280 o bloco margem+conteúdo colava na borda esquerda e quase um terço do viewport
+virava faixa de `surface` de um lado só, **em toda tela do produto** — contra o conceito da §6
+("*uma folha ao centro* com uma régua de margem à esquerda") e contra o próprio grid da §6
+("conteúdo máximo 1120px"). **Não é alteração de contrato:** é a implementação do que a §6 já dizia
+e nunca havia sido feita.
+
+A centralização vai em `.pagina`, não em `.grade`: a régua é `position: absolute` dentro de
+`.pagina`, então centralizar só a grade deixaria a linha para trás.
+
+**Origem:** achado [Med] D1 do `design-critic` no PR #181. Registrada na [D-089].

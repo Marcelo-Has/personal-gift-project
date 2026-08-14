@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 
 	const orderId = $derived(page.url.searchParams.get('orderId'));
@@ -14,4 +15,22 @@
 		Recebemos seu pagamento{orderId ? ` para o pedido ${orderId}` : ''}. Em breve confirmaremos por
 		aqui.
 	</p>
+	<!--
+		Saída obrigatória: a rubrica (D4) proíbe beco-sem-saída, e esta é a última tela do fluxo de
+		compra. Enquanto a tela de acompanhamento do pedido (§11, "Pedido (acompanhamento)") não
+		existir, o caminho honesto é o início — sem prometer um acompanhamento que ainda não há
+		([D-089]).
+	-->
+	<p class="saida"><a href={resolve('/')}>Voltar ao início</a></p>
 </main>
+
+<style>
+	main {
+		max-width: var(--medida-leitura);
+		padding: var(--space-md);
+	}
+
+	.saida {
+		margin-top: var(--space-lg);
+	}
+</style>

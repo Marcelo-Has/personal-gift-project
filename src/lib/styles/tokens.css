@@ -81,6 +81,11 @@
 	/* §6 — a medida de leitura, travada em 62ch em qualquer largura. */
 	--medida-leitura: 62ch;
 
+	/* §6 — o conteúdo máximo do grid de 12 colunas (1120px). É o que faz a folha ficar "ao centro",
+	   como o conceito da §6 descreve: sem isto a composição cola na borda esquerda e toda a sobra
+	   de largura vira faixa vazia de um lado só. */
+	--largura-pagina: 70rem;
+
 	/* §4.6 — motion. `--ease-papel` é a única curva do produto; nenhuma tem overshoot. */
 	--duration-instant: 120ms;
 	--duration-base: 200ms;

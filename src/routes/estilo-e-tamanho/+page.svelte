@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { catalogoIncompleto, montarOpcoes } from '$lib/escolha-estilo';
 
 	const opcoes = montarOpcoes();
@@ -26,6 +27,11 @@
 		<p class="em-breve">
 			Ainda estamos preparando os estilos e tamanhos disponíveis. Volte em breve.
 		</p>
+		<!--
+			Sem catálogo, esta tela era um beco: nenhum caminho de volta (D4, [D-089]). O estado vazio
+			da §11 pede o texto E a ação — aqui a ação possível é retomar o questionário.
+		-->
+		<p class="saida"><a href={resolve('/questionario')}>Voltar ao questionário</a></p>
 	{:else}
 		<div>
 			<fieldset>
@@ -86,7 +92,13 @@
 		margin: var(--space-2xs) 0;
 	}
 
+	/* Sem itálico: nenhum dos quatro papéis da §4.5 o prevê e não há justificativa registrada
+	   ([D-089]). O papel `body` cobre o caso, e o rebaixamento vem de `--muted`. */
 	.em-breve {
-		font-style: italic;
+		color: var(--muted);
+	}
+
+	.saida {
+		margin-top: var(--space-lg);
 	}
 </style>
