@@ -92,12 +92,10 @@ for (const { largura, altura } of VIEWPORTS) {
 					return {
 						reguaTop: rRegua.top + window.scrollY,
 						reguaBottom: rRegua.bottom + window.scrollY,
-						// Relativo a `.pagina`, NÃO ao viewport: a §3 posiciona a régua "da borda esquerda
-						// da coluna de conteúdo", e desde a [D-089] `.pagina` é centralizada
-						// (`--largura-pagina` + `margin-inline: auto`), como o conceito e o grid da §6
-						// sempre pediram. Medir do viewport passaria a somar a margem de centralização
-						// (80px em 1280) ao offset do token e reprovaria a composição correta.
-						reguaLeft: rRegua.left - rPagina.left,
+						// Absoluto (do viewport). Quem transforma em offset relativo à folha é a asserção,
+						// subtraindo `paginaLeft` — assim a mensagem de erro mostra as duas coordenadas e
+						// diz onde a régua está E onde a folha está.
+						reguaLeft: rRegua.left,
 						paginaTop: rPagina.top + window.scrollY,
 						paginaBottom: rPagina.bottom + window.scrollY,
 						paginaLeft: rPagina.left,
