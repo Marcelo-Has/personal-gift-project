@@ -96,7 +96,15 @@ test('deve fixar a ação primária no rodapé, em dvh, quando a promessa sai da
 	await expect(ctaHero).toHaveCSS('position', 'fixed');
 });
 
-for (const largura of [375, 768, 1280]) {
+test('não deve renderizar caixa de foto no herói (§6: coluna de texto ocupa a largura toda até existir foto real)', async ({
+	page
+}) => {
+	await page.goto('/');
+
+	await expect(page.locator('section[aria-labelledby="promessa"] .hero-foto')).toHaveCount(0);
+});
+
+for (const largura of [768, 1280]) {
 	test(`deve popular a .margem da home com a voz do sistema em ${largura}px`, async ({ page }) => {
 		await page.setViewportSize({ width: largura, height: 900 });
 		await page.goto('/');
@@ -107,9 +115,10 @@ for (const largura of [375, 768, 1280]) {
 	});
 }
 
-test('deve anunciar a promessa, depois a foto, depois o CTA, na ordem do DOM (ordem de leitura §6)', async ({
+test('deve mostrar a voz do sistema (preço/prazo) dentro do herói em 375px, acima do botão, sem popular a .margem', async ({
 	page
 }) => {
+	await page.setViewportSize({ width: 375, height: 812 });
 	await page.goto('/');
 
 	const filhos = await page
@@ -117,7 +126,23 @@ test('deve anunciar a promessa, depois a foto, depois o CTA, na ordem do DOM (or
 		.evaluateAll((els) =>
 			els.map((el) => `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`)
 		);
-	expect(filhos).toEqual(['div.hero-intro', 'div.hero-foto', 'a.cta']);
+	expect(filhos).toEqual(['div.hero-intro', 'p.hero-sistema-mobile', 'a.cta']);
+
+	await expect(page.getByText(/R\$80.+R\$130/)).toBeVisible();
+	// A cópia que normalmente vive na `.margem` (via contexto) segue no DOM em 375px, mas escondida
+	// (`display: none`) — não é a que aparece nem a que um leitor de tela anuncia neste viewport.
+	await expect(page.locator('.hero-sistema-desktop')).toBeHidden();
+});
+
+test('não deve anunciar a voz do sistema do herói duas vezes a partir de 768px (a cópia do 375 some do DOM acessível)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.goto('/');
+
+	await expect(
+		page.locator('section[aria-labelledby="promessa"] .hero-sistema-mobile')
+	).toBeHidden();
 });
 
 test('deve ocupar a largura da coluna com o CTA do herói em 375px, antes de fixar no rodapé', async ({
@@ -133,24 +158,3 @@ test('deve ocupar a largura da coluna com o CTA do herói em 375px, antes de fix
 	const larguraCta = await cta.evaluate((el) => el.getBoundingClientRect().width);
 	expect(larguraCta).toBeGreaterThan(larguraIntro * 0.9);
 });
-
-for (const largura of [768, 1280]) {
-	test(`deve esticar a caixa da foto ausente para acompanhar a coluna de texto em ${largura}px`, async ({
-		page
-	}) => {
-		await page.setViewportSize({ width: largura, height: 900 });
-		await page.goto('/');
-
-		const alturaColuna = await page.evaluate(() => {
-			const intro = document.querySelector('section[aria-labelledby="promessa"] .hero-intro');
-			const cta = document.querySelector('section[aria-labelledby="promessa"] a.cta');
-			if (!intro || !cta) throw new Error('hero-intro ou cta ausente');
-			const inicio = intro.getBoundingClientRect().top;
-			const fim = cta.getBoundingClientRect().bottom;
-			return fim - inicio;
-		});
-		const heroFoto = page.locator('section[aria-labelledby="promessa"] .hero-foto');
-		const alturaFoto = await heroFoto.evaluate((el) => el.getBoundingClientRect().height);
-		expect(alturaFoto).toBeGreaterThan(alturaColuna * 0.9);
-	});
-}

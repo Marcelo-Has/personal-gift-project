@@ -21,9 +21,7 @@ export const homeContent = {
 
 	hero: {
 		promise: 'Você já tem a história de vocês. Em cinco minutos, ela vira um livro.',
-		lead: 'Você escreve como se conheceram, as fotos e as piadas de vocês, e o livro sai pronto para presentear.',
-		fotoAusente:
-			'A foto de um livro impresso ainda não existe para mostrar aqui. Assim que o primeiro exemplar sair da gráfica, ela aparece.'
+		lead: 'Você escreve como se conheceram, as fotos e as piadas de vocês, e o livro sai pronto para presentear.'
 	},
 
 	impresso: {

@@ -27,7 +27,7 @@
 </script>
 
 {#snippet vozDoSistema()}
-	<p>{homeContent.sistemaPrecoPrazo}</p>
+	<p class="hero-sistema-desktop">{homeContent.sistemaPrecoPrazo}</p>
 {/snippet}
 
 <svelte:head>
@@ -42,9 +42,12 @@
 			<h1 id="promessa" class="promessa" bind:this={promessaEl}>{homeContent.hero.promise}</h1>
 			<p class="apoio">{homeContent.hero.lead}</p>
 		</div>
-		<div class="hero-foto">
-			<p>{homeContent.hero.fotoAusente}</p>
-		</div>
+		<!-- Voz do sistema do herói (§3: preço/prazo), duplicada em DOM porque a ordem de leitura muda
+		     por viewport (§6): no 375 ela vem ANTES do botão, a partir de 768 vem DEPOIS — `order` não
+		     resolveria isso (só reordena visualmente, não pra leitor de tela). Cada cópia só existe na
+		     árvore de acessibilidade no viewport em que é visível (`display: none` remove do a11y tree),
+		     então nunca é anunciada duas vezes. -->
+		<p class="hero-sistema-mobile">{homeContent.sistemaPrecoPrazo}</p>
 		<a class="cta" class:cta-fixa={!promessaVisivel} href={resolve(homeContent.ctaHref)}>
 			{homeContent.ctaLabel}
 		</a>
@@ -142,21 +145,19 @@
 		margin-top: var(--space-lg);
 	}
 
-	/* 1. Promessa + ação — LCP é o texto do `.promessa` (playbook §3.1): nasce visível, sem imagem. */
+	/*
+	 * 1. Promessa + ação — LCP é o texto do `.promessa` (playbook §3.1): nasce visível, sem imagem.
+	 * Enquanto não existir foto real de um livro produzido, a coluna de texto ocupa a largura toda
+	 * (§6/§7.2: "a região fica vazia e marcada" é regra da seção Prova, não do herói — o herói é o
+	 * elemento LCP, e um placeholder tracejado ali é o genérico que a Fundação decidiu evitar; a
+	 * decisão registrada para o herói é omitir a coluna de foto por inteiro até existir foto real).
+	 */
 	.hero {
 		display: grid;
 		grid-template-columns: 1fr;
-		/*
-		 * A ordem de leitura da §6 é "a promessa, depois a foto ao lado dela, depois o botão". Isso
-		 * já é a ordem do DOM (`.hero-intro` → `.hero-foto` → `.cta`), então quem usa leitor de tela
-		 * ouve nessa ordem em qualquer viewport. `grid-template-areas` mapeia esse DOM para a posição
-		 * visual (texto à esquerda/acima, foto à direita/abaixo) sem `order`: `order` só muda a ordem
-		 * VISUAL, não a ordem em que um leitor de tela em modo de leitura percorre a página (WCAG
-		 * 1.3.2, Meaningful Sequence).
-		 */
 		grid-template-areas:
 			'intro'
-			'foto'
+			'sistema'
 			'cta';
 		gap: var(--space-lg);
 		/* O primeiro viewport é o herói (§10): é o que faz "a promessa sair da tela" ter sentido
@@ -167,11 +168,9 @@
 
 	@media (min-width: 768px) {
 		.hero {
-			grid-template-columns: 3fr 2fr;
 			grid-template-areas:
-				'intro foto'
-				'cta   foto';
-			align-items: start;
+				'intro'
+				'cta';
 			min-height: 0;
 		}
 	}
@@ -261,24 +260,54 @@
 		}
 	}
 
-	/* A região da foto (§7.2): vazia e marcada — nunca um substituto (banco de imagens, ilustração). */
-	.hero-foto {
-		grid-area: foto;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: var(--space-lg);
-		text-align: center;
+	/*
+	 * Voz do sistema do herói (preço/prazo, §3) — mesma tipografia da `.margem` (Archivo 800/14,
+	 * `--muted`), mas cada cópia vive só no viewport em que participa da ordem de leitura certa.
+	 */
+	.hero-sistema-mobile,
+	.hero-sistema-desktop {
+		font-family: var(--font-sistema);
+		font-weight: var(--weight-sistema);
+		font-stretch: var(--font-stretch-sistema);
+		font-size: var(--text-caption);
+		line-height: var(--leading-caption);
 		color: var(--muted);
-		border: 1px dashed var(--border);
-		border-radius: var(--radius-md);
 	}
 
-	/* Sem isso a caixa tracejada fica bem mais baixa que a coluna de texto, com um vão vazio
-	   antes da seção seguinte — `stretch` faz a caixa acompanhar a altura real do herói. */
+	/*
+	 * No 375 ela é a única cópia visível, e vive dentro do herói (grid-area `sistema`, entre a
+	 * promessa e o botão) — o `gap` do próprio `.hero` já separa os grupos (§4.2). O gate de tokens
+	 * do CI (`stylelint.config.js`, EV2.4 · Q4) só aceita `var(--space-*)` puro em propriedade de
+	 * espaçamento, nunca `calc()`: por isso o alinhamento flush com a régua (que pediria cancelar o
+	 * `margin-inline-start` de `.folha` com um valor composto) fica fora de alcance sem um token
+	 * novo dedicado só a isso — a tipografia (Archivo 800, `--muted`) é o que sinaliza "voz do
+	 * sistema" aqui, como a própria §3 prevê ("mantendo a mesma família e o mesmo peso").
+	 */
+	.hero-sistema-mobile {
+		grid-area: sistema;
+	}
+
 	@media (min-width: 768px) {
-		.hero-foto {
-			align-self: stretch;
+		.hero-sistema-mobile {
+			display: none;
+		}
+	}
+
+	/*
+	 * A partir de 768 a cópia visível é a que vive na `.margem` de verdade (via `getContext`,
+	 * `vozDoSistema` acima), à esquerda da régua. `--space-3xl` afasta o texto do topo da coluna —
+	 * mesma razão do item acima, o gate de tokens não permite um `calc()` composto para mirar a
+	 * altura exata do bloco do CTA, então o valor é o maior degrau da escala de espaço (§4.2) em vez
+	 * de um pixel solto; aproxima a região do herói sem tentar precisão de pixel.
+	 */
+	.hero-sistema-desktop {
+		display: none;
+	}
+
+	@media (min-width: 768px) {
+		.hero-sistema-desktop {
+			display: block;
+			margin-top: var(--space-3xl);
 		}
 	}
 
@@ -297,14 +326,13 @@
 	}
 
 	/*
-	 * Nota, marcador de foto ausente e texto do estado vazio (Prova): NENHum é conteúdo do casal
-	 * nem voz do sistema no sentido da §3 (rótulo, contagem de passo, prazo) — são comentário
-	 * editorial dentro da folha. Ficam em Lora, como todo o resto à direita da régua, só
-	 * rebaixados em `--muted` (§4.1: "texto secundário, rebaixado de propósito"). A voz do
-	 * sistema de verdade desta página é só o teaser de preço/prazo, na `.margem`.
+	 * Nota e texto do estado vazio (Prova): NENHum é conteúdo do casal nem voz do sistema no
+	 * sentido da §3 (rótulo, contagem de passo, prazo) — são comentário editorial dentro da folha.
+	 * Ficam em Lora, como todo o resto à direita da régua, só rebaixados em `--muted` (§4.1: "texto
+	 * secundário, rebaixado de propósito"). A voz do sistema de verdade desta página é o teaser de
+	 * preço/prazo do herói (`.hero-sistema-mobile`/`.hero-sistema-desktop`).
 	 */
 	.nota,
-	.hero-foto p,
 	.vazia p {
 		color: var(--muted);
 	}

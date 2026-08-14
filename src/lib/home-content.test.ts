@@ -15,7 +15,6 @@ function textosVoltadosAoComprador(): string[] {
 		homeContent.sistemaPrecoPrazo,
 		homeContent.hero.promise,
 		homeContent.hero.lead,
-		homeContent.hero.fotoAusente,
 		homeContent.impresso.heading,
 		homeContent.impresso.intro,
 		homeContent.impresso.excerptNote,
