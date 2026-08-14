@@ -30,6 +30,13 @@
 		padding: var(--space-md);
 	}
 
+	/* O link herda o azul default do UA se ninguém disser nada — e isso seria uma SEGUNDA
+	   cor de acento fora do sistema, contra a §4.1 ("um acento só"). Achado do design-critic
+	   no PR #191. */
+	.saida a {
+		color: var(--accent);
+	}
+
 	.saida {
 		margin-top: var(--space-lg);
 	}

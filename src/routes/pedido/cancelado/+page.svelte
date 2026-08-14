@@ -45,6 +45,13 @@
 		border-radius: var(--radius-sm);
 	}
 
+	/* O link herda o azul default do UA se ninguém disser nada — e isso seria uma SEGUNDA
+	   cor de acento fora do sistema, contra a §4.1 ("um acento só"). Achado do design-critic
+	   no PR #191. */
+	.alternativa a {
+		color: var(--accent);
+	}
+
 	.alternativa {
 		margin-top: var(--space-md);
 	}
