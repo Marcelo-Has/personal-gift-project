@@ -56,6 +56,29 @@ test('colapsa em 375px: marca em cima, ação embaixo, ocupando a coluna', async
 	expect(caixaAcao.width).toBeGreaterThan(caixaMarca.width);
 });
 
+test.describe('peso visual da ação por rota (§15, rebaixada onde a página já tem ação própria)', () => {
+	const ROTAS_REBAIXADAS = ['/questionario/pessoas', '/pedido/cancelado'];
+	const ROTAS_CHEIAS = ROTAS.filter((rota) => !ROTAS_REBAIXADAS.includes(rota));
+
+	for (const rota of ROTAS_REBAIXADAS) {
+		test(`${rota}: ação sem preenchimento sólido (outline)`, async ({ page }) => {
+			await page.goto(rota);
+			const acao = page.locator('.barra-topo .acao-barra');
+			const fundo = await acao.evaluate((el) => getComputedStyle(el).backgroundColor);
+			expect(fundo).toBe('rgba(0, 0, 0, 0)');
+		});
+	}
+
+	for (const rota of ROTAS_CHEIAS) {
+		test(`${rota}: ação com preenchimento sólido`, async ({ page }) => {
+			await page.goto(rota);
+			const acao = page.locator('.barra-topo .acao-barra');
+			const fundo = await acao.evaluate((el) => getComputedStyle(el).backgroundColor);
+			expect(fundo).not.toBe('rgba(0, 0, 0, 0)');
+		});
+	}
+});
+
 test('vira uma linha só a partir de 768px: marca à esquerda, ação à direita', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await page.goto('/');

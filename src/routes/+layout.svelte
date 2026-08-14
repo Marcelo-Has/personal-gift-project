@@ -9,6 +9,7 @@
 	import { browser } from '$app/environment';
 	import { afterNavigate, beforeNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { homeContent } from '$lib/home-content';
 
 	let { children } = $props();
@@ -38,6 +39,13 @@
 	function ehRotaDoQuestionario(routeId: string | null | undefined): boolean {
 		return !!routeId && routeId.startsWith('/questionario');
 	}
+
+	// §15 "CTA da barra de topo: cheio numa rota, rebaixado noutra" (revisão do dono, PR #192): nas
+	// rotas que já têm ação primária própria — o questionário e a recuperação de pagamento — a ação
+	// da barra perde o preenchimento sólido, para sobrar só UM botão cheio por tela (playbook §2.2).
+	let acaoDaBarraRebaixada = $derived(
+		ehRotaDoQuestionario(page.route.id) || page.route.id === '/pedido/cancelado'
+	);
 
 	beforeNavigate((navegacao) => {
 		alturaAntesDaNavegacao =
@@ -73,7 +81,11 @@
 	<div class="regua" bind:this={reguaEl} aria-hidden="true"></div>
 	<header class="barra-topo">
 		<a class="marca" href={resolve('/')}>Nossa História</a>
-		<a class="acao-barra" href={resolve(homeContent.ctaHref)}>{homeContent.ctaLabel}</a>
+		<a
+			class="acao-barra"
+			class:acao-barra--rebaixada={acaoDaBarraRebaixada}
+			href={resolve(homeContent.ctaHref)}>{homeContent.ctaLabel}</a
+		>
 	</header>
 	<div class="grade">
 		<div class="margem">
@@ -212,6 +224,15 @@
 		.acao-barra {
 			align-self: auto;
 		}
+	}
+
+	/* Rebaixada (§15, "CTA da barra de topo: cheio numa rota, rebaixado noutra"): outline em
+	   `--accent`, sem preenchimento — a página abaixo já tem a sua própria ação cheia, e dois
+	   botões com o mesmo peso visual competiriam pela mesma atenção (achado do dono, PR #192). */
+	.acao-barra--rebaixada {
+		color: var(--accent);
+		background: transparent;
+		border: 1px solid var(--accent);
 	}
 
 	/*
