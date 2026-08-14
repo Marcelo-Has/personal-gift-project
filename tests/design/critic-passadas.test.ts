@@ -135,7 +135,7 @@ describe('nenhuma passada escreveu — o PR não pode ficar vermelho E MUDO', ()
 		// [D-014] (a action recusa rodar em PR que altera o workflow que a invoca), o arquivo
 		// final ficou vazio e o job reprovou sem uma linha no fio do PR explicando por quê — que
 		// é exatamente o defeito que a [D-086] item 1 registrou.
-		const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
+		const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
 		const { join } = await import('node:path');
 		const { execFileSync } = await import('node:child_process');
