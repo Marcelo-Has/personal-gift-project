@@ -25,15 +25,15 @@
 </main>
 
 <style>
-	main {
-		max-width: var(--medida-leitura);
-		padding: var(--space-md);
-	}
-
 	/* O link herda o azul default do UA se ninguém disser nada — e isso seria uma SEGUNDA
 	   cor de acento fora do sistema, contra a §4.1 ("um acento só"). Achado do design-critic
 	   no PR #191. */
 	.saida a {
+		/* 44px de alvo (§7.3/§12, "sem exceção"): sem isto a área clicável é só a altura da
+		   linha (~27px). `inline-flex` para o alvo crescer sem esticar a caixa até a largura toda. */
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		color: var(--accent);
 	}
 
