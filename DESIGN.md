@@ -626,3 +626,46 @@ mesmo objeto e violaria R-ASSETS: seria `criada-na-Fundação` onde existia asse
 **Substituído por:** Lora como voz do livro e de todo conteúdo do casal (§4.5), com a proveniência
 `derivada-de-asset` registrada na §14.
 **Origem:** Fundação — passo 1 (R-ASSETS).
+
+### 2026-08-14 · Novo token de espaço: `--space-4xl`, para alinhar a voz do sistema do herói ao CTA
+
+**Por que um token novo:** a `.hero-sistema-desktop` (§3, "quanto custa · quando chega") vive na
+`.margem`, uma coluna separada da `.hero` que contém a promessa/apoio/CTA — as duas colunas não
+compartilham linha de grid, então a única forma de aproximar o rótulo da altura do CTA sem medir o
+DOM em runtime é um `margin-top` fixo. `--space-3xl` (96px), o maior degrau existente, terminava
+muito antes do botão em 768/1280 (achado do dono, PR #178, rodada 6). O gate de tokens do CI não
+aceita `calc()` composto nessa propriedade — por isso um novo degrau, não uma expressão.
+
+| Token | Valor | Papel |
+| --- | --- | --- |
+| `space-4xl` | `21.5rem` (344px) | `margin-top` da voz do sistema do herói (`.hero-sistema-desktop`) a partir de 768, aproximando-a da altura do CTA (§3, §6) |
+
+**Aproximação deliberada, não medição exata:** o valor é uma estimativa a partir da altura somada do
+`h1` (`display`), a frase de apoio e o `gap` até o CTA — não uma medição de render (sem browser
+disponível nesta sessão, como nas rodadas anteriores). Se o próximo render mostrar o valor ainda
+errado, o ajuste é só o valor deste token, não a abordagem.
+**Origem:** achado do dono no PR #178, rodada 6.
+
+### 2026-08-14 · Correção do `--space-4xl`: a estimativa da rodada 6 assumia o `h1` errado
+
+**Por que corrigir:** a estimativa da rodada 6 (192px) partiu de um `h1` de 2 linhas — mas o render
+mostrou 3 linhas em 1280 e 4 em 768 (a `.margem` fixa em 64px de largura não muda a largura da
+coluna de leitura da `.folha`, só a do rótulo). Recalculando com o número de linhas real: `folha`
+padding-top (`--space-xl`, 48px) + altura do `h1` (`--text-display`/`--leading-display`, 3 ou 4
+linhas conforme o breakpoint) + `margin-top` do `.apoio` (`--space-xs`, 12px) + altura do `.apoio`
+(2 linhas em ambos) + `gap` até o `.cta` (`--space-lg`, 32px) dá ≈317px em 1280 e ≈371px em 768. Um
+token só (sem breakpoint próprio) não acerta os dois exatamente — `21.5rem` (344px) é a média,
+minimizando o erro em cada um.
+**Origem:** achado do dono no PR #178, rodada 6 (correção de cálculo aplicada na rodada 7, mesma
+issue #177).
+
+### 2026-08-14 · Barra de topo do wireframe da §6 — omitida na landing da V1
+
+**O quê:** a barra de topo do wireframe da §6 ("Nossa História" à esquerda, ação "Começar" à
+direita, primeira linha da composição) não foi entregue na landing (`/`) desta V1.
+**Por quê:** é chrome global — mora no `+layout.svelte` e apareceria em toda rota, inclusive no
+`/questionário`, que é a issue seguinte da onda. Entregá-la dentro do PR da landing acoplaria um
+componente global ao PR de uma rota só, contra `.claude/rules/right-sizing.md`.
+**Consequência aceita:** até essa issue existir, a landing e o questionário abrem sem marca e sem
+navegação no topo. É omissão registrada, não esquecimento.
+**Origem:** achado [High] do `design-critic` no PR #178, e decisão do dono.

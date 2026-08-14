@@ -1,30 +1,47 @@
 import { expect, test } from '@playwright/test';
 
-test('deve exibir o título e a promessa de "Nossa História" quando a home é carregada', async ({
-	page
-}) => {
+/** As 7 seções da §6, na ordem — os `id` de `aria-labelledby` de `src/routes/+page.svelte`. */
+const SECOES_EM_ORDEM = [
+	'promessa',
+	'impresso',
+	'cinco-minutos',
+	'preco-prazo',
+	'quem-escreve',
+	'prova',
+	'fechamento'
+];
+
+test('deve exibir a promessa do herói quando a home é carregada', async ({ page }) => {
 	await page.goto('/');
 
-	await expect(page.getByRole('heading', { level: 1, name: 'Nossa História' })).toBeVisible();
 	await expect(
-		page.getByText('Um pequeno livro sobre tudo aquilo que fez vocês virarem vocês.')
+		page.getByRole('heading', {
+			level: 1,
+			name: 'Você já tem a história de vocês. Em cinco minutos, ela vira um livro.'
+		})
+	).toBeVisible();
+	await expect(
+		page.getByText(
+			'Você escreve como se conheceram, as fotos e as piadas de vocês, e o livro sai pronto para presentear.'
+		)
 	).toBeVisible();
 });
 
-test('deve explicar as etapas do fluxo (questionário, estilo/tamanho, livro impresso)', async ({
+test('deve explicar as etapas do fluxo (questionário, estilo/tamanho, prévia e pagamento)', async ({
 	page
 }) => {
 	await page.goto('/');
 
-	await expect(page.getByRole('heading', { name: 'Responda o questionário' })).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Escolha estilo e tamanho' })).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Receba o livro impresso' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 2, name: 'Em cinco minutos' })).toBeVisible();
+	await expect(page.getByText('Você responde o questionário', { exact: true })).toBeVisible();
+	await expect(page.getByText('Você escolhe estilo e tamanho', { exact: true })).toBeVisible();
+	await expect(page.getByText('Você vê a prévia e paga', { exact: true })).toBeVisible();
 });
 
 test('deve exibir um CTA principal apontando para o questionário', async ({ page }) => {
 	await page.goto('/');
 
-	const cta = page.getByRole('link', { name: 'Começar meu livro' });
+	const cta = page.getByRole('link', { name: 'Começar o meu livro' }).first();
 	await expect(cta).toBeVisible();
 	await expect(cta).toHaveAttribute('href', '/questionario');
 });
@@ -35,4 +52,110 @@ test('deve definir title e meta description da página para SEO mínimo', async 
 	await expect(page).toHaveTitle(/Nossa História/);
 	const description = page.locator('meta[name="description"]');
 	await expect(description).toHaveAttribute('content', /.+/);
+});
+
+test('deve ter as 7 seções da §6 presentes, na ordem, e um único h1', async ({ page }) => {
+	await page.goto('/');
+
+	await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+
+	const idsRenderizados = await page
+		.locator('main > section[aria-labelledby]')
+		.evaluateAll((secoes) => secoes.map((secao) => secao.getAttribute('aria-labelledby')));
+	expect(idsRenderizados).toEqual(SECOES_EM_ORDEM);
+});
+
+test('deve ter o mesmo rótulo e o mesmo destino de CTA nas seções 1 e 7 (anti-pattern 70)', async ({
+	page
+}) => {
+	await page.goto('/');
+
+	const ctaPromessa = page.locator('section[aria-labelledby="promessa"] a.cta');
+	const ctaFechamento = page.locator('section[aria-labelledby="fechamento"] a.cta');
+
+	await expect(ctaPromessa).toHaveCount(1);
+	await expect(ctaFechamento).toHaveCount(1);
+	await expect(ctaPromessa).toHaveText(await ctaFechamento.textContent());
+	await expect(ctaPromessa).toHaveAttribute(
+		'href',
+		(await ctaFechamento.getAttribute('href')) ?? ''
+	);
+});
+
+test('deve fixar a ação primária no rodapé, em dvh, quando a promessa sai da tela em 375px', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.goto('/');
+
+	const ctaHero = page.locator('section[aria-labelledby="promessa"] a.cta');
+	await expect(ctaHero).not.toHaveClass(/cta-fixa/);
+
+	await page.locator('section[aria-labelledby="impresso"]').scrollIntoViewIfNeeded();
+	await expect(ctaHero).toHaveClass(/cta-fixa/);
+	await expect(ctaHero).toHaveCSS('position', 'fixed');
+});
+
+test('não deve renderizar caixa de foto no herói (§6: coluna de texto ocupa a largura toda até existir foto real)', async ({
+	page
+}) => {
+	await page.goto('/');
+
+	await expect(page.locator('section[aria-labelledby="promessa"] .hero-foto')).toHaveCount(0);
+});
+
+for (const largura of [768, 1280]) {
+	test(`deve popular a .margem da home com a voz do sistema em ${largura}px`, async ({ page }) => {
+		await page.setViewportSize({ width: largura, height: 900 });
+		await page.goto('/');
+
+		const margem = page.locator('.margem');
+		await expect(margem).not.toBeEmpty();
+		await expect(margem.getByText('quanto custa · quando chega')).toBeVisible();
+	});
+}
+
+test('deve mostrar a voz do sistema (preço/prazo) dentro do herói em 375px, acima do botão, sem popular a .margem', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.goto('/');
+
+	const filhos = await page
+		.locator('section[aria-labelledby="promessa"] > *')
+		.evaluateAll((els) =>
+			els.map((el) => `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`)
+		);
+	expect(filhos).toEqual(['div.hero-intro', 'p.hero-sistema-mobile', 'a.cta']);
+
+	await expect(page.locator('.hero-sistema-mobile')).toBeVisible();
+	await expect(page.locator('.hero-sistema-mobile')).toHaveText('quanto custa · quando chega');
+	// A cópia que normalmente vive na `.margem` (via contexto) segue no DOM em 375px, mas escondida
+	// (`display: none`) — não é a que aparece nem a que um leitor de tela anuncia neste viewport.
+	await expect(page.locator('.hero-sistema-desktop')).toBeHidden();
+});
+
+test('não deve anunciar a voz do sistema do herói duas vezes a partir de 768px (a cópia do 375 some do DOM acessível)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.goto('/');
+
+	await expect(
+		page.locator('section[aria-labelledby="promessa"] .hero-sistema-mobile')
+	).toBeHidden();
+});
+
+test('deve ocupar a largura da coluna com o CTA do herói em 375px, antes de fixar no rodapé', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.goto('/');
+
+	const heroIntro = page.locator('section[aria-labelledby="promessa"] .hero-intro');
+	const cta = page.locator('section[aria-labelledby="promessa"] a.cta');
+
+	const larguraIntro = await heroIntro.evaluate((el) => el.getBoundingClientRect().width);
+	const larguraCta = await cta.evaluate((el) => el.getBoundingClientRect().width);
+	expect(larguraCta).toBeGreaterThan(larguraIntro * 0.9);
 });
