@@ -5,7 +5,9 @@
 	import '$lib/styles/tokens.css';
 	import '$lib/styles/fonts.css';
 	import '$lib/styles/global.css';
-	import { setContext, type Snippet } from 'svelte';
+	import { setContext, tick, type Snippet } from 'svelte';
+	import { browser } from '$app/environment';
+	import { afterNavigate, beforeNavigate } from '$app/navigation';
 
 	let { children } = $props();
 
@@ -19,10 +21,54 @@
 			conteudoMargem = snippet;
 		}
 	});
+
+	/*
+	 * O momento autoral (§4.6): ao avançar um passo do questionário, a régua CRESCE
+	 * (`transform: scaleY`, origem no topo) até a altura do conteúdo novo, em vez de saltar.
+	 * A régua é sempre a altura real de `.pagina` (`top`/`bottom: 0` dentro dela) — por isso medir
+	 * sua altura antes/depois da navegação equivale a medir a altura da página antes/depois.
+	 * Escopado a navegações DENTRO do questionário: é o único lugar do produto com esse momento;
+	 * animar troca de rota entre telas diferentes (ex.: landing → questionário) não é o contrato.
+	 */
+	let reguaEl = $state<HTMLDivElement>();
+	let alturaAntesDaNavegacao: number | null = null;
+
+	function ehRotaDoQuestionario(routeId: string | null | undefined): boolean {
+		return !!routeId && routeId.startsWith('/questionario');
+	}
+
+	beforeNavigate((navegacao) => {
+		alturaAntesDaNavegacao =
+			ehRotaDoQuestionario(navegacao.from?.route.id) && ehRotaDoQuestionario(navegacao.to?.route.id)
+				? (reguaEl?.getBoundingClientRect().height ?? null)
+				: null;
+	});
+
+	afterNavigate(async () => {
+		if (!browser || alturaAntesDaNavegacao === null || !reguaEl) return;
+		const alturaAntes = alturaAntesDaNavegacao;
+		alturaAntesDaNavegacao = null;
+
+		await tick();
+		// `prefers-reduced-motion` (§4.6, §12): a régua já nasce na altura final, sem `scaleY`,
+		// e a troca de passo é instantânea — nenhuma informação depende do movimento.
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+		const alturaDepois = reguaEl.getBoundingClientRect().height;
+		if (alturaDepois === 0) return;
+
+		const el = reguaEl;
+		el.style.transition = 'none';
+		el.style.transformOrigin = 'top';
+		el.style.transform = `scaleY(${alturaAntes / alturaDepois})`;
+		el.getBoundingClientRect(); // força reflow antes de religar a transição
+		el.style.transition = `transform var(--duration-deliberate) var(--ease-papel)`;
+		el.style.transform = 'scaleY(1)';
+	});
 </script>
 
 <div class="pagina">
-	<div class="regua" aria-hidden="true"></div>
+	<div class="regua" bind:this={reguaEl} aria-hidden="true"></div>
 	<div class="grade">
 		<div class="margem">
 			{#if conteudoMargem}
@@ -124,6 +170,11 @@
 	 */
 	.folha {
 		grid-area: conteudo;
+		/* Sem isso, o item de grid usa a largura mínima automática (o min-content do conteúdo,
+		   ex.: um nome de arquivo comprido) como piso — ignorando `overflow-wrap` dos
+		   descendentes e empurrando a página inteira para rolar na horizontal (revisão #181,
+		   achado de e2e em 375 com 12 itens recusados). */
+		min-width: 0;
 		margin-inline-start: var(--space-lg);
 		max-width: var(--medida-leitura);
 		padding: var(--space-md);

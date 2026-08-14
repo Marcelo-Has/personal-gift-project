@@ -30,6 +30,28 @@ describe('questionarioEtapas', () => {
 			expect(etapa.title.trim().length).toBeGreaterThan(0);
 		}
 	});
+
+	it('deve ter exemplo real na margem em toda etapa de campo de escrita (DESIGN.md §11) — nunca "João Silva"', () => {
+		for (const etapa of questionarioEtapas) {
+			if (etapa.key === 'photos') continue;
+			expect(etapa.example, `etapa "${etapa.slug}" sem exemplo`).toBeTruthy();
+			expect(etapa.example).not.toMatch(/jo[aã]o silva/i);
+		}
+	});
+
+	it('deve nomear o destino no rótulo de "Continuar" (DESIGN.md §9) em toda etapa com próximo passo', () => {
+		for (let i = 0; i < questionarioEtapas.length - 1; i++) {
+			const etapa = questionarioEtapas[i];
+			expect(etapa.continuarPara, `etapa "${etapa.slug}" sem continuarPara`).toMatch(
+				/^Continuar para /
+			);
+		}
+	});
+
+	it('não deve ter continuarPara na última etapa — não há próximo passo', () => {
+		const ultima = questionarioEtapas[questionarioEtapas.length - 1];
+		expect(ultima.continuarPara).toBeUndefined();
+	});
 });
 
 describe('getEtapaBySlug', () => {

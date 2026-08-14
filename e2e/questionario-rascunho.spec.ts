@@ -59,8 +59,8 @@ test('deve recuperar o preenchimento ao recarregar no meio do questionário', as
 	await pessoa2.getByLabel('Nome').fill('Bia');
 	await pessoa2.getByLabel('Características (uma por linha)').fill('engraçada');
 
-	// `Avançar` é o gatilho do salvamento (melhor esforço, ver `+page.svelte`).
-	await page.getByRole('button', { name: 'Avançar' }).click();
+	// `Continuar para...` é o gatilho do salvamento (melhor esforço, ver `+page.svelte`).
+	await page.getByRole('button', { name: /^Continuar para/ }).click();
 	await expect(page).toHaveURL(/\/questionario\/fotos$/);
 	await expect.poll(() => gravacoes).toBeGreaterThan(0);
 

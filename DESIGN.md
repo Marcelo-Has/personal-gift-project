@@ -669,3 +669,24 @@ componente global ao PR de uma rota só, contra `.claude/rules/right-sizing.md`.
 **Consequência aceita:** até essa issue existir, a landing e o questionário abrem sem marca e sem
 navegação no topo. É omissão registrada, não esquecimento.
 **Origem:** achado [High] do `design-critic` no PR #178, e decisão do dono.
+
+### 2026-08-14 · Novo token de espaço: `--space-nav-fixa`, para a barra fixa de navegação do questionário não engolir conteúdo em 375
+
+**Por que um token novo:** no colapso 375 (§6), `.navegacao-etapas` fica `position: fixed`, presa à
+viewport — o `padding-bottom` de `.etapa` reserva o espaço equivalente para o conteúdo não ficar
+escondido atrás dela. A barra tem dois botões empilhados (`column-reverse`) de 44px cada, `gap` e
+`padding` vertical de `space-sm` (16px cada) e 1px de borda: 44 + 44 + 16 + 16 + 16 + 1 = 137px. O
+`padding-bottom` estava em `space-3xl` (96px, o maior degrau da escala) — faltavam 41px, cobrindo o
+fim do campo e o texto de exemplo em 8 das 9 etapas (achado [High] do `design-critic`, PR #181,
+passada B). Nome semântico, não novo degrau de escala (`space-5xl` sugeriria continuação de
+`space-4xl`, que é maior, não relacionado): mesmo precedente do `space-4xl`, `calc()` composto não
+passa no gate de tokens do CI.
+
+| Token | Valor | Papel |
+| --- | --- | --- |
+| `space-nav-fixa` | `8.5625rem` (137px) | `padding-bottom` de `.etapa` no colapso 375 (§6), para reservar a altura real de `.navegacao-etapas` fixa |
+
+**Aproximação deliberada, não medição exata:** mesma ressalva do `space-4xl` — sem browser
+disponível nesta sessão para medir o render. Se o próximo render mostrar sobra ou falta, o ajuste é
+só o valor deste token.
+**Origem:** achado [High] do `design-critic`, PR #181, passada B — escopado pelo dono no mesmo PR.

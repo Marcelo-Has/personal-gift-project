@@ -63,22 +63,23 @@ test.describe('Campo de escrita do questionário (DESIGN.md §11)', () => {
 		await abrirEtapaHidratada(page, 'como-se-conheceram');
 
 		// A pergunta E a orientação. Um campo vazio sem nenhuma das duas é o estado vazio
-		// não-desenhado que o anti-pattern 58 descreve.
+		// não-desenhado que o anti-pattern 58 descreve. A orientação é voz do sistema (§3):
+		// vive na folha, abaixo do campo (rodada 4, #181 — a margem de 64px não cabe frase real).
 		const secao = page.getByRole('region').first();
 		await expect(secao.getByRole('heading', { level: 2 })).not.toBeEmpty();
-		const orientacao = secao.locator('p').first();
+		const orientacao = page.locator('.voz-sistema__ajuda');
 		await expect(orientacao).toBeVisible();
 		await expect(orientacao).not.toBeEmpty();
 
 		// E o vazio NÃO é erro: entrar na etapa não pode acusar quem ainda não respondeu.
-		await expect(page.locator('.erros')).toHaveCount(0);
+		await expect(page.getByRole('alert')).toHaveCount(0);
 	});
 
 	test('erro: avançar sem responder nomeia o que falta e é anunciado por leitor de tela', async ({
 		page
 	}) => {
 		await abrirEtapaHidratada(page, 'como-se-conheceram');
-		await page.getByRole('button', { name: 'Avançar' }).click();
+		await page.getByRole('button', { name: /^Continuar para/ }).click();
 
 		const erros = page.getByRole('alert');
 		await expect(erros).toBeVisible();
@@ -125,8 +126,8 @@ test.describe('Envio de foto (DESIGN.md §11)', () => {
 		await expect(page.locator('.itens-foto')).toHaveCount(0);
 		await expect(page.locator('.preview-fotos')).toHaveCount(0);
 		await expect(page.getByRole('alert')).toHaveCount(0);
-		// E existe orientação visível sobre o que entra ali.
-		await expect(page.getByRole('region').first().locator('p').first()).not.toBeEmpty();
+		// E existe orientação visível sobre o que entra ali — voz do sistema, na margem (§3).
+		await expect(page.locator('.voz-sistema__ajuda')).not.toBeEmpty();
 	});
 
 	test('carregando: o envio em curso é visível enquanto dura, sem congelar a tela', async ({
