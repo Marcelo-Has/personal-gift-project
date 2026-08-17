@@ -4335,6 +4335,270 @@ as duas leituras para que aparecessem. É a mesma lição da [D-086], aplicada a
 em vez de à infraestrutura: **contrato revisado não é contrato exercitado.**
 
 ---
+## D-090 | 2026-08-17 | ACEITA
+
+**A EV2.4 fecha com o enforcement exercitado ponta a ponta e MEDIDO: o teto de custo por PR é
+US$ 25 no lado do `implement`, tirado das transcrições reais e não de estimativa; os 4 gates
+determinísticos, o `design-critic` e a evidência de screenshot entram na lista de required checks
+— e a medição encontrou um impedimento estrutural que a marcação ingênua criaria, o filtro
+`paths:` de dois desses workflows.** EV2.4 · onda Q6 (fechamento), consumindo o que a [D-081]
+(Q1), a [D-083] (Q2), a [D-084] (Q3), a [D-085] (Q4) e a [D-086] (Q5) montaram. Issue #193.
+
+**Nada aqui é decisão de design.** É medição, o número que ela fixa, e a lista que o dono aplica.
+
+---
+
+### 1. Custo por PR — medido, não estimado
+
+Fonte: o campo `total_cost_usd` do `claude-execution-output.json` que cada run de `implement.yml`
+sobe como artefato ([D-024]). Foram baixadas e lidas as **23 transcrições** dos quatro PRs de UI
+da onda — nenhuma expirada, nenhuma inferência.
+
+| PR | Issue | Sessões | Custo | Turnos | Vereditos do critic |
+| --- | --- | --- | --- | --- | --- |
+| #176 · Q5a fundação da identidade | #175 | 3 | US$ 14,28 | 265 | 6 |
+| #178 · Q5b landing | #177 | 9 | US$ 33,72 | 544 | 16 |
+| #181 · Q5c questionário | #180 | 8 | US$ 26,83 | 476 | 11 |
+| #192 · Q5d barra de topo (pós-EV2.5) | #179 | 3 | US$ 9,13 | 188 | 6 |
+| **Total** | | **23** | **US$ 83,96** | **1473** | **39** |
+
+Os três PRs-piloto nomeados no fechamento (#176, #178, #181) somam **US$ 74,83 em 20 sessões e
+1285 turnos**. Isto **confirma e estende** o parcial da [D-086] item 7 (US$ 14,29 e US$ 33,71 para
+os dois primeiros): os números batem à casa do centavo, e agora existem os outros dois.
+
+**Duas sessões morreram em `error_max_turns` e não entregaram nada**: `subtype:
+error_max_turns`, 101 turnos contra o `--max-turns 100`, no #178 (US$ 8,35) e no #181 (US$ 7,94).
+São **US$ 16,29 — 21,8% do custo dos três pilotos — gastos em sessões que terminaram sem desfecho.**
+É a mesma patologia da [D-086] item 7, agora com n=2 e um percentual: a alavanca de custo mais
+forte da fábrica continua sendo o placar escrito no PR antes do disparo, e ela é gratuita.
+
+**O quarto PR é o número que importa para o futuro.** O #192 é o primeiro PR de UI depois de
+TODAS as correções da EV2.5 ([D-087], [D-088]): fechou em **US$ 9,13 / 3 sessões / 188 turnos**,
+com o critic tendo publicado 6 vereditos. É ~1/3 do custo do #178 e ~1/2,7 do teto que esta
+entrada fixa.
+
+---
+
+### 2. O TETO: US$ 25 por PR de UI, no lado do `implement`. Alerta em US$ 15.
+
+**A base de cálculo, explícita.** O teto não é o máximo observado (US$ 33,72) nem a média
+(US$ 24,94). É o **máximo observado descontado o desperdício que a EV2.5 já corrigiu**:
+
+| PR | Como executado | Menos o `error_max_turns` | |
+| --- | --- | --- | --- |
+| #176 | US$ 14,28 | US$ 14,28 | |
+| #178 | US$ 33,72 | **US$ 25,37** | ← o máximo que sobra |
+| #181 | US$ 26,83 | US$ 18,89 | |
+| #192 | US$ 9,13 | US$ 9,13 | regime já corrigido |
+
+US$ 25,37 arredondado para baixo → **US$ 25**. O alerta fica em **US$ 15**, entre o regime
+corrigido (US$ 9,13) e o teto.
+
+**Por que este número e não outro.** Um teto no máximo observado nunca dispara e não é teto; um
+teto na média dispara em metade do trabalho normal e ensina a fábrica a ignorá-lo — é a mesma
+regra que a [D-085] item 6 aplicou aos detectores de anti-pattern (*"detector que reprova copy
+legítima é pior que detector ausente"*). US$ 25 é ~2,7× o custo do PR pós-correção e teria
+disparado em **dois dos quatro** PRs do piloto (#178 e #181), que são exatamente os dois que
+tiveram defeito estrutural de fábrica. É tripwire de anomalia, não orçamento de rotina.
+
+**O que o teto NÃO cobre, e isto é limite conhecido, não omissão.** Só o `implement.yml` sobe
+transcrição. `review`, `security`, `verdict`, `fix` e o `design-critic` **não sobem** — e o critic
+é o job mais caro da fábrica (15 PNGs `fullPage` por passada, duas passadas por run desde a
+[D-087]). Os 39 vereditos publicados nestes quatro PRs **não estão em nenhum número acima**. O
+custo real por PR é materialmente maior que US$ 25; o que esta entrada fixa é o teto sobre a
+**parcela medível e atribuível**. Fechar essa cegueira significa fazer os outros workflows de IA
+subirem o mesmo artefato, com a mesma redação fail-closed — **anotado como melhoria, não feito
+aqui** (`.claude/rules/right-sizing.md`).
+
+**Como o teto age.** Não há medidor automático hoje, e construir um não é trabalho desta onda. O
+teto é procedimento: PR que passar de US$ 25 no somatório das sessões do `implement` vira
+**decisão de gente** — o desfecho é o mesmo do teto de rodadas ([D-085] item 7), `precisa-humano`,
+e não uma re-entrada a mais. A leitura é `total_cost_usd` do artefato de cada run.
+
+---
+
+### 3. Rodadas até verde: o teto de 3 NÃO foi respeitado no piloto — e a correção está verificada
+
+| PR | Máximo atingido | Respeitou o teto? |
+| --- | --- | --- |
+| #176 | `design:rodada-4` + `precisa-humano` | **não** |
+| #178 | `design:rodada-5` | **não** — dono precisou zerar duas vezes |
+| #181 | `design:rodada-2` por ciclo, 4 ciclos | sim por ciclo, à custa de zeragens manuais |
+| #192 | `design:rodada-3`, com 6 vereditos sobre 4 SHAs | **sim** |
+
+As três primeiras linhas são o defeito da [D-086] item 3 (o teto contava invocação de job, não
+iteração) somado ao gate mudo do item 1 — no #176, as duas primeiras rodadas foram queimadas por
+infra, sem que uma imagem chegasse a ser olhada.
+
+**A quarta linha é a verificação que a [D-087] pediu e que a issue #184 esperava, e ela está
+feita.** No #192, o marcador `<!-- design-critic:sha=… -->` permite auditar a contagem no fio do
+PR:
+
+- sha `01eb32f0` recebeu **dois** vereditos (22:06:07 e 22:07:51), os dois REPROVADO;
+- sha `b2b5d0e4` recebeu **dois** vereditos (22:36:39 e 22:36:46), os dois APROVADO;
+- ao todo **6 vereditos sobre 4 SHAs distintos**, e a label parou em `design:rodada-3`.
+
+Sob a regra antiga, os mesmos 6 vereditos teriam gasto 6 rodadas e entregado o PR a
+`precisa-humano` **antes** de ele chegar ao verde. A contagem idempotente está provada em ambiente
+real, e não só no teste de unidade — que é o critério de método que a [D-086] fecha.
+
+---
+
+### 4. Variância residual do critic: a união de duas passadas reduziu, não eliminou
+
+A [D-087] uniu duas passadas por run, fail-closed. O piloto permite medir o que sobrou, porque a
+ausência deliberada de `concurrency` continuou produzindo runs gêmeos sobre o mesmo SHA — cada um
+já sendo a união de duas passadas.
+
+**Cinco pares gêmeos com marcador de SHA; quatro concordaram, um divergiu.** No #181, sha
+`279441af`: APROVADO às 19:10:08, REPROVADO às 19:12:46. **Divergência residual de 1 em 5 mesmo
+com quatro passadas no total.**
+
+Duas leituras, e as duas valem: a união de duas passadas **melhorou muito** (a [D-086] mediu
+divergência em praticamente todo par gêmeo); e **um run isolado do critic continua sem autoridade
+para aprovar**, exatamente como a [D-086] item 5 concluiu. Vale registrar que o fail-closed
+funcionou por fora: o par divergente deixou o PR bloqueado pelo run vermelho, que é o
+comportamento correto. **O corolário da [D-086] permanece em vigor: check verde não substitui
+olhar o PNG renderizado em PR de UI.**
+
+---
+
+### 5. [D-024] × subagentes: a pergunta continua ABERTA — e agora se sabe exatamente por quê
+
+A [D-086] item 9 corrigiu o teste: contar `tool_use` pelos **dois** nomes, `Task` (como o `init`
+registra) e `Agent` (como o lead relata). O teste corrigido foi rodado agora sobre as **23
+transcrições dos quatro PRs**, e não sobre as 13 daquela medição.
+
+**Resultado: zero.** Nenhuma ocorrência de `Task`, nenhuma de `Agent`, `isSidechain: 0` em todas
+as 23 sessões. O histograma completo de ferramentas do piloto é `Bash` (1000), `Read` (189),
+`Edit` (138), `Grep` (35), `Write` (32), `Monitor` (25), `ToolSearch` (11), `Glob` (5),
+`TaskCreate`/`TaskStop`/`TaskUpdate` (6, que são lista de tarefas e não subagente) e
+`ScheduleWakeup` (4).
+
+**A ferramenta estava lá.** O evento `init` das transcrições lista `Task` no array `tools` e
+registra `developer-frontend`, `developer-backend` e `developer-lead` no array `agents` — a fiação
+da [D-081] item 1 está correta e continua correta. **O que não houve foi ocasião:** as quatro
+issues do piloto resolveram-se como camada única de fato, e o contrato manda o lead executar
+direto nesse caso. O lead cumpriu o contrato nas 23 sessões.
+
+**Então a pergunta original da [D-081] item 3 — a transcrição cobre os turnos INTERNOS de um
+subagente, ou só o brief e o relatório? — NÃO pode ser fechada aqui, e fechá-la por conveniência
+seria falsificar o rastro.** A determinação estática daquela entrada segue sendo a melhor hipótese
+disponível, sem confirmação empírica. **O que fecha essa questão é uma única coisa: a primeira
+issue genuinamente cross-layer.** O teste a rodar no artefato dela está escrito na [D-081] item 3,
+agora com os dois nomes de ferramenta.
+
+Consequência de custo, e ela é boa notícia para o teto do item 2: **o teto de US$ 25 é o custo do
+lead em modo direto.** O risco de token que a [D-081] antecipou ("barato em turno, caro em token")
+continua **inteiramente por medir** — o primeiro PR cross-layer é também a primeira aferição do
+teto num regime diferente, e pode obrigar a revisá-lo.
+
+---
+
+### 6. Falso-positivos do piloto: um só gate os teve, e as duas causas já estão corrigidas
+
+Calibração obrigatória antes de tornar qualquer check required. Todos os check runs de todos os
+commits dos quatro PRs:
+
+| Check | Runs | Falhas | Natureza das falhas |
+| --- | --- | --- | --- |
+| `screenshots` | 38 | **0** | — |
+| `design-md` | 42 | **0** | — |
+| `regras-firebase` | 42 | **0** | — |
+| `ci` | 42 | 2 | reais (stylelint no `@font-face` autoral do #176; 1 no #181) |
+| `e2e` | 42 | 12 | reais — amostrada a do #192: assert de alinhamento da barra de topo |
+| `design-critic` | 105 (61 `skipped`) | 28 | **aqui houve falso-positivo** |
+
+**O único gate com falso-positivo medido é o `design-critic`, por duas causas conhecidas e já
+corrigidas:** o `playwright-core` via `spawn` deixando o gate vermelho e mudo em todo PR de UI
+([D-086] item 1, corrigido em `e40fd7a`), e o `Skipping action due to workflow validation` em PR
+com branch desatualizada ([D-087], adendo). Nenhuma das duas é de julgamento; as duas são infra.
+
+**Nenhuma falha de `e2e` foi flakiness** — os quatro PRs fecharam com `e2e` verde no commit final,
+e todos os nove checks verdes. A ressalva da [D-082] de que "o `e2e` reprova o CI de propósito
+desde que existe" **não vale mais**: os 42 runs do piloto contam outra história.
+
+Os gates determinísticos já haviam sido provados com violação plantada em branch descartável
+([D-085] item 9, tabela dos 7); o piloto é a outra metade que a [D-086] exigiu — **o exercício
+ponta a ponta em ambiente real**. E o teste anti-default do critic reprovou o genérico com
+fartura, como a [D-086] registra (High D7 no #176, High D1 no #178, este contra o texto da própria
+issue).
+
+---
+
+### 7. A lista exata de required checks — e o impedimento que a medição encontrou
+
+Required hoje na proteção da `main` (lidos pela API, `strict: true`): `ci`, `regras-firebase`,
+`scans`, `review`, `ai-security-review`. Faltam quatro, e é a pendência aberta desde a [D-082] e
+repetida na [D-083] e na [D-085].
+
+**Mapa gate → nome do check.** Os "4 gates determinísticos" não são 4 checks: três deles moram no
+mesmo job, e é o **nome do check** que a branch protection exige.
+
+| Gate | Onde roda | Check |
+| --- | --- | --- |
+| 1 · tokens (Stylelint) | `npm run lint` | `ci` ✔ já required |
+| 5 · anti-patterns `[LINT]` | `npm run lint` | `ci` ✔ já required |
+| 4 · cobertura de estados (§11) | `npm run test:unit` | `ci` ✔ já required |
+| 2 · axe + Lighthouse ≥ 0,9 | `e2e/design/a11y.spec.ts` + `lighthouse-a11y.mjs` | **`e2e`** ➕ |
+| 3 · viewports 375/768/1280 | `e2e/design/viewports.spec.ts` | **`e2e`** ➕ |
+| 4 · estados obrigatórios | `e2e/design/estados.spec.ts` | **`e2e`** ➕ |
+| `DESIGN.md` existe e aprovado | `gate-design-md.mjs` | **`design-md`** ➕ |
+| 7 · evidência de screenshot | `screenshots.yml` | **`screenshots`** ➕ |
+| 6 · veredito do critic | `design-critic.yml` | **`design-critic`** ➕ |
+
+**APLICAR AGORA — os dois seguros, levando a lista de 5 para 7:**
+
+```
+ci  ·  regras-firebase  ·  scans  ·  review  ·  ai-security-review  ·  design-md  ·  e2e
+```
+
+`design-md` e `e2e` são jobs de `ci.yml`, que **não tem filtro `paths:`** — reportam em todo PR.
+Calibração do item 6: `design-md` 42/42 verde, `e2e` sem uma única falha espúria.
+
+**NÃO APLICAR AINDA — `screenshots` e `design-critic`, e o motivo é estrutural.** Os dois
+workflows têm filtro `paths:` restrito a arquivos de UI. Em PR que não toca UI — docs, workflow,
+backend — o workflow **não roda e o check não reporta**. Required check **ausente** trava o merge
+para sempre, e travaria toda a fábrica fora do frontend, inclusive esta entrada.
+
+A distinção é fina e o piloto a comprova: `review` e `ai-security-review` **já são required** e
+aparecem como `skipped` em PR de WIP sem travar nada — porque `review.yml`/`security.yml` não têm
+`paths:`, então o check **reporta** (como `skipped`, que a branch protection aceita). O problema
+nunca foi `skipped`; é **ausente**.
+
+**O que destrava.** Tirar o `paths:` do gatilho dos dois workflows e mover a decisão "este PR toca
+UI?" para dentro do job, como primeiro step que curto-circuita para sucesso quando não toca — o
+check passa a reportar sempre, e a economia de runner continua. É mudança de `.yml`, portanto
+**aplicação manual do dono** (o App da fábrica não tem escopo `workflows`, [D-086] item 6), e vira
+issue própria. Enquanto não for feita, os dois continuam **alarme visível e vermelho**, que é
+estritamente melhor que o estado da [D-082] — lá o critic nem vermelho ficava.
+
+**A marcação em si é configuração de repositório, fora do versionamento — família [D-041].** Esta
+entrada entrega a lista e a nota; quem aplica é o dono, em Settings → Branches.
+
+---
+
+### 8. O que fecha a EV2.4
+
+O enforcement previsto no [D-078] §7 existe, está ligado e foi **exercitado contra produto real**:
+as duas páginas (landing e questionário), a fundação da identidade e a barra de topo. As violações
+plantadas reprovaram cada gate ([D-085] item 9) e as fixtures que sobraram delas rodam a cada CI; o
+critic reprovou o genérico ([D-086]); a evidência visual foi produzida em 38 runs sem uma falha; e
+os quatro PRs fecharam com os nove checks verdes.
+
+**Fica medido e fixado:** o teto de US$ 25 por PR, a lista de required checks, e a confirmação em
+ambiente real da contagem idempotente de rodadas.
+
+**Fica aberto, com nome e caminho:** a [D-024] × subagentes, à espera da primeira issue
+cross-layer; a variância residual de 1 em 5 do critic; o filtro `paths:` de `screenshots` e
+`design-critic`; e a cegueira de custo dos workflows de IA que não sobem transcrição.
+
+**A lição de método da [D-086] se confirma na direção inversa e é o que esta onda acrescenta:** o
+que a Q5 exercitou, a Q6 conseguiu medir com número — e o único item que não fechou é justamente
+aquele para o qual **não houve ocasião de exercício**. Contrato revisado não é contrato
+exercitado; e contrato exercitado uma vez não é contrato medido.
+
+---
 ## PENDENTES (Decision Gates antes do lançamento)
 - **D-100** | Retenção/exclusão das fotos (LGPD): excluir após X dias ou manter até pedido?
 - **D-101** | Preço da V1 — **só os NÚMEROS**: quanto custa cada tamanho (depende do custo real
