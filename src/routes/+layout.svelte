@@ -8,6 +8,9 @@
 	import { setContext, tick, type Snippet } from 'svelte';
 	import { browser } from '$app/environment';
 	import { afterNavigate, beforeNavigate } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { homeContent } from '$lib/home-content';
 
 	let { children } = $props();
 
@@ -36,6 +39,13 @@
 	function ehRotaDoQuestionario(routeId: string | null | undefined): boolean {
 		return !!routeId && routeId.startsWith('/questionario');
 	}
+
+	// §15 "CTA da barra de topo: cheio numa rota, rebaixado noutra" (revisão do dono, PR #192): nas
+	// rotas que já têm ação primária própria — o questionário e a recuperação de pagamento — a ação
+	// da barra perde o preenchimento sólido, para sobrar só UM botão cheio por tela (playbook §2.2).
+	let acaoDaBarraRebaixada = $derived(
+		ehRotaDoQuestionario(page.route.id) || page.route.id === '/pedido/cancelado'
+	);
 
 	beforeNavigate((navegacao) => {
 		alturaAntesDaNavegacao =
@@ -69,6 +79,14 @@
 
 <div class="pagina">
 	<div class="regua" bind:this={reguaEl} aria-hidden="true"></div>
+	<header class="barra-topo">
+		<a class="marca" href={resolve('/')}>Nossa História</a>
+		<a
+			class="acao-barra"
+			class:acao-barra--rebaixada={acaoDaBarraRebaixada}
+			href={resolve(homeContent.ctaHref)}>{homeContent.ctaLabel}</a
+		>
+	</header>
 	<div class="grade">
 		<div class="margem">
 			{#if conteudoMargem}
@@ -132,6 +150,89 @@
 		.regua {
 			left: var(--space-2xl);
 		}
+	}
+
+	/*
+	 * A barra de topo (§6, wireframe da página de produto; §15 "Barra de topo do wireframe da §6").
+	 * Chrome global, acima de `.grade` — aparece em TODA rota, inclusive acima da primeira dobra
+	 * (§3: "a régua aparece... acima da primeira dobra"). A régua (`position: absolute`, `top`/
+	 * `bottom: 0` dentro de `.pagina`) já cobre a altura desta barra também, sem precisar de nada
+	 * aqui: ela não depende da ordem do DOM.
+	 *
+	 * `margin-inline-start` usa os MESMOS tokens que alinham `.folha` à régua — não um valor novo:
+	 * no 375 a `.folha` fica a `--space-lg` da borda (a coluna única não reserva `.margem`); a
+	 * partir de 768 a coluna de `.margem` (`--space-2xl`) soma com o `margin-inline-start` da
+	 * `.folha` (`--space-lg`), e a soma bate exatamente com `--space-3xl` (96px) — por isso não é
+	 * `calc()`. O resultado: a marca começa no mesmo eixo X do conteúdo abaixo dela, e a barra
+	 * nunca começa antes da régua — nunca a cruza (`../e2e/design/regua.spec.ts`).
+	 */
+	.barra-topo {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-sm);
+		margin-inline-start: var(--space-lg);
+		padding: var(--space-md) var(--space-md) var(--space-md) 0;
+		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	@media (min-width: 768px) {
+		.barra-topo {
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			margin-inline-start: var(--space-3xl);
+			padding: var(--space-lg) var(--space-xl) var(--space-lg) 0;
+		}
+	}
+
+	/* A marca (§1, §2: voz utilitária de capa, não voz do livro) — Archivo, como a voz do sistema
+	   (§4.5), mas em `--foreground`: é identidade, não rótulo rebaixado. */
+	.marca {
+		font-family: var(--font-sistema);
+		font-weight: var(--weight-sistema);
+		font-stretch: var(--font-stretch-sistema);
+		font-size: var(--text-body);
+		color: var(--foreground);
+		text-decoration: none;
+	}
+
+	/* A ação (§6: "mesmo rótulo e mesma ação" do CTA da home — anti-pattern 70): mesma receita
+	   visual do `.cta` da landing (`src/routes/+page.svelte`) — `--accent` é a única tinta. No 375
+	   ocupa a largura da coluna, embaixo da marca (colapso desenhado desta issue: o rótulo
+	   completo do CTA — "Começar o meu livro" — não cabe ao lado da marca numa só linha sem
+	   apertar as duas). */
+	.acao-barra {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		align-self: stretch;
+		padding: var(--space-sm) var(--space-md);
+		font-weight: var(--weight-forte);
+		color: var(--surface-raised);
+		text-decoration: none;
+		background: var(--accent);
+		border-radius: var(--radius-sm);
+	}
+
+	.acao-barra:hover,
+	.acao-barra:active {
+		opacity: 0.9;
+	}
+
+	@media (min-width: 768px) {
+		.acao-barra {
+			align-self: auto;
+		}
+	}
+
+	/* Rebaixada (§15, "CTA da barra de topo: cheio numa rota, rebaixado noutra"): outline em
+	   `--accent`, sem preenchimento — a página abaixo já tem a sua própria ação cheia, e dois
+	   botões com o mesmo peso visual competiriam pela mesma atenção (achado do dono, PR #192). */
+	.acao-barra--rebaixada {
+		color: var(--accent);
+		background: transparent;
+		border: 1px solid var(--accent);
 	}
 
 	/*
